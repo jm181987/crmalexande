@@ -10,6 +10,7 @@ async function remote(e,path,method='GET',body){
  const data=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(new Error('Evolution API request failed'),{status:502});return data;
 }
 export function registerEvolutionInstances(app,auth){
+ app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
  app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
  app.post('/api/evolution/instances',auth,admin,safe(async(req,res)=>{
  const e=cfg(),label=req.body?.label,name=req.body?.name;if(!ready(e))return res.status(503).json({error:'Configure HTTPS Evolution API, API key and PUBLIC_APP_URL'});
