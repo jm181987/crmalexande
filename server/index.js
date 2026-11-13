@@ -9,7 +9,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {query} from './db.js';
 import {registerModuleRoutes} from './modules.js';
-import {registerEvolution} from './evolution.js';
+import {registerEvolutionInstances} from './evolution-instances.js';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
 if(process.env.APP_ORIGIN)app.use(cors({origin:process.env.APP_ORIGIN,credentials:true}));
@@ -143,7 +143,7 @@ app.post('/api/appointments',auth,asyncRoute(async(req,res)=>{
  const r=await query('INSERT INTO appointments(company_id,contact_id,owner_id,title,start_at,end_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.user.company_id,contact_id||null,req.user.id,title.trim(),start_at,end_at]);res.status(201).json(r.rows[0]);
 }));
 registerModuleRoutes(app,auth);
-registerEvolution(app,auth);
+registerEvolutionInstances(app,auth);
 app.use('/api',(req,res)=>res.status(404).json({error:'API route not found'}));
 if(process.env.NODE_ENV==='production'){
  const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
