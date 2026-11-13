@@ -1,0 +1,11 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS crm_automation_rules(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),name text NOT NULL,trigger_event text NOT NULL DEFAULT 'manual',action_type text NOT NULL DEFAULT 'create_task',config jsonb NOT NULL DEFAULT '{}',enabled boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS crm_campaigns(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),name text NOT NULL,channel text NOT NULL DEFAULT 'whatsapp',template_name text,content text NOT NULL DEFAULT '',status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','ready','paused','completed')),created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS crm_integrations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),provider text NOT NULL,status text NOT NULL DEFAULT 'disconnected',config jsonb NOT NULL DEFAULT '{}',updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(company_id,provider));
+CREATE TABLE IF NOT EXISTS crm_ai_settings(company_id uuid PRIMARY KEY REFERENCES companies(id),mode text NOT NULL DEFAULT 'off' CHECK(mode IN ('off','suggest','auto')),instructions text NOT NULL DEFAULT '',handoff_enabled boolean NOT NULL DEFAULT true,updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS crm_knowledge(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),title text NOT NULL,url text,content text NOT NULL DEFAULT '',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS crm_review_requests(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),contact_id uuid NOT NULL REFERENCES contacts(id),platform text NOT NULL DEFAULT 'google',review_url text,status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','sent','completed')),created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_crm_automation_company ON crm_automation_rules(company_id);
+CREATE INDEX IF NOT EXISTS idx_crm_campaign_company ON crm_campaigns(company_id);
+CREATE INDEX IF NOT EXISTS idx_crm_reviews_company ON crm_review_requests(company_id);
+COMMIT;
