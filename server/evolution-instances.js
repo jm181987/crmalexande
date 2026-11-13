@@ -6,8 +6,12 @@ const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSEC
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
 const admin=(req,res,next)=>req.user.role==='agent'?res.sendStatus(403):next();
 async function remote(e,path,method='GET',body){
- const response=await fetch(e.url+path,{method,headers:{apikey:e.key,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(12000)});
- const data=await response.json().catch(()=>({}));if(!response.ok)throw Object.assign(new Error('Evolution API request failed'),{status:502});return data;
+ let response;
+ try{response=await fetch(e.url+path,{method,headers:{apikey:e.key,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(12000)})}
+ catch(err){console.error('Evolution network error',err?.cause?.code||err?.code||err?.name);throw Object.assign(new Error('Evolution API unreachable or timed out'),{status:502,phase:'network'})}
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok){console.error('Evolution HTTP error',response.status,path.split('/').slice(0,3).join('/'));throw Object.assign(new Error('Evolution API returned HTTP '+response.status),{status:502,phase:'upstream',upstreamStatus:response.status})}
+ return data;
 }
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
@@ -17,9 +21,9 @@ export function registerEvolutionInstances(app,auth){
  if(typeof label!=='string'||!label.trim()||label.length>100||typeof name!=='string'||!/^crm-[a-z0-9-]{3,50}$/.test(name))return res.status(400).json({error:'Use a unique instance name starting crm-'});
  const existing=await query('SELECT id FROM crm_evolution_instances WHERE name=$1',[name]);if(existing.rowCount)return res.status(409).json({error:'Instance name already exists'});
  const secret=crypto.randomBytes(32).toString('hex'),url=e.origin+'/api/webhooks/evolution/'+secret;
- const created=await remote(e,'/instance/create','POST',{instanceName:name,integration:'WHATSAPP-BAILEYS',qrcode:true});
+ let created;try{created=await remote(e,'/instance/create','POST',{instanceName:name,integration:'WHATSAPP-BAILEYS',qrcode:true})}catch(err){return res.status(502).json({error:err.message,phase:'instance_create',upstreamStatus:err.upstreamStatus||null})}
  try{await remote(e,'/webhook/set/'+encodeURIComponent(name),'POST',{webhook:{enabled:true,url,webhookByEvents:false,events:['MESSAGES_UPSERT','CONNECTION_UPDATE']}})}
- catch(err){return res.status(502).json({error:'Instance created remotely but webhook setup failed. Configure webhook manually before use.',instance:name})}
+ catch(err){return res.status(502).json({error:'Instance created remotely but webhook setup failed',phase:'webhook_setup',upstreamStatus:err.upstreamStatus||null,instance:name})}
  const row=await query('INSERT INTO crm_evolution_instances(company_id,name,label,webhook_secret_hash,status) VALUES($1,$2,$3,$4,$5) RETURNING id,name,label,status,created_at',[req.user.company_id,name,label.trim(),digest(secret),'created']);
  res.status(201).json({...row.rows[0],qrcode:created.qrcode||null});
  }));
