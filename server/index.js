@@ -147,4 +147,5 @@ if(process.env.NODE_ENV==='production'){
 }
 app.use((e,req,res,next)=>{console.error('API error',e.code||e.message);if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error'});});
 if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
-app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>console.log('Alexandre CRM server started'));
+if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>console.log('Alexandre CRM server started'));
+export default app;
