@@ -1,0 +1,13 @@
+import React,{useState,useEffect} from 'react';
+const request=async(path,method='GET',body)=>{const r=await fetch('/api'+path,{method,credentials:'include',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Request failed');return d};
+export default function EvolutionPanel({user,error}){
+ const [instances,setInstances]=useState([]),[name,setName]=useState(''),[label,setLabel]=useState(''),[busy,setBusy]=useState(false),[qr,setQr]=useState(null),[status,setStatus]=useState({});
+ const refresh=()=>request('/evolution/instances').then(setInstances).catch(e=>error(e.message));
+ useEffect(()=>{refresh()},[]);
+ const create=async e=>{e.preventDefault();setBusy(true);try{const d=await request('/evolution/instances','POST',{name,label});setName('');setLabel('');setQr(d.qrcode?.base64||null);refresh()}catch(e){error(e.message)}finally{setBusy(false)}};
+ const inspect=async(id,connect)=>{try{const d=await request('/evolution/instances/'+id+'/'+(connect?'connect':'status'));if(connect)setQr(d.base64||null);else setStatus(x=>({...x,[id]:d.state}))}catch(e){error(e.message)}};
+ return <div className="panel" style={{padding:20,marginBottom:20}}><h2>WhatsApp · Evolution API</h2><p>Una instancia por conexión, con la API key global protegida en Vercel. Requiere Evolution API con HTTPS.</p>
+ {user.role!=='agent'&&<form onSubmit={create} style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'end'}}><label>Nombre visible<input required maxLength={100} value={label} onChange={e=>setLabel(e.target.value)} placeholder="Ventas Brasil"/></label><label>Identificador único<input required pattern="crm-[a-z0-9-]{3,50}" value={name} onChange={e=>setName(e.target.value)} placeholder="crm-ventas-brasil"/></label><button className="primary" disabled={busy}>Crear instancia</button></form>}
+ {qr&&<div style={{marginTop:16}}><h3>Vincular WhatsApp</h3><img src={qr.startsWith('data:')?qr:'data:image/png;base64,'+qr} alt="Código QR para vincular WhatsApp" style={{maxWidth:260}}/><button onClick={()=>setQr(null)}>Cerrar QR</button></div>}
+ <div className="table-scroll"><table><thead><tr><th>Instancia</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{instances.map(i=><tr key={i.id}><td>{i.name}</td><td>{i.label}</td><td>{status[i.id]||i.status}</td><td><button onClick={()=>inspect(i.id,false)}>Actualizar estado</button>{user.role!=='agent'&&<button onClick={()=>inspect(i.id,true)}>Conectar / QR</button>}</td></tr>)}</tbody></table>{!instances.length&&<p>Sin instancias creadas.</p>}</div></div>
+}
