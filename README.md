@@ -67,3 +67,18 @@ Run `scripts/modules.sql` once on the existing PostgreSQL database (as a databas
 
 ### Integration prerequisites
 Real WhatsApp Cloud API, Instagram/Messenger, SMS, email, Google/Outlook Calendar, Ads, AI model calls and review delivery need provider-specific credentials, verified webhooks, security validation, opt-in/compliance checks, queues and deployment tests. Do not put provider tokens in the integration metadata form or GitHub; store them as Vercel secrets.
+
+## WhatsApp Cloud API (first real channel integration)
+Execute `scripts/whatsapp.sql` as the database administrator on the existing CRM database. No existing rows are deleted. Configure the following **server-side** Vercel environment variables, not VITE_* variables and not in GitHub:
+- `WHATSAPP_VERIFY_TOKEN`: a long random string you generate and enter in the Meta webhook settings.
+- `WHATSAPP_APP_SECRET`: the Meta app secret used to verify X-Hub-Signature-256.
+- `WHATSAPP_ACCESS_TOKEN`: a system-user access token with the appropriate WhatsApp permissions.
+- `WHATSAPP_PHONE_NUMBER_ID`: the WhatsApp Business phone number ID.
+- `WHATSAPP_COMPANY_ID`: the CRM company's UUID. This release supports **one** configured CRM company/phone number per deployment.
+- `WHATSAPP_API_VERSION`: optional pinned supported Graph API version (default `v23.0`; update when required by Meta).
+
+Webhook URL: `https://YOUR-PRODUCTION-DOMAIN/api/webhooks/whatsapp`. Subscribe to the WhatsApp Business Account `messages` webhook field and configure Meta app access and phone-number permissions. HTTPS is mandatory. Redeploy after adding environment variables.
+
+Incoming text messages are matched to contacts by WhatsApp sender ID, create conversations, and are saved with message-ID deduplication. Non-text message types are recorded as placeholders, **not** downloaded or parsed. Outbound free-form text is available through the WhatsApp button in the conversations inbox only during the 24-hour customer service window and only to authorized CRM users. Meta's Graph API is called server-side. The API does not support approved templates, attachments, delivery-status processing, per-company credential storage, or retry queues yet. Webhook requests are verified with HMAC SHA-256; failed signatures are rejected. Do not enable external messaging without end-to-end tests on a test number and opt-in/compliance review.
+
+**Operational caveat:** For production-scale webhook reliability, replace synchronous processing with a durable queue and event retries. Inbound message and conversation creation are not currently wrapped in one transaction, so concurrency and transient database failures need further hardening. Meta may retry non-200 webhook deliveries.
