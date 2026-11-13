@@ -52,3 +52,18 @@ These need provider API credentials and permissions, verified webhooks, outbound
 - Set `COOKIE_SECURE=true` behind HTTPS and a long random `JWT_SECRET`.
 - API scopes agent records by ownership and all records by company, not only frontend UI filters.
 - Before handling real customer data, add login rate limiting, backup/restore tests, structured audit logging, production migrations, full input validation, CSRF protection as needed, data retention controls and monitored job queues.
+
+## Phase 2 modules (Vercel-compatible)
+- Contact editing and filtering by source and tags.
+- Reports for pipeline stages, team, lead sources, won opportunities and tasks.
+- Automation rule registry with enable/disable switches. **Rules are not yet executed automatically**; a durable event processor is required.
+- Campaign drafts for WhatsApp, email and SMS. **No outbound sending is implemented**.
+- AI instructions/modes and knowledge text/HTTPS URL registry. **No model provider or URL ingestion is connected**.
+- Review request drafts, and integration status catalog. **No external review requests are sent**.
+- Existing opportunities Kanban, internal inbox, calendar and task functionality remains available.
+
+### Mandatory production migration
+Run `scripts/modules.sql` once on the existing PostgreSQL database (as a database administrator) before using the new modules, or run `npm run db:migrate` from a secure Node environment with database connectivity. The migration is additive and does not remove existing users or records. On Vercel, redeploy after the migration. New API routes are registered under `/api` and retain company/role scoping.
+
+### Integration prerequisites
+Real WhatsApp Cloud API, Instagram/Messenger, SMS, email, Google/Outlook Calendar, Ads, AI model calls and review delivery need provider-specific credentials, verified webhooks, security validation, opt-in/compliance checks, queues and deployment tests. Do not put provider tokens in the integration metadata form or GitHub; store them as Vercel secrets.
