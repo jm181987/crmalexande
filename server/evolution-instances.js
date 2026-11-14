@@ -87,6 +87,7 @@ export function registerEvolutionInstances(app,auth){
   catch(err){return res.status(502).json({error:'No se pudo contactar la URL pública del webhook',detail:err.name})}
   const contentType=String(result.headers.get('content-type')||'').slice(0,80);
   const vercelId=Boolean(result.headers.get('x-vercel-id'));
+  const receiverMarker=result.headers.get('x-alexandre-evolution-webhook')==='v1';
   const authHeader=String(result.headers.get('www-authenticate')||'').slice(0,100);
   const redirect=String(result.headers.get('location')||'');
   const responseText=await result.text().catch(()=> '');
@@ -94,9 +95,10 @@ export function registerEvolutionInstances(app,auth){
   let responseError=null,responseCode=null;
   try{const parsed=JSON.parse(responseText);if(parsed&&typeof parsed==='object'){responseError=typeof parsed.error==='string'?parsed.error.slice(0,120):typeof parsed.message==='string'?parsed.message.slice(0,120):null;responseCode=typeof parsed.code==='string'?parsed.code.slice(0,80):null}}catch{}
   // Never return raw upstream body, URL, tokens, or request headers.
-  res.json({http_status:result.status,response_error:responseError,response_code:responseCode,reachable:result.status===200,content_type:contentType,vercel_edge:vercelId,vercel_protection_page:vercelProtection,auth_challenge:authHeader||null,redirect_to_login:/login|auth|sso/i.test(redirect),origin_host:new URL(e.origin).host,notice:'Prueba desde el servidor CRM; no verifica la entrega desde Evolution ni crea mensajes'});
+  res.json({http_status:result.status,response_error:responseError,response_code:responseCode,reachable:result.status===200,content_type:contentType,vercel_edge:vercelId,receiver_reached:receiverMarker,vercel_protection_page:vercelProtection,auth_challenge:authHeader||null,redirect_to_login:/login|auth|sso/i.test(redirect),origin_host:new URL(e.origin).host,notice:'Prueba desde el servidor CRM; no verifica la entrega desde Evolution ni crea mensajes'});
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
+ res.set('X-Alexandre-Evolution-Webhook','v1');
  console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
  const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
  const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name});return res.sendStatus(200)}
