@@ -1,3 +1,4 @@
+import {unsubscribeUrl} from './campaign-unsubscribe.js';
 import {query} from './db.js';
 const json=async r=>{const text=await r.text();if(!r.ok)throw Error('upstream_http_'+r.status);try{return JSON.parse(text)}catch{return {}}};
 export async function dispatchCampaignBatch({limit=10}={}){
@@ -14,7 +15,8 @@ export async function dispatchCampaignBatch({limit=10}={}){
     if(!process.env.SENDGRID_API_KEY||!process.env.SENDGRID_FROM_EMAIL)throw Error('sendgrid_not_configured');
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(item.email||''))throw Error('invalid_email');
     const subject=String(item.template_name||'Información comercial').slice(0,150);
-    const body={personalizations:[{to:[{email:item.email}],custom_args:{campaign_delivery_id:item.id}}],from:{email:process.env.SENDGRID_FROM_EMAIL},subject,content:[{type:'text/plain',value:item.content}],...(process.env.SENDGRID_REPLY_TO?{reply_to:{email:process.env.SENDGRID_REPLY_TO}}:{})};
+    const unsubscribe=unsubscribeUrl(item.company_id,item.contact_id);
+    const body={headers:{'List-Unsubscribe':'<'+unsubscribe+'>'},personalizations:[{to:[{email:item.email}],custom_args:{campaign_delivery_id:item.id}}],from:{email:process.env.SENDGRID_FROM_EMAIL},subject,content:[{type:'text/plain',value:item.content+'\\n\\nPara cancelar suscripción: '+unsubscribe}],...(process.env.SENDGRID_REPLY_TO?{reply_to:{email:process.env.SENDGRID_REPLY_TO}}:{})};
     const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{Authorization:'Bearer '+process.env.SENDGRID_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
     if(r.status!==202)throw Error('sendgrid_http_'+r.status);
     external=r.headers.get('x-message-id');
