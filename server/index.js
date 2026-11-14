@@ -133,6 +133,16 @@ app.get('/api/conversations',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT v.*,c.name AS contact_name,c.phone AS contact_phone,u.name AS assignee_name,(SELECT body FROM messages m WHERE m.conversation_id=v.id ORDER BY created_at DESC LIMIT 1) AS last_message FROM conversations v JOIN contacts c ON c.id=v.contact_id LEFT JOIN users u ON u.id=v.assignee_id WHERE v.company_id=$1'+ownerSql(req.user,'v.assignee_id')+' ORDER BY v.updated_at DESC LIMIT 200',p(req.user));res.json(r.rows);
 }));
 // Inbox assignment: managers can assign any active agent in their company.
+// Opt-in Round Robin configuration, owner/manager only.
+app.get('/api/round-robin',auth,manager,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT enabled,last_assignee_id,updated_at FROM crm_round_robin_settings WHERE company_id=$1',[req.user.company_id]);
+ res.json(r.rows[0]||{enabled:false,last_assignee_id:null});
+}));
+app.put('/api/round-robin',auth,manager,asyncRoute(async(req,res)=>{
+ if(typeof req.body?.enabled!=='boolean')return res.status(400).json({error:'Invalid setting'});
+ const r=await query('INSERT INTO crm_round_robin_settings(company_id,enabled) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET enabled=EXCLUDED.enabled,updated_at=now() RETURNING enabled,last_assignee_id,updated_at',[req.user.company_id,req.body.enabled]);
+ res.json(r.rows[0]);
+}));
 app.get('/api/conversations/agents',auth,asyncRoute(async(req,res)=>{
  const r=await query("SELECT id,name,role FROM users WHERE company_id=$1 AND is_active=true ORDER BY name",[req.user.company_id]);
  res.json(r.rows);
