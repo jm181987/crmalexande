@@ -16,6 +16,19 @@ export function registerCampaignDelivery(app,auth){
   if(!opted_in)await query("UPDATE crm_campaign_deliveries SET status='skipped',error_code='opted_out' WHERE company_id=$1 AND contact_id=$2 AND status='queued' AND campaign_id IN (SELECT id FROM crm_campaigns WHERE company_id=$1 AND channel=$3)",[req.user.company_id,req.params.contactId,channel]);
   res.json(x.rows[0]);
  }));
+ app.get('/api/campaigns/operations/status',auth,manager,(req,res)=>{
+  res.json({
+   dispatch_enabled:process.env.CAMPAIGN_DELIVERY_ENABLED==='true',
+   automations_enabled:process.env.CRM_AUTOMATIONS_ENABLED==='true',
+   worker_secret_configured:Boolean(process.env.CAMPAIGN_WORKER_SECRET?.length>=24),
+   sendgrid_key_configured:Boolean(process.env.SENDGRID_API_KEY),
+   sendgrid_sender_configured:Boolean(process.env.SENDGRID_FROM_EMAIL),
+   sendgrid_webhook_key_configured:Boolean(process.env.SENDGRID_EVENT_PUBLIC_KEY),
+   unsubscribe_configured:Boolean(process.env.CAMPAIGN_UNSUBSCRIBE_SECRET?.length>=32&&/^https:\/\//.test(process.env.PUBLIC_APP_URL||'')),
+   evolution_configured:Boolean(process.env.EVOLUTION_API_URL&&process.env.EVOLUTION_API_KEY),
+   scheduler_status:'not_verified'
+  });
+ });
  app.get('/api/sendgrid/config-check',auth,manager,(req,res)=>{
   const from=String(process.env.SENDGRID_FROM_EMAIL||'');
   res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:from.includes('@')&&from.includes('.'),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false});
