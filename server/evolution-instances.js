@@ -51,17 +51,19 @@ export function registerEvolutionInstances(app,auth){
    const events=Array.isArray(w.events)?w.events:[];
    webhook={enabled:w.enabled===true||w.enabled==='true',url_host_matches:url.startsWith(e.origin+'/api/webhooks/evolution/'),secret_matches:secret?digest(secret)===row.rows[0].webhook_secret_hash:false,messages_upsert_enabled:events.some(x=>String(x).toUpperCase().replace(/[.]/g,'_')==='MESSAGES_UPSERT')};
   }catch(err){webhookError=err.message}
-  res.json({instance:name,state:connection.instance?.state||connection.state||'unknown',webhook,webhook_error:webhookError});
+  const counts=await query("SELECT (SELECT COUNT(*)::int FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE $2) AS conversations,(SELECT COUNT(*)::int FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.company_id=$1 AND c.channel='whatsapp' AND c.external_id LIKE $2 AND m.direction='inbound') AS inbound_messages",[req.user.company_id,name+':%']);
+  res.json({instance:name,state:connection.instance?.state||connection.state||'unknown',webhook,webhook_error:webhookError,stored:counts.rows[0]});
  }));
  app.get('/api/evolution/instances/:id/connect',auth,admin,safe(async(req,res)=>{
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
- const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount)return res.sendStatus(403);
- const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name)return res.sendStatus(200);
+ const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
+ const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name});return res.sendStatus(200)}
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
+ console.info('Evolution inbound event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:1});
  for(const item of Array.isArray(payload.data)?payload.data:[payload.data]){
  const key=item?.key||{},jid=String(key.remoteJid||'');
  // Evolution may supply a WhatsApp LID and a separate phone JID. Never treat a LID as a phone number.
@@ -85,7 +87,7 @@ export function registerEvolutionInstances(app,auth){
  }
  const m=item.message||{},body=m.conversation||m.extendedTextMessage?.text||('[WhatsApp '+String(item.messageType||'media')+']');
  const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,'inbound',$2,$3) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,String(body).slice(0,10000),external]);
- if(saved.rowCount)await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conv.rows[0].id]);
+ if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conv.rows[0].id]);console.info('Evolution inbound stored',{instance:inst.name})}
  }res.sendStatus(200);
  }));
  app.post('/api/conversations/:id/evolution-send',auth,safe(async(req,res)=>{
