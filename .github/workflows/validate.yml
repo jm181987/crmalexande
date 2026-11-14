@@ -1,0 +1,22 @@
+name: CRM validation
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Check backend JavaScript syntax
+        run: |
+          for file in server/*.js scripts/*.js api/*.js; do
+            [ -f "$file" ] || continue
+            node --check "$file"
+          done
+      - run: npm run build
