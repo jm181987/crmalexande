@@ -89,3 +89,16 @@ Run `scripts/evolution_instances.sql` in the existing PostgreSQL database. Keep 
 In **Integrations > WhatsApp · Evolution API**, an owner or manager creates a connection with a globally unique identifier prefixed `crm-`. The backend uses the global API key to create an Evolution v2 Baileys instance, sets a unique secret webhook URL, and provides a QR code and connection-state lookup. Each instance is stored against its CRM company, and incoming messages are scoped to that company. Outbound replies are routed to the matching instance. Do not store the global API key in browser local storage or the CRM integration metadata.
 
 Evolution v2 instance and webhook API shapes vary by release; verify against the installed version before production rollout. Creation is not transactional across Evolution and PostgreSQL: a webhook setup or database failure may leave a remote instance needing manual reconciliation. No deletion/rotation UI, background retries, media ingestion or automated connection recovery is included yet. Webhook URLs contain a random secret and must not be shared; use a protected HTTPS origin and avoid logging full paths. Webhook payloads are not HMAC-signed by Evolution in this adapter; protect the webhook secret and consider an API gateway/IP restrictions for production.
+
+
+## Campañas comerciales (WhatsApp / SendGrid)
+
+Se agregó una primera interfaz en **Campañas** para crear campañas, registrar consentimiento por canal, segmentar por etiqueta/origen, preparar destinatarios, consultar conteos y pausar campañas. El estado inicial es **borrador**. Ninguna campaña se envía al prepararla.
+
+**Migración obligatoria:** ejecutar `npm run db:migrate` con `DATABASE_URL` apuntando a la base correcta, en un entorno autorizado. El esquema incremental está en `scripts/modules.sql`. Hacer respaldo antes de migrar. No ejecutar migraciones de producción desde una máquina sin acceso controlado.
+
+**SendGrid (variables privadas del servidor):** `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` (remitente verificado), `SENDGRID_REPLY_TO` (opcional). Nunca incluir la clave en el navegador ni en `crm_integrations.config`.
+
+**Despacho programado:** `CAMPAIGN_WORKER_SECRET` (mínimo 24 caracteres) y `CAMPAIGN_DELIVERY_ENABLED=true` activan el endpoint privado `POST /api/internal/campaign-dispatch` con `Authorization: Bearer <secret>`. Es necesario configurar un cron externo que llame el endpoint a intervalos regulares; sin cron no hay envío automático. Mantener `CAMPAIGN_DELIVERY_ENABLED` desactivado hasta terminar las pruebas con destinatarios internos. Los registros se procesan en lotes de máximo 10 por ejecución y respetan el `due_at` de cada destinatario. Un HTTP 202 de SendGrid significa **aceptado por el proveedor**, no entregado al buzón.
+
+**Limitaciones actuales:** no hay gestión automática de rebotes, supresiones ni webhooks de SendGrid, ni baja mediante enlace, ni automatizaciones por estado/fecha. La aprobación comercial y el registro de consentimiento son responsabilidad del operador. No usar campañas de correo comerciales hasta implementar el mecanismo de baja y supresiones conforme a las reglas aplicables. WhatsApp debe respetar las políticas de mensajería del proveedor; espaciar envíos no garantiza evitar bloqueos. La recepción de mensajes de Evolution todavía requiere validación real.
