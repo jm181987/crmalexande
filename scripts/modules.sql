@@ -37,3 +37,23 @@ CREATE TABLE IF NOT EXISTS crm_campaign_deliveries (
 );
 CREATE INDEX IF NOT EXISTS idx_campaign_due ON crm_campaign_deliveries(status,due_at);
 CREATE INDEX IF NOT EXISTS idx_campaign_company ON crm_campaign_deliveries(company_id,campaign_id);
+
+
+-- Idempotent, internal-only follow-up automation (no unsolicited messages).
+CREATE TABLE IF NOT EXISTS crm_automation_executions (
+ rule_id uuid NOT NULL REFERENCES crm_automation_rules(id) ON DELETE CASCADE,
+ contact_id uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+ period_date date NOT NULL,
+ task_id uuid REFERENCES tasks(id) ON DELETE SET NULL,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(rule_id,contact_id,period_date)
+);
+CREATE INDEX IF NOT EXISTS idx_crm_automation_executions_created ON crm_automation_executions(created_at);
+-- Durable SendGrid suppression independent of manual opt-in.
+CREATE TABLE IF NOT EXISTS crm_email_suppressions (
+ company_id uuid NOT NULL REFERENCES companies(id),
+ email text NOT NULL,
+ reason text NOT NULL,
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(company_id,email)
+);
