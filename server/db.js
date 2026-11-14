@@ -4,6 +4,9 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 
 export const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.DATABASE_SSL==='true'?{rejectUnauthorized:process.env.DATABASE_SSL_REJECT_UNAUTHORIZED!=='false'}:false,connectionTimeoutMillis:5000,max:10});
 export const tenantContext=new AsyncLocalStorage();
+if(process.env.TENANT_RLS_ENABLED==='true'&&process.env.TENANT_DB_CONTEXT!=='true'){
+ throw new Error('TENANT_RLS_ENABLED requires TENANT_DB_CONTEXT=true');
+}
 
 // Scoped queries always use a dedicated transaction and SET LOCAL, preventing
 // tenant context from leaking between requests through pooled connections.
