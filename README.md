@@ -109,3 +109,15 @@ Se agregó una primera interfaz en **Campañas** para crear campañas, registrar
 Cada email comercial enviado por el procesador incluye un enlace firmado a `GET /api/campaigns/unsubscribe`. La página solicita confirmación por `POST` para evitar bajas accidentales causadas por escáneres de enlaces. La confirmación desactiva el consentimiento de email y marca los envíos pendientes como omitidos; no afecta el consentimiento de WhatsApp. Requiere `CAMPAIGN_UNSUBSCRIBE_SECRET` (cadena aleatoria privada de al menos 32 caracteres) y `PUBLIC_APP_URL` con HTTPS y dominio público. **No habilitar envíos de email si falta alguna de estas variables.** La clave no debe cambiarse sin planificar la validez de los enlaces anteriores.
 
 La baja funciona sin sesión CRM. No se ha integrado todavía el Event Webhook firmado de SendGrid para procesar rebotes, bloqueos, spam reports y bajas gestionadas por SendGrid. Hasta contar con ese control y pruebas reales, mantener `CAMPAIGN_DELIVERY_ENABLED=false`.
+
+
+### Automatizaciones y eventos de SendGrid (etapa siguiente)
+
+- `CRM_AUTOMATIONS_ENABLED=true`: permite que el ejecutor interno cree tareas de seguimiento por inactividad. Las reglas nuevas comienzan desactivadas; un owner/manager debe habilitarlas desde Automatizaciones. Solo se generan **tareas internas**, nunca mensajes automáticos al cliente.
+- `POST /api/internal/automation-run`: ejecutar mediante scheduler seguro con el mismo bearer `CAMPAIGN_WORKER_SECRET`. La regla `contact_inactive` admite `config.days` (1–365) y `config.tag` opcional. Se usa el historial de mensajes disponible; si la sincronización de Evolution no funciona, la última actividad puede estar incompleta.
+- `SENDGRID_EVENT_PUBLIC_KEY`: clave pública de verificación del Event Webhook firmado de SendGrid (base64, punto EC P-256 sin comprimir). Configurar la URL HTTPS `/api/webhooks/sendgrid` en SendGrid y activar *Signed Event Webhook*. Se procesan bounce, dropped, spamreport y unsubscribe cuando incluyen el `campaign_delivery_id` que adjunta el CRM. La supresión por correo impide nuevos envíos.
+- `PUBLIC_APP_URL` y `CAMPAIGN_UNSUBSCRIBE_SECRET` siguen siendo obligatorias para email comercial. Usar `SENDGRID_FROM_EMAIL` verificado.
+
+**Cron sugerido:** invocar los endpoints privados de despacho y automatizaciones cada minuto y cada día, respectivamente, desde un programador externo confiable, usando HTTPS y `Authorization: Bearer <CAMPAIGN_WORKER_SECRET>`. La configuración del cron no se crea automáticamente en Vercel.
+
+**Antes de producción:** aplicar migraciones, probar la firma del webhook con un evento real, confirmar que los emails se suprimen, probar baja y doble ejecución del cron, verificar envíos y recepción de WhatsApp, y habilitar gradualmente con contactos internos. Mantener `CAMPAIGN_DELIVERY_ENABLED=false` y `CRM_AUTOMATIONS_ENABLED=false` hasta completar pruebas. El código no demuestra por sí solo un despliegue exitoso.
