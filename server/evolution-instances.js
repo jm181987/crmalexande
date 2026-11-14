@@ -30,7 +30,9 @@ export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/instances/:id/status',auth,safe(async(req,res)=>{
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete',code:'configuration'});
- const d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name));
+ let d;
+ try{d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name))}
+ catch(err){if(err.upstreamStatus===404)return res.json({state:'not_found',source:'evolution',hint:'Instance not found in the configured Evolution API; verify whether this is an old instance',checked_at:new Date().toISOString()});throw err}
  const state=String(d.instance?.state||d.instance?.connectionStatus||d.state||d.connectionStatus||d.status||'unknown').toLowerCase();
  // The upstream connection state is authoritative; stored webhook state may be stale.
  res.json({state,source:'evolution',checked_at:new Date().toISOString()});
