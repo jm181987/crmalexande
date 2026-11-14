@@ -23,7 +23,7 @@ const auth=asyncRoute(async(req,res,next)=>{
  if(!secret)return res.status(503).json({error:'JWT_SECRET not configured'});
  try{
   const data=jwt.verify(req.cookies.crm_session,secret,{algorithms:['HS256']});
-  const r=await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
+  const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_id($1)',[data.sub]):await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
   if(!r.rowCount)return res.status(401).json({error:'Unauthorized'});
   req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
  }catch{return res.status(401).json({error:'Unauthorized'});}
@@ -34,7 +34,7 @@ app.get('/api/health',asyncRoute(async(req,res)=>{await query('SELECT 1');res.js
 app.post('/api/auth/login',asyncRoute(async(req,res)=>{
  if(!secret)return res.status(503).json({error:'Authentication not configured'});
  const {email,password}=req.body;if(!valid(email)||!valid(password))return res.status(400).json({error:'Email and password required'});
- const r=await query('SELECT * FROM users WHERE lower(email)=lower($1) AND is_active=true',[email.trim()]);
+ const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_email($1)',[email.trim()]):await query('SELECT * FROM users WHERE lower(email)=lower($1) AND is_active=true',[email.trim()]);
  if(!r.rowCount||!(await bcrypt.compare(password,r.rows[0].password_hash)))return res.status(401).json({error:'Invalid credentials'});
  const u=r.rows[0];res.cookie('crm_session',jwt.sign({sub:u.id},secret,{algorithm:'HS256',expiresIn:'8h'}),cookie);
  res.json({user:{id:u.id,name:u.name,email:u.email,role:u.role}});
