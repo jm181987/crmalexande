@@ -72,7 +72,23 @@ export function registerEvolutionInstances(app,auth){
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
  }));
+ // Synthetic delivery test: validates the public route and stored secret without creating chats.
+ app.post('/api/evolution/instances/:id/test-webhook',auth,admin,safe(async(req,res)=>{
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!row.rowCount)return res.sendStatus(404);
+  const e=cfg();if(!ready(e))return res.sendStatus(503);
+  const response=await remote(e,'/webhook/find/'+encodeURIComponent(row.rows[0].name));
+  const w=response.webhook||response,url=String(w.url||'');
+  const expected=e.origin+'/api/webhooks/evolution/';
+  if(!url.startsWith(expected))return res.status(409).json({error:'La URL configurada no corresponde al dominio público del CRM'});
+  const secret=url.slice(expected.length);
+  if(!/^[a-f0-9]{64}$/i.test(secret)||digest(secret)!==row.rows[0].webhook_secret_hash)return res.status(409).json({error:'El secreto configurado no coincide'});
+  let result;try{result=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instance:row.rows[0].name,event:'crm.probe',data:{}}),signal:AbortSignal.timeout(12000),redirect:'manual'})}
+  catch(err){return res.status(502).json({error:'No se pudo contactar la URL pública del webhook',detail:err.name})}
+  res.json({http_status:result.status,reachable:result.status===200,notice:'Prueba sintética desde Vercel; no verifica la entrega desde el servidor Evolution ni crea mensajes'});
+ }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
+ console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
  const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
  const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name});return res.sendStatus(200)}
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
