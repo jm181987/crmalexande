@@ -72,6 +72,27 @@ export function registerEvolutionInstances(app,auth){
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
  }));
+ // Reapply the existing webhook configuration without rotating its secret or reconnecting WhatsApp.
+ app.post('/api/evolution/instances/:id/repair-webhook',auth,admin,safe(async(req,res)=>{
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!row.rowCount)return res.sendStatus(404);
+  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete'});
+  const name=row.rows[0].name;
+  const current=await remote(e,'/webhook/find/'+encodeURIComponent(name));
+  const w=current.webhook||current,url=String(w.url||'');
+  const prefix=e.origin+'/api/webhooks/evolution/';
+  if(!url.startsWith(prefix))return res.status(409).json({error:'La URL del webhook no corresponde al dominio actual. No se modificó nada.'});
+  const token=url.slice(prefix.length);
+  if(!/^[a-f0-9]{64}$/i.test(token)||digest(token)!==row.rows[0].webhook_secret_hash)return res.status(409).json({error:'El secreto del webhook no coincide. No se modificó nada.'});
+  await remote(e,'/webhook/set/'+encodeURIComponent(name),'POST',{webhook:{enabled:true,url,webhookByEvents:false,events:['MESSAGES_UPSERT','CONNECTION_UPDATE']}});
+  const check=await remote(e,'/webhook/find/'+encodeURIComponent(name));
+  const saved=check.webhook||check;
+  const events=Array.isArray(saved.events)?saved.events:[];
+  const eventOk=events.some(x=>String(x).toUpperCase().replace(/[.]/g,'_')==='MESSAGES_UPSERT');
+  const valid=(saved.enabled===true||saved.enabled==='true')&&saved.url===url&&eventOk;
+  console.info('Evolution webhook configuration reapplied',{instance:name,verified:valid,messagesUpsert:eventOk});
+  res.json({updated:true,verified:valid,instance:name,messages_upsert_enabled:eventOk,notice:'Webhook reconfigurado con el mismo secreto. No se desconectó WhatsApp. Enviá un mensaje real para verificar la entrega.'});
+ }));
  // Synthetic delivery test: validates the public route and stored secret without creating chats.
  app.post('/api/evolution/instances/:id/test-webhook',auth,admin,safe(async(req,res)=>{
   const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
