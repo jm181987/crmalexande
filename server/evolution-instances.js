@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import {query} from './db.js';
+import {query,tenantContext} from './db.js';
 const safe=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const cfg=()=>({url:(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY,origin:(process.env.PUBLIC_APP_URL|| (process.env.VERCEL_PROJECT_PRODUCTION_URL?'https://'+process.env.VERCEL_PROJECT_PRODUCTION_URL:'')).replace(/\/$/,'')});
 const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url)))&&Boolean(e.key)&&e.origin.startsWith('https://');
@@ -37,7 +37,7 @@ export function registerEvolutionInstances(app,auth){
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
  const hash=digest(req.params.secret),found=await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount)return res.sendStatus(403);
- const inst=found.rows[0],payload=req.body;if(payload?.instance!==inst.name)return res.sendStatus(200);
+ const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name)return res.sendStatus(200);
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
  for(const item of Array.isArray(payload.data)?payload.data:[payload.data]){
