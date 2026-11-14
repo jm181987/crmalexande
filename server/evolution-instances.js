@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import {query,tenantContext} from './db.js';
 const safe=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const cfg=()=>({url:(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY,origin:(process.env.PUBLIC_APP_URL|| (process.env.VERCEL_PROJECT_PRODUCTION_URL?'https://'+process.env.VERCEL_PROJECT_PRODUCTION_URL:'')).replace(/\/$/,'')});
-const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url)))&&Boolean(e.key)&&e.origin.startsWith('https://');
+const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url)))&&Boolean(e.key);
+const webhookReady=e=>ready(e)&&e.origin.startsWith('https://');
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
 const admin=(req,res,next)=>req.user.role==='agent'?res.sendStatus(403):next();
 async function remote(e,path,method='GET',body){
@@ -14,13 +15,13 @@ async function remote(e,path,method='GET',body){
  return data;
 }
 export function registerEvolutionInstances(app,auth){
- app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
+ app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
  app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
  // Remove only obsolete CRM registrations. Never disconnect or delete a live Evolution instance.
  app.delete('/api/evolution/instances/:id',auth,admin,safe(async(req,res)=>{
   const found=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   if(!found.rowCount)return res.sendStatus(404);
-  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete'});
+  const e=cfg();if(!webhookReady(e))return res.status(503).json({error:'Evolution configuration incomplete'});
   try{
    await remote(e,'/instance/connectionState/'+encodeURIComponent(found.rows[0].name));
    return res.status(409).json({error:'La instancia todavía existe en Evolution. Solo se pueden quitar registros de instancias antiguas no encontradas (404).'});
@@ -29,7 +30,7 @@ export function registerEvolutionInstances(app,auth){
   res.json({removed:true,name:found.rows[0].name,history_preserved:true});
  }));
  app.post('/api/evolution/instances',auth,admin,safe(async(req,res)=>{
- const e=cfg(),label=req.body?.label,name=req.body?.name;if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete',details:{evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://')},hint:'PUBLIC_APP_URL can be set to the HTTPS CRM origin; VERCEL_PROJECT_PRODUCTION_URL is also supported.'});
+ const e=cfg(),label=req.body?.label,name=req.body?.name;if(!webhookReady(e))return res.status(503).json({error:'Evolution configuration incomplete',details:{evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://')},hint:'PUBLIC_APP_URL can be set to the HTTPS CRM origin; VERCEL_PROJECT_PRODUCTION_URL is also supported.'});
  if(typeof label!=='string'||!label.trim()||label.length>100||typeof name!=='string'||!/^crm-[a-z0-9-]{3,50}$/.test(name))return res.status(400).json({error:'Use a unique instance name starting crm-'});
  const existing=await query('SELECT id FROM crm_evolution_instances WHERE name=$1',[name]);if(existing.rowCount)return res.status(409).json({error:'Instance name already exists'});
  const secret=crypto.randomBytes(32).toString('hex'),url=e.origin+'/api/webhooks/evolution/'+secret;
