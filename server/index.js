@@ -118,7 +118,28 @@ app.patch('/api/opportunities/:id/stage',auth,asyncRoute(async(req,res)=>{
  if(!r.rowCount)return res.status(404).json({error:'Opportunity not found'});res.json(r.rows[0]);
 }));
 app.get('/api/conversations',auth,asyncRoute(async(req,res)=>{
- const r=await query('SELECT v.*,c.name AS contact_name,c.phone AS contact_phone,(SELECT body FROM messages m WHERE m.conversation_id=v.id ORDER BY created_at DESC LIMIT 1) AS last_message FROM conversations v JOIN contacts c ON c.id=v.contact_id WHERE v.company_id=$1'+ownerSql(req.user,'v.assignee_id')+' ORDER BY v.updated_at DESC LIMIT 200',p(req.user));res.json(r.rows);
+ const r=await query('SELECT v.*,c.name AS contact_name,c.phone AS contact_phone,u.name AS assignee_name,(SELECT body FROM messages m WHERE m.conversation_id=v.id ORDER BY created_at DESC LIMIT 1) AS last_message FROM conversations v JOIN contacts c ON c.id=v.contact_id LEFT JOIN users u ON u.id=v.assignee_id WHERE v.company_id=$1'+ownerSql(req.user,'v.assignee_id')+' ORDER BY v.updated_at DESC LIMIT 200',p(req.user));res.json(r.rows);
+}));
+// Inbox assignment: managers can assign any active agent in their company.
+app.get('/api/conversations/agents',auth,asyncRoute(async(req,res)=>{
+ const r=await query("SELECT id,name,role FROM users WHERE company_id=$1 AND is_active=true ORDER BY name",[req.user.company_id]);
+ res.json(r.rows);
+}));
+app.patch('/api/conversations/:id/assign',auth,manager,asyncRoute(async(req,res)=>{
+ const assignee=req.body?.assignee_id;
+ if(assignee!==null&&typeof assignee!=='string')return res.status(400).json({error:'Invalid assignee'});
+ if(assignee){
+  const u=await query('SELECT id FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[assignee,req.user.company_id]);
+  if(!u.rowCount)return res.status(400).json({error:'Agent unavailable'});
+ }
+ const r=await query('UPDATE conversations SET assignee_id=$3,updated_at=now() WHERE id=$1 AND company_id=$2 RETURNING *',[req.params.id,req.user.company_id,assignee||null]);
+ if(!r.rowCount)return res.sendStatus(404);
+ res.json(r.rows[0]);
+}));
+app.post('/api/conversations/:id/read',auth,asyncRoute(async(req,res)=>{
+ const r=await query('UPDATE conversations SET unread_count=0 WHERE id=$1 AND company_id=$2'+ownerSql(req.user,'assignee_id',3)+' RETURNING id,unread_count',[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])]);
+ if(!r.rowCount)return res.sendStatus(404);
+ res.json(r.rows[0]);
 }));
 app.post('/api/conversations',auth,asyncRoute(async(req,res)=>{
  const par=p(req.user),contact=await query('SELECT id FROM contacts WHERE company_id=$1'+ownerSql(req.user)+' AND id=$'+(par.length+1),[...par,req.body.contact_id]);
