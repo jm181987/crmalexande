@@ -41,8 +41,13 @@ export function registerEvolutionInstances(app,auth){
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
  for(const item of Array.isArray(payload.data)?payload.data:[payload.data]){
- const key=item?.key||{},jid=key.remoteJid||'';if(!key.id||key.fromMe||!jid.endsWith('@s.whatsapp.net'))continue;
- const phone=jid.split('@')[0];if(!/^\d{8,15}$/.test(phone))continue;
+ const key=item?.key||{},jid=String(key.remoteJid||'');
+ // Evolution may supply a WhatsApp LID and a separate phone JID. Never treat a LID as a phone number.
+ if(!key.id||key.fromMe||jid.endsWith('@g.us')||jid==='status@broadcast')continue;
+ const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt].filter(x=>typeof x==='string');
+ const phoneJid=candidates.find(x=>/^\d{8,15}@s\.whatsapp\.net$/.test(x));
+ if(!phoneJid){console.warn('Evolution inbound skipped: no resolvable phone JID', {instance:inst.name,jidType:jid.split('@')[1]||'missing'});continue}
+ const phone=phoneJid.split('@')[0];
  const external=inst.name+':'+key.id;
  if((await query('SELECT id FROM messages WHERE external_id=$1',[external])).rowCount)continue;
  let c=await query('SELECT id FROM contacts WHERE company_id=$1 AND phone=$2 LIMIT 1',[inst.company_id,phone]);
