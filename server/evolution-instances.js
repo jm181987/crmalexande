@@ -36,7 +36,7 @@ export function registerEvolutionInstances(app,auth){
  const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
- const hash=digest(req.params.secret),found=await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount)return res.sendStatus(403);
+ const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount)return res.sendStatus(403);
  const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name)return res.sendStatus(200);
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
