@@ -85,7 +85,13 @@ export function registerEvolutionInstances(app,auth){
   if(!/^[a-f0-9]{64}$/i.test(secret)||digest(secret)!==row.rows[0].webhook_secret_hash)return res.status(409).json({error:'El secreto configurado no coincide'});
   let result;try{result=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({instance:row.rows[0].name,event:'crm.probe',data:{}}),signal:AbortSignal.timeout(12000),redirect:'manual'})}
   catch(err){return res.status(502).json({error:'No se pudo contactar la URL pública del webhook',detail:err.name})}
-  res.json({http_status:result.status,reachable:result.status===200,notice:'Prueba sintética desde Vercel; no verifica la entrega desde el servidor Evolution ni crea mensajes'});
+  const contentType=String(result.headers.get('content-type')||'').slice(0,80);
+  const vercelId=Boolean(result.headers.get('x-vercel-id'));
+  const authHeader=String(result.headers.get('www-authenticate')||'').slice(0,100);
+  const redirect=String(result.headers.get('location')||'');
+  const responseText=await result.text().catch(()=> '');
+  const vercelProtection=/vercel authentication|authentication required|deployment protection|vercel sso/i.test(responseText);
+  res.json({http_status:result.status,reachable:result.status===200,content_type:contentType,vercel_edge:vercelId,vercel_protection_page:vercelProtection,auth_challenge:authHeader||null,redirect_to_login:/login|auth|sso/i.test(redirect),origin_host:new URL(e.origin).host,notice:'Prueba desde el servidor CRM; no verifica la entrega desde Evolution ni crea mensajes'});
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
  console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
