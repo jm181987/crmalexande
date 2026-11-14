@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {query} from './db.js';
+import {query,tenantContext} from './db.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerEvolutionInstances} from './evolution-instances.js';
 const app=express(),secret=process.env.JWT_SECRET;
@@ -25,7 +25,7 @@ const auth=asyncRoute(async(req,res,next)=>{
   const data=jwt.verify(req.cookies.crm_session,secret,{algorithms:['HS256']});
   const r=await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
   if(!r.rowCount)return res.status(401).json({error:'Unauthorized'});
-  req.user=r.rows[0];next();
+  req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
  }catch{return res.status(401).json({error:'Unauthorized'});}
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
