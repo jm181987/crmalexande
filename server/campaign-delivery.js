@@ -14,7 +14,7 @@ export function registerCampaignDelivery(app,auth){
  }));
  app.get('/api/sendgrid/config-check',auth,manager,(req,res)=>{
   const from=String(process.env.SENDGRID_FROM_EMAIL||'');
-  res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(from),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false,notice:'Sender domain or address must be verified in SendGrid before sending. API key is never exposed.'});
+  res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(from),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false,notice:'Sender domain or address must be verified in SendGrid before sending. API key is never exposed.'});
  });
  app.post('/api/campaigns/:id/prepare-email',auth,manager,safe(async(req,res)=>{
   const {scheduled_at,interval_seconds=180,tag=null,source=null}=req.body||{};
