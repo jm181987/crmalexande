@@ -67,6 +67,18 @@ app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
  if(!valid(name)||!valid(email)||!valid(password)||password.length<12||!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Invalid user'});
  const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
 }));
+// Saved contact segments, scoped to the authenticated company.
+app.get('/api/smart-lists',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT id,name,filters,created_at FROM crm_smart_lists WHERE company_id=$1 ORDER BY name',[req.user.company_id]);res.json(r.rows);
+}));
+app.post('/api/smart-lists',auth,manager,asyncRoute(async(req,res)=>{
+ const name=String(req.body?.name||'').trim(),filters=req.body?.filters;
+ if(!name||name.length>100||!filters||typeof filters!=='object'||Array.isArray(filters)||Object.keys(filters).some(k=>!['tag','source'].includes(k))||Object.values(filters).some(v=>typeof v!=='string'||v.length>100))return res.status(400).json({error:'Invalid smart list'});
+ const r=await query('INSERT INTO crm_smart_lists(company_id,name,filters,created_by) VALUES($1,$2,$3,$4) RETURNING id,name,filters',[req.user.company_id,name,JSON.stringify(filters),req.user.id]);res.status(201).json(r.rows[0]);
+}));
+app.delete('/api/smart-lists/:id',auth,manager,asyncRoute(async(req,res)=>{
+ const r=await query('DELETE FROM crm_smart_lists WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!r.rowCount)return res.sendStatus(404);res.json({ok:true});
+}));
 app.get('/api/contacts',auth,asyncRoute(async(req,res)=>{
  const u=req.user,par=p(u),search=String(req.query.search||'').slice(0,100);
  const r=await query('SELECT * FROM contacts WHERE company_id=$1'+ownerSql(u)+' AND (name ILIKE $'+(par.length+1)+" OR coalesce(email,'') ILIKE $"+(par.length+1)+" OR coalesce(phone,'') ILIKE $"+(par.length+1)+') ORDER BY created_at DESC LIMIT 250',[...par,'%'+search+'%']);
