@@ -14,6 +14,14 @@ async function remote(e,path,method='GET',body){
  if(!response.ok){console.error('Evolution HTTP error',response.status,path.split('/').slice(0,3).join('/'));throw Object.assign(new Error('Evolution API returned HTTP '+response.status),{status:502,phase:'upstream',upstreamStatus:response.status})}
  return data;
 }
+async function recordConnection(instanceId,companyId,state,source){
+ const value=String(state||'unknown').toLowerCase().slice(0,30);
+ if(!/^[a-z0-9_-]{1,30}$/.test(value))return;
+ const previous=await query('SELECT state FROM crm_evolution_connection_events WHERE instance_id=$1 ORDER BY id DESC LIMIT 1',[instanceId]);
+ if(previous.rows[0]?.state===value)return;
+ await query('INSERT INTO crm_evolution_connection_events(instance_id,company_id,state,source) VALUES($1,$2,$3,$4)',[instanceId,companyId,value,source]);
+ await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[instanceId,value]);
+}
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
  app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
@@ -41,14 +49,21 @@ export function registerEvolutionInstances(app,auth){
  res.status(201).json({...row.rows[0],qrcode:created.qrcode||null});
  }));
  app.get('/api/evolution/instances/:id/status',auth,safe(async(req,res)=>{
- const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
+ const x=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete',code:'configuration'});
  let d;
  try{d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name))}
  catch(err){if(err.upstreamStatus===404)return res.json({state:'not_found',source:'evolution',hint:'Instance not found in the configured Evolution API; verify whether this is an old instance',checked_at:new Date().toISOString()});throw err}
  const state=String(d.instance?.state||d.instance?.connectionStatus||d.state||d.connectionStatus||d.status||'unknown').toLowerCase();
  // The upstream connection state is authoritative; stored webhook state may be stale.
+ try{await recordConnection(x.rows[0].id,req.user.company_id,state,'poll')}catch(err){console.warn('Evolution status history unavailable',err.code||err.message)}
  res.json({state,source:'evolution',checked_at:new Date().toISOString()});
+ }));
+ app.get('/api/evolution/instances/:id/history',auth,admin,safe(async(req,res)=>{
+  const instance=await query('SELECT id FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!instance.rowCount)return res.sendStatus(404);
+  const rows=await query('SELECT state,source,recorded_at FROM crm_evolution_connection_events WHERE instance_id=$1 AND company_id=$2 ORDER BY id DESC LIMIT 30',[req.params.id,req.user.company_id]);
+  res.json(rows.rows);
  }));
  // Read-only diagnostics: never expose webhook URL or secret.
  app.get('/api/evolution/instances/:id/diagnostics',auth,admin,safe(async(req,res)=>{
@@ -124,7 +139,7 @@ export function registerEvolutionInstances(app,auth){
  console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
  const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
  const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name});return res.sendStatus(200)}
- const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||'unknown').slice(0,30);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state]);return res.sendStatus(200)}
+ const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||payload.data?.instance?.state||'unknown').slice(0,30);try{await recordConnection(inst.id,inst.company_id,state,'webhook')}catch(err){console.warn('Evolution connection event logging failed',err.code||err.message);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state])}return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
  console.info('Evolution inbound event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:1});
  for(const item of Array.isArray(payload.data)?payload.data:[payload.data]){
