@@ -11,6 +11,8 @@ import {query,tenantContext} from './db.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerEvolutionInstances} from './evolution-instances.js';
 import {registerCampaignDelivery} from './campaign-delivery.js';
+import {dispatchCampaignBatch} from './campaign-worker.js';
+import {timingSafeEqual} from 'node:crypto';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
 if(process.env.APP_ORIGIN)app.use(cors({origin:process.env.APP_ORIGIN,credentials:true}));
@@ -31,6 +33,12 @@ const auth=asyncRoute(async(req,res,next)=>{
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
 const owner=(req,res,next)=>req.user.role==='owner'?next():res.status(403).json({error:'Forbidden'});
+// Worker is disabled by default. Configure a private scheduler with a long bearer secret.
+app.post('/api/internal/campaign-dispatch',asyncRoute(async(req,res)=>{
+ const expected=process.env.CAMPAIGN_WORKER_SECRET||'',provided=String(req.headers.authorization||'').replace(/^Bearer /,'');
+ if(expected.length<24||provided.length!==expected.length||!timingSafeEqual(Buffer.from(provided),Buffer.from(expected)))return res.sendStatus(401);
+ const result=await dispatchCampaignBatch({limit:10});res.json(result);
+}));
 app.get('/api/health',asyncRoute(async(req,res)=>{await query('SELECT 1');res.json({status:'ok',database:'connected'});}));
 app.post('/api/auth/login',asyncRoute(async(req,res)=>{
  if(!secret)return res.status(503).json({error:'Authentication not configured'});
