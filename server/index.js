@@ -50,6 +50,17 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  query('SELECT count(*)::int AS n FROM tasks WHERE company_id=$1 AND completed=false'+scope,q)]);
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});
 }));
+app.get('/api/company',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT id,name,created_at FROM companies WHERE id=$1',[req.user.company_id]);
+ if(!r.rowCount)return res.status(404).json({error:'Company not found'});
+ res.json(r.rows[0]);
+}));
+app.patch('/api/company',auth,owner,asyncRoute(async(req,res)=>{
+ const {name}=req.body||{};
+ if(typeof name!=='string'||!name.trim()||name.trim().length>120)return res.status(400).json({error:'Invalid company name'});
+ const r=await query('UPDATE companies SET name=$2 WHERE id=$1 RETURNING id,name,created_at',[req.user.company_id,name.trim()]);
+ res.json(r.rows[0]);
+}));
 app.get('/api/users',auth,asyncRoute(async(req,res)=>{const r=await query('SELECT id,name,email,role FROM users WHERE company_id=$1 AND is_active=true ORDER BY name',[req.user.company_id]);res.json(r.rows);}));
 app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
  const {name,email,password,role='agent'}=req.body;
