@@ -121,3 +121,12 @@ La baja funciona sin sesión CRM. No se ha integrado todavía el Event Webhook f
 **Cron sugerido:** invocar los endpoints privados de despacho y automatizaciones cada minuto y cada día, respectivamente, desde un programador externo confiable, usando HTTPS y `Authorization: Bearer <CAMPAIGN_WORKER_SECRET>`. La configuración del cron no se crea automáticamente en Vercel.
 
 **Antes de producción:** aplicar migraciones, probar la firma del webhook con un evento real, confirmar que los emails se suprimen, probar baja y doble ejecución del cron, verificar envíos y recepción de WhatsApp, y habilitar gradualmente con contactos internos. Mantener `CAMPAIGN_DELIVERY_ENABLED=false` y `CRM_AUTOMATIONS_ENABLED=false` hasta completar pruebas. El código no demuestra por sí solo un despliegue exitoso.
+
+
+### Diagnóstico de desconexiones WhatsApp / Evolution
+
+En **Configuración → Integraciones → WhatsApp** se puede consultar estado real, historial de cambios y diagnóstico del webhook. El sondeo de estado es de solo lectura; no se reinicia ni se elimina la instancia. El botón de QR no aparece para sesiones ya conectadas. Para registrar el historial, aplicar la migración de `scripts/modules.sql`.
+
+Si el estado remoto cambia de `open` a `close`/ `connecting`, revisar los logs del contenedor Evolution (motivo de desconexión y reinicios), estabilidad de red, persistencia del volumen de sesiones, disponibilidad de PostgreSQL/Redis si aplica, y el estado de **Dispositivos vinculados** en el teléfono. Una caída de webhook puede impedir recibir mensajes en CRM pero no equivale a una desconexión de WhatsApp. No borrar ni recrear instancias ni rotar sesiones como primer paso. La URL pública `PUBLIC_APP_URL` es obligatoria para crear y reparar webhooks, pero no para consultar estado ni enviar mensajes.
+
+**Limitación:** sin acceso operativo al servidor Evolution y sin logs de desconexión no se puede confirmar la causa ni garantizar que una sesión permanezca conectada. El estado de la API no se puede inferir solo del panel.
