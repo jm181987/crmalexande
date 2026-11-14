@@ -91,7 +91,10 @@ export function registerEvolutionInstances(app,auth){
   const redirect=String(result.headers.get('location')||'');
   const responseText=await result.text().catch(()=> '');
   const vercelProtection=/vercel authentication|authentication required|deployment protection|vercel sso/i.test(responseText);
-  res.json({http_status:result.status,reachable:result.status===200,content_type:contentType,vercel_edge:vercelId,vercel_protection_page:vercelProtection,auth_challenge:authHeader||null,redirect_to_login:/login|auth|sso/i.test(redirect),origin_host:new URL(e.origin).host,notice:'Prueba desde el servidor CRM; no verifica la entrega desde Evolution ni crea mensajes'});
+  let responseError=null,responseCode=null;
+  try{const parsed=JSON.parse(responseText);if(parsed&&typeof parsed==='object'){responseError=typeof parsed.error==='string'?parsed.error.slice(0,120):typeof parsed.message==='string'?parsed.message.slice(0,120):null;responseCode=typeof parsed.code==='string'?parsed.code.slice(0,80):null}}catch{}
+  // Never return raw upstream body, URL, tokens, or request headers.
+  res.json({http_status:result.status,response_error:responseError,response_code:responseCode,reachable:result.status===200,content_type:contentType,vercel_edge:vercelId,vercel_protection_page:vercelProtection,auth_challenge:authHeader||null,redirect_to_login:/login|auth|sso/i.test(redirect),origin_host:new URL(e.origin).host,notice:'Prueba desde el servidor CRM; no verifica la entrega desde Evolution ni crea mensajes'});
  }));
  app.post('/api/webhooks/evolution/:secret',safe(async(req,res)=>{
  console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
