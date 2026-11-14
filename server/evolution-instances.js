@@ -68,8 +68,10 @@ export function registerEvolutionInstances(app,auth){
  if(!key.id||key.fromMe||jid.endsWith('@g.us')||jid==='status@broadcast')continue;
  const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt].filter(x=>typeof x==='string');
  const phoneJid=candidates.find(x=>/^\d{8,15}@s\.whatsapp\.net$/.test(x));
- if(!phoneJid){console.warn('Evolution inbound skipped: no resolvable phone JID', {instance:inst.name,jidType:jid.split('@')[1]||'missing'});continue}
- const phone=phoneJid.split('@')[0];
+ const lidJid=candidates.find(x=>/^\d{5,25}@lid$/.test(x));
+ if(!phoneJid&&!lidJid){console.warn('Evolution inbound skipped: unsupported sender JID', {instance:inst.name,jidType:jid.split('@')[1]||'missing'});continue}
+ // Keep LID-only chats instead of silently dropping them. A LID is NOT a telephone number.
+ const phone=phoneJid?phoneJid.split('@')[0]:'lid:'+lidJid.split('@')[0];
  const external=inst.name+':'+key.id;
  if((await query('SELECT id FROM messages WHERE external_id=$1',[external])).rowCount)continue;
  let c=await query('SELECT id FROM contacts WHERE company_id=$1 AND phone=$2 LIMIT 1',[inst.company_id,phone]);
@@ -90,9 +92,10 @@ export function registerEvolutionInstances(app,auth){
  const body=req.body?.body;if(typeof body!=='string'||!body.trim()||body.length>4096)return res.status(400).json({error:'Invalid message'});
  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
  const c=await query("SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);if(!c.rowCount)return res.sendStatus(404);
- const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15})$/.exec(c.rows[0].external_id||'');if(!match)return res.status(409).json({error:'Conversation not linked to an Evolution instance'});
+ const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0].external_id||'');if(!match)return res.status(409).json({error:'Conversation not linked to an Evolution instance'});
  const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);if(!inst.rowCount)return res.sendStatus(403);
  const e=cfg();if(!ready(e))return res.sendStatus(503);
+ if(match[2].startsWith('lid:'))return res.status(409).json({error:'This chat uses a WhatsApp LID without a verified phone number. Reply requires resolving its phone JID first.'});
  const sent=await remote(e,'/message/sendText/'+encodeURIComponent(match[1]),'POST',{number:match[2],text:body.trim()});
  const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) RETURNING *",[req.params.id,req.user.id,body.trim(),sent.key?.id?match[1]+':'+sent.key.id:null]);res.status(201).json(x.rows[0]);
  }));
