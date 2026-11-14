@@ -1,3 +1,4 @@
+import express from 'express';
 import {createHmac,timingSafeEqual} from 'node:crypto';
 import {query} from './db.js';
 const key=()=>process.env.CAMPAIGN_UNSUBSCRIBE_SECRET||'';
@@ -22,7 +23,7 @@ export function registerUnsubscribe(app){
   if(!validate(token))return res.status(400).type('html').send(html('Enlace inválido.'));
   res.type('html').send(html('Confirmá si querés dejar de recibir correos comerciales.','<form method="POST" action="/api/campaigns/unsubscribe"><input type="hidden" name="token" value="'+token+'"><button type="submit">Cancelar suscripción</button></form>'));
  });
- app.post('/api/campaigns/unsubscribe',async(req,res,next)=>{
+ app.post('/api/campaigns/unsubscribe',express.urlencoded({extended:false,limit:'4kb'}),async(req,res,next)=>{
   try{
    const token=String(req.body?.token||'');
    const data=validate(token);if(!data)return res.status(400).type('html').send(html('Enlace inválido.'));
