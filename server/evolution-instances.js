@@ -48,7 +48,12 @@ export function registerEvolutionInstances(app,auth){
  let c=await query('SELECT id FROM contacts WHERE company_id=$1 AND phone=$2 LIMIT 1',[inst.company_id,phone]);
  if(!c.rowCount)c=await query("INSERT INTO contacts(company_id,name,phone,source) VALUES($1,$2,$3,'whatsapp') RETURNING id",[inst.company_id,String(item.pushName||phone).slice(0,200),phone]);
  let conv=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id=$2 LIMIT 1",[inst.company_id,inst.name+':'+phone]);
- if(!conv.rowCount)conv=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[inst.company_id,c.rows[0].id,inst.name+':'+phone]);
+ if(!conv.rowCount){
+  conv=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[inst.company_id,c.rows[0].id,inst.name+':'+phone]);
+  // Assign only newly opened chats. Manual assignments are never overwritten.
+  try{await query('SELECT public.crm_assign_round_robin($1,$2)',[inst.company_id,conv.rows[0].id])}
+  catch(err){console.error('Round Robin assignment failed',err.code||err.message)}
+ }
  const m=item.message||{},body=m.conversation||m.extendedTextMessage?.text||('[WhatsApp '+String(item.messageType||'media')+']');
  const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,'inbound',$2,$3) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,String(body).slice(0,10000),external]);
  if(saved.rowCount)await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conv.rows[0].id]);
