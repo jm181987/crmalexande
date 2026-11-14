@@ -57,3 +57,15 @@ CREATE TABLE IF NOT EXISTS crm_email_suppressions (
  updated_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(company_id,email)
 );
+
+
+-- Connection history for troubleshooting; polling never reconnects or deletes sessions.
+CREATE TABLE IF NOT EXISTS crm_evolution_connection_events (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ instance_id uuid NOT NULL REFERENCES crm_evolution_instances(id) ON DELETE CASCADE,
+ company_id uuid NOT NULL REFERENCES companies(id),
+ state text NOT NULL,
+ source text NOT NULL CHECK(source IN ('webhook','poll')),
+ recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_evolution_connection_events ON crm_evolution_connection_events(instance_id,recorded_at DESC);
