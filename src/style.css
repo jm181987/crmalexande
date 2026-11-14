@@ -53,3 +53,6 @@ tbody tr:last-child td{border-bottom:0}
 @media(max-width:900px){.workspace header{height:66px}main{padding-top:23px}.sidebar{box-shadow:12px 0 36px #0e1e3840}}
 @media(max-width:570px){.stat{min-height:0}.welcome-card{padding:26px}.toolbar{align-items:stretch}.toolbar>button{flex:1}.login-card{border-radius:17px}}
 @media(prefers-reduced-motion:reduce){button,input,select,textarea,.sidebar{transition:none!important}button:active{transform:none}}
+
+/* Inbox collaboration controls */
+.inbox-assignment{display:flex;align-items:center;gap:9px;margin-top:10px;font-size:12px;color:#60728c;flex-wrap:wrap}.inbox-assignment select{max-width:240px;padding:6px 10px;font-size:12px}.compose-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.internal-note{background:#fff7df;border-color:#f0d99a}.thread small{line-height:1.45}.thread:focus-visible{outline:2px solid #4b83e6;outline-offset:-2px}@media(max-width:570px){.inbox-assignment select{max-width:100%}.compose-actions button{flex:1}}
