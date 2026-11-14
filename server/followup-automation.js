@@ -13,6 +13,7 @@ export async function runFollowupAutomations({limit=50}={}){
   const contacts=await query(`SELECT c.id,c.owner_id FROM contacts c WHERE c.company_id=$1 AND c.owner_id IS NOT NULL
    AND ($3::text IS NULL OR $3=ANY(c.tags))
    AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.contact_id=c.id AND v.company_id=c.company_id AND m.created_at > now()-($2::int * interval '1 day'))
+   AND NOT EXISTS (SELECT 1 FROM crm_automation_executions x JOIN tasks t ON t.id=x.task_id WHERE x.rule_id=$4 AND x.contact_id=c.id AND t.completed=false)
    AND NOT EXISTS (SELECT 1 FROM crm_automation_executions x WHERE x.rule_id=$4 AND x.contact_id=c.id AND x.period_date=current_date)
    AND c.created_at <= now()-($2::int * interval '1 day')
    AND ($6::text IS NULL OR EXISTS (SELECT 1 FROM opportunities o WHERE o.contact_id=c.id AND o.company_id=c.company_id AND o.status=$6 AND o.updated_at<=now()-($2::int * interval '1 day')))
