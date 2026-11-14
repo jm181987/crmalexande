@@ -19,9 +19,10 @@ export function registerModuleRoutes(app,auth){
  r.get('/automation-rules',safe(async(req,res)=>{const x=await query('SELECT * FROM crm_automation_rules WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
  r.post('/automation-rules',permitted,safe(async(req,res)=>{
   const {name,trigger_event='manual',action_type='create_task',config={}}=req.body||{};
-  if(!valid(name)||name.length>150||!['manual','contact_inactive'].includes(trigger_event)||action_type!=='create_task'||!config||typeof config!=='object'||Array.isArray(config))return res.status(400).json({error:'Invalid rule'});
-  if(trigger_event==='contact_inactive'&&(!Number.isInteger(config.days)||config.days<1||config.days>365||(config.tag!==undefined&&(typeof config.tag!=='string'||config.tag.length>100))))return res.status(400).json({error:'Invalid inactivity configuration'});
-  const safeConfig=trigger_event==='contact_inactive'?{days:config.days,...(config.tag?{tag:config.tag}:{})}:{};
+  if(!valid(name)||name.length>150||!['manual','contact_inactive','opportunity_status'].includes(trigger_event)||action_type!=='create_task'||!config||typeof config!=='object'||Array.isArray(config))return res.status(400).json({error:'Invalid rule'});
+  if(trigger_event!=='manual'&&(!Number.isInteger(config.days)||config.days<1||config.days>365||(config.tag!==undefined&&(typeof config.tag!=='string'||config.tag.length>100))))return res.status(400).json({error:'Invalid inactivity configuration'});
+  if(trigger_event==='opportunity_status'&&!['open','won','lost','abandoned'].includes(config.status))return res.status(400).json({error:'Invalid opportunity status'});
+  const safeConfig=trigger_event!=='manual'?{days:config.days,...(config.tag?{tag:config.tag}:{}),...(trigger_event==='opportunity_status'?{status:config.status}:{})}:{};
   const x=await query('INSERT INTO crm_automation_rules(company_id,name,trigger_event,action_type,config) VALUES($1,$2,$3,$4,$5) RETURNING *',[req.user.company_id,name.trim(),trigger_event,action_type,JSON.stringify(safeConfig)]);
   res.status(201).json(x.rows[0]);
  }));
