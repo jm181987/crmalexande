@@ -35,6 +35,24 @@ export function registerEvolutionInstances(app,auth){
  // The upstream connection state is authoritative; stored webhook state may be stale.
  res.json({state,source:'evolution',checked_at:new Date().toISOString()});
  }));
+ // Read-only diagnostics: never expose webhook URL or secret.
+ app.get('/api/evolution/instances/:id/diagnostics',auth,admin,safe(async(req,res)=>{
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!row.rowCount)return res.sendStatus(404);
+  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete'});
+  const name=row.rows[0].name;
+  const connection=await remote(e,'/instance/connectionState/'+encodeURIComponent(name));
+  let webhook=null,webhookError=null;
+  try{
+   const response=await remote(e,'/webhook/find/'+encodeURIComponent(name));
+   const w=response.webhook||response;
+   const url=String(w.url||'');
+   const secret=url.match(/\/api\/webhooks\/evolution\/([a-f0-9]{64})(?:[/?#]|$)/i)?.[1];
+   const events=Array.isArray(w.events)?w.events:[];
+   webhook={enabled:w.enabled===true||w.enabled==='true',url_host_matches:url.startsWith(e.origin+'/api/webhooks/evolution/'),secret_matches:secret?digest(secret)===row.rows[0].webhook_secret_hash:false,messages_upsert_enabled:events.some(x=>String(x).toUpperCase().replace(/[.]/g,'_')==='MESSAGES_UPSERT')};
+  }catch(err){webhookError=err.message}
+  res.json({instance:name,state:connection.instance?.state||connection.state||'unknown',webhook,webhook_error:webhookError});
+ }));
  app.get('/api/evolution/instances/:id/connect',auth,admin,safe(async(req,res)=>{
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
