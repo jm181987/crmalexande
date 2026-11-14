@@ -8,6 +8,10 @@ export function registerCampaignDelivery(app,auth){
   if(!channels.includes(channel)||typeof opted_in!=='boolean'||typeof source!=='string'||!source.trim()||source.length>100)return res.sendStatus(400);
   const contact=await query('SELECT id FROM contacts WHERE id=$1 AND company_id=$2',[req.params.contactId,req.user.company_id]);
   if(!contact.rowCount)return res.sendStatus(404);
+  if(channel==='email'&&opted_in){
+   const blocked=await query('SELECT 1 FROM crm_email_suppressions s JOIN contacts c ON c.company_id=s.company_id AND lower(c.email)=s.email WHERE c.company_id=$1 AND c.id=$2',[req.user.company_id,req.params.contactId]);
+   if(blocked.rowCount)return res.status(409).json({error:'Email suppressed after bounce, spam report or unsubscribe'});
+  }
   const x=await query('INSERT INTO crm_contact_consents(company_id,contact_id,channel,opted_in,source) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,contact_id,channel) DO UPDATE SET opted_in=EXCLUDED.opted_in,source=EXCLUDED.source,updated_at=now() RETURNING *',[req.user.company_id,req.params.contactId,channel,opted_in,source.trim()]);
   if(!opted_in)await query("UPDATE crm_campaign_deliveries SET status='skipped',error_code='opted_out' WHERE company_id=$1 AND contact_id=$2 AND status='queued' AND campaign_id IN (SELECT id FROM crm_campaigns WHERE company_id=$1 AND channel=$3)",[req.user.company_id,req.params.contactId,channel]);
   res.json(x.rows[0]);
