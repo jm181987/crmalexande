@@ -117,13 +117,13 @@ export function registerEvolutionInstances(app,auth){
   const name=found.rows[0].name;
   const state=await remote(e,'/instance/connectionState/'+encodeURIComponent(name));
   let source={available:false,reason:'unknown'};
-  try{
-   const result=await remote(e,'/chat/findMessages/'+encodeURIComponent(name),'POST',{where:{},page:1,offset:1});
-   const messages=Array.isArray(result)?result:Array.isArray(result.messages?.records)?result.messages.records:Array.isArray(result.messages)?result.messages:Array.isArray(result.records)?result.records:[];
-   source={available:true,sample_count:messages.length,has_message_id:messages.some(m=>Boolean(m.key?.id)),shape: Array.isArray(result)?'array':Array.isArray(result.messages?.records)?'messages.records':Array.isArray(result.messages)?'messages':Array.isArray(result.records)?'records':'unknown'};
-  }catch(err){source={available:false,reason:err.upstreamStatus?'upstream_http_'+err.upstreamStatus:'network_or_api_error'}}
+  const inspect=async(path,body)=>{try{const result=await remote(e,path,'POST',body);const entries=Array.isArray(result)?result:Array.isArray(result.messages?.records)?result.messages.records:Array.isArray(result.messages)?result.messages:Array.isArray(result.records)?result.records:Array.isArray(result.chats)?result.chats:[];return {available:true,sample_count:entries.length,has_message_id:entries.some(m=>Boolean(m.key?.id)),shape:Array.isArray(result)?'array':Array.isArray(result.messages?.records)?'messages.records':Array.isArray(result.messages)?'messages':Array.isArray(result.records)?'records':Array.isArray(result.chats)?'chats':'unknown',reported_total:result.messages?.total??result.total??result.count??null}}catch(err){return {available:false,reason:err.upstreamStatus?'upstream_http_'+err.upstreamStatus:'network_or_api_error'}}};
+  source=await inspect('/chat/findMessages/'+encodeURIComponent(name),{where:{},page:1,offset:20});
+  const chats=await inspect('/chat/findChats/'+encodeURIComponent(name),{});
+  let webhook={available:false};
+  try{const response=await remote(e,'/webhook/find/'+encodeURIComponent(name));const w=response.webhook||response;webhook={available:true,enabled:w.enabled===true||w.enabled==='true',messages_upsert_enabled:Array.isArray(w.events)&&w.events.some(x=>String(x).toUpperCase().replace(/[.]/g,'_')==='MESSAGES_UPSERT'),webhook_by_events:w.webhookByEvents===true};}catch(err){webhook={available:false,reason:err.upstreamStatus?'upstream_http_'+err.upstreamStatus:'network_or_api_error'}}
   const counts=await query("SELECT COUNT(*)::int AS conversations FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE $2",[req.user.company_id,name+':%']);
-  res.json({instance:name,state:state.instance?.state||state.state||'unknown',evolution_message_source:source,crm_conversations:counts.rows[0].conversations,note:'Esta prueba no modifica ni sincroniza mensajes; solo verifica si Evolution puede consultarlos.'});
+  res.json({instance:name,state:state.instance?.state||state.state||'unknown',evolution_message_source:source,evolution_chats:chats,webhook,crm_conversations:counts.rows[0].conversations,note:'Esta prueba no modifica ni sincroniza mensajes; solo verifica si Evolution puede consultarlos.'});
  }));
  // Synthetic delivery test: validates the public route and stored secret without creating chats.
  app.post('/api/evolution/instances/:id/test-webhook',auth,admin,safe(async(req,res)=>{
