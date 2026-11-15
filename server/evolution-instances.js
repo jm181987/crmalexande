@@ -142,11 +142,12 @@ export function registerEvolutionInstances(app,auth){
  const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||payload.data?.instance?.state||'unknown').slice(0,30);try{await recordConnection(inst.id,inst.company_id,state,'webhook')}catch(err){console.warn('Evolution connection event logging failed',err.code||err.message);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state])}return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
  console.info('Evolution inbound event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:1});
- for(const item of Array.isArray(payload.data)?payload.data:[payload.data]){
+ for(const raw of Array.isArray(payload.data)?payload.data:(Array.isArray(payload.data?.messages)?payload.data.messages:[payload.data])){
+ const item=raw?.message?.key?raw.message:raw;
  const key=item?.key||{},jid=String(key.remoteJid||'');
  // Evolution may supply a WhatsApp LID and a separate phone JID. Never treat a LID as a phone number.
- if(!key.id||key.fromMe||jid.endsWith('@g.us')||jid==='status@broadcast')continue;
- const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt].filter(x=>typeof x==='string');
+ if(!key.id||jid.endsWith('@g.us')||jid==='status@broadcast'||jid.endsWith('@broadcast'))continue;
+ const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt,item?.key?.participant].filter(x=>typeof x==='string');
  const phoneJid=candidates.find(x=>/^\d{8,15}@s\.whatsapp\.net$/.test(x));
  const lidJid=candidates.find(x=>/^\d{5,25}@lid$/.test(x));
  if(!phoneJid&&!lidJid){console.warn('Evolution inbound skipped: unsupported sender JID', {instance:inst.name,jidType:jid.split('@')[1]||'missing'});continue}
@@ -163,9 +164,10 @@ export function registerEvolutionInstances(app,auth){
   try{await query('SELECT public.crm_assign_round_robin($1,$2)',[inst.company_id,conv.rows[0].id])}
   catch(err){console.error('Round Robin assignment failed',err.code||err.message)}
  }
- const m=item.message||{},body=m.conversation||m.extendedTextMessage?.text||('[WhatsApp '+String(item.messageType||'media')+']');
- const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,'inbound',$2,$3) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,String(body).slice(0,10000),external]);
- if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conv.rows[0].id]);console.info('Evolution inbound stored',{instance:inst.name})}
+ const m=item.message||{},unwrapped=m.ephemeralMessage?.message||m.viewOnceMessage?.message||m,body=unwrapped.conversation||unwrapped.extendedTextMessage?.text||unwrapped.imageMessage?.caption||unwrapped.videoMessage?.caption||('[WhatsApp '+String(item.messageType||'media')+']');
+ const direction=key.fromMe===true?'outbound':'inbound';
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,direction,String(body).slice(0,10000),external]);
+ if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+$2,updated_at=now() WHERE id=$1',[conv.rows[0].id,direction==='inbound'?1:0]);console.info('Evolution message stored',{instance:inst.name,direction})}
  }res.sendStatus(200);
  }));
  app.post('/api/conversations/:id/evolution-send',auth,safe(async(req,res)=>{
@@ -177,6 +179,8 @@ export function registerEvolutionInstances(app,auth){
  const e=cfg();if(!ready(e))return res.sendStatus(503);
  if(match[2].startsWith('lid:'))return res.status(409).json({error:'This chat uses a WhatsApp LID without a verified phone number. Reply requires resolving its phone JID first.'});
  const sent=await remote(e,'/message/sendText/'+encodeURIComponent(match[1]),'POST',{number:match[2],text:body.trim()});
- const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) RETURNING *",[req.params.id,req.user.id,body.trim(),sent.key?.id?match[1]+':'+sent.key.id:null]);res.status(201).json(x.rows[0]);
+ const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT(external_id) DO NOTHING RETURNING *",[req.params.id,req.user.id,body.trim(),sent.key?.id?match[1]+':'+sent.key.id:null]);
+ await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
+ res.status(201).json(x.rows[0]||{sent:true,external_id:sent.key?.id?match[1]+':'+sent.key.id:null});
  }));
 }
