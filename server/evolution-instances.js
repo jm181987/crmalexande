@@ -86,7 +86,7 @@ export function registerEvolutionInstances(app,auth){
  }));
  app.get('/api/evolution/instances/:id/connect',auth,admin,safe(async(req,res)=>{
  const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
- const e=cfg();if(!ready(e))return res.sendStatus(503);const d=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({base64:d.base64||d.qrcode?.base64||null,code:d.code||d.qrcode?.code||null});
+ const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});const d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name));const state=String(d.instance?.state||d.state||'unknown').toLowerCase();if(['open','connected'].includes(state))return res.json({state,base64:null,code:null});const qr=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({state,base64:qr.base64||qr.qrcode?.base64||qr.qrcode?.base64Qr||null,code:qr.code||qr.qrcode?.code||null});
  }));
  // Reapply the existing webhook configuration without rotating its secret or reconnecting WhatsApp.
  app.post('/api/evolution/instances/:id/repair-webhook',auth,admin,safe(async(req,res)=>{
