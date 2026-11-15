@@ -5,7 +5,7 @@ import './style.css';
 import Modules from './modules.jsx';
 import Landing from './landing.jsx';
 import BrandingSettings from './branding-settings.jsx';
-const BrandContext=React.createContext({name:'Alexandre CRM',logo:null});
+const BrandContext=React.createContext({name:'ZARKO | CRM & Inteligência Comercial',logo:null});
 function BrandLogo({brand}){return brand.logo?<img src={brand.logo} alt={brand.name} style={{width:36,height:36,objectFit:'contain',borderRadius:8}}/>:<div className="brand-logo">{brand.name.charAt(0).toUpperCase()}</div>}
 const tr={
 es:{dashboard:'Panel general',conversations:'Conversaciones',opportunities:'Oportunidades',contacts:'Contactos',calendar:'Calendario',tasks:'Tareas',ai:'IA conversacional',automation:'Automatizaciones',campaigns:'Campañas',settings:'Configuración',reviews:'Reputación',reports:'Reportes',integrations:'Integraciones',hello:'Bienvenido',lead:'Contactos',pipelineValue:'En negociación',won:'Ventas ganadas',pending:'Tareas pendientes',name:'Nombre',email:'Correo',password:'Contraseña',login:'Iniciar sesión',logout:'Cerrar sesión',newContact:'Nuevo contacto',newDeal:'Nueva oportunidad',newTask:'Nueva tarea',newAppointment:'Nueva cita',phone:'Teléfono',source:'Origen',tags:'Etiquetas',notes:'Notas',save:'Guardar',cancel:'Cancelar',contact:'Contacto',value:'Valor',title:'Título',stage:'Etapa',pipeline:'Embudo',due:'Vencimiento',start:'Inicio',end:'Fin',empty:'No hay registros',internal:'Nota interna',unread:'No leídas',recent:'Recientes',newPipeline:'Nuevo embudo',users:'Usuarios',newUser:'Nuevo usuario',role:'Rol',pendingFeature:'Integración pendiente: se requieren credenciales y configuración del proveedor.',loss:'Motivo de pérdida'},
@@ -16,7 +16,7 @@ const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).
 const call=async(url,method='GET',body)=>{const res=await fetch('/api'+url,{method,credentials:'include',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const data=await res.json().catch(()=>({error:'Server error'}));if(!res.ok)throw Error(data.error||'Request failed');return data};
 function App(){
 const isDashboard=window.location.pathname.startsWith('/dashboard');
-const[brand,setBrand]=useState({name:'Alexandre CRM',logo:null});
+const[brand,setBrand]=useState({name:'ZARKO | CRM & Inteligência Comercial',logo:null});
 useEffect(()=>{let active=true;const refresh=()=>fetch('/api/public/branding',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{if(active&&d?.name)setBrand(d)}).catch(()=>{});refresh();window.addEventListener('crm-brand-updated',refresh);return()=>{active=false;window.removeEventListener('crm-brand-updated',refresh)}},[]);
 const[lang,setLang]=useState(['es','pt','en'].includes(localStorage.getItem('crm_lang'))?localStorage.getItem('crm_lang'):'pt'),[user,setUser]=useState(undefined),[page,setPage]=useState('dashboard'),[error,setError]=useState(''),[tick,setTick]=useState(0),[showMenu,setShowMenu]=useState(false);
 useEffect(()=>{document.documentElement.lang=lang},[lang]);
