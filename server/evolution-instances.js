@@ -138,16 +138,16 @@ export function registerEvolutionInstances(app,auth){
  res.set('X-Alexandre-Evolution-Webhook','v1');
  console.info('Evolution webhook HTTP request received',{event:String(req.body?.event||'missing').slice(0,60)});
  const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
- const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(payload?.instance!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name});return res.sendStatus(200)}
- const event=String(payload.event||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||payload.data?.instance?.state||'unknown').slice(0,30);try{await recordConnection(inst.id,inst.company_id,state,'webhook')}catch(err){console.warn('Evolution connection event logging failed',err.code||err.message);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state])}return res.sendStatus(200)}
+ const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(String(payload?.instance||payload?.instanceName||'')!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name,received:typeof payload?.instance});return res.sendStatus(200)}
+ const event=String(payload.event||payload.type||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||payload.data?.instance?.state||'unknown').slice(0,30);try{await recordConnection(inst.id,inst.company_id,state,'webhook')}catch(err){console.warn('Evolution connection event logging failed',err.code||err.message);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state])}return res.sendStatus(200)}
  if(event!=='messages.upsert')return res.sendStatus(200);
- console.info('Evolution inbound event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:1});
+ console.info('Evolution message event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:Array.isArray(payload.data?.messages)?payload.data.messages.length:1});
  for(const raw of Array.isArray(payload.data)?payload.data:(Array.isArray(payload.data?.messages)?payload.data.messages:[payload.data])){
  const item=raw?.message?.key?raw.message:raw;
  const key=item?.key||{},jid=String(key.remoteJid||'');
  // Evolution may supply a WhatsApp LID and a separate phone JID. Never treat a LID as a phone number.
  if(!key.id||jid.endsWith('@g.us')||jid==='status@broadcast'||jid.endsWith('@broadcast'))continue;
- const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt,item?.key?.participant].filter(x=>typeof x==='string');
+ const candidates=[key.remoteJid,key.remoteJidAlt,item?.remoteJidAlt,item?.participantAlt,item?.key?.participant,item?.sender].filter(x=>typeof x==='string');
  const phoneJid=candidates.find(x=>/^\d{8,15}@s\.whatsapp\.net$/.test(x));
  const lidJid=candidates.find(x=>/^\d{5,25}@lid$/.test(x));
  if(!phoneJid&&!lidJid){console.warn('Evolution inbound skipped: unsupported sender JID', {instance:inst.name,jidType:jid.split('@')[1]||'missing'});continue}
