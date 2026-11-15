@@ -1,4 +1,6 @@
 BEGIN;
+CREATE TABLE IF NOT EXISTS crm_public_branding (id integer PRIMARY KEY CHECK(id=1),name text NOT NULL,logo text,updated_at timestamptz NOT NULL DEFAULT now());
+INSERT INTO crm_public_branding(id,name) VALUES(1,'Alexandre CRM') ON CONFLICT(id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS crm_automation_rules(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),name text NOT NULL,trigger_event text NOT NULL DEFAULT 'manual',action_type text NOT NULL DEFAULT 'create_task',config jsonb NOT NULL DEFAULT '{}',enabled boolean NOT NULL DEFAULT false,created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS crm_campaigns(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),name text NOT NULL,channel text NOT NULL DEFAULT 'whatsapp',template_name text,content text NOT NULL DEFAULT '',status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','ready','paused','completed')),created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS crm_integrations(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),company_id uuid NOT NULL REFERENCES companies(id),provider text NOT NULL,status text NOT NULL DEFAULT 'disconnected',config jsonb NOT NULL DEFAULT '{}',updated_at timestamptz NOT NULL DEFAULT now(),UNIQUE(company_id,provider));
