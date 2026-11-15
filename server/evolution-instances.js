@@ -109,6 +109,22 @@ export function registerEvolutionInstances(app,auth){
   console.info('Evolution webhook configuration reapplied',{instance:name,verified:valid,messagesUpsert:eventOk});
   res.json({updated:true,verified:valid,instance:name,messages_upsert_enabled:eventOk,notice:'Webhook reconfigurado con el mismo secreto. No se desconectó WhatsApp. Enviá un mensaje real para verificar la entrega.'});
  }));
+ // Read-only diagnostic: checks whether Evolution itself exposes messages for this instance.
+ app.get('/api/evolution/instances/:id/message-source-check',auth,admin,safe(async(req,res)=>{
+  const found=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!found.rowCount)return res.sendStatus(404);
+  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
+  const name=found.rows[0].name;
+  const state=await remote(e,'/instance/connectionState/'+encodeURIComponent(name));
+  let source={available:false,reason:'unknown'};
+  try{
+   const result=await remote(e,'/chat/findMessages/'+encodeURIComponent(name),'POST',{where:{},page:1,offset:1});
+   const messages=Array.isArray(result)?result:Array.isArray(result.messages?.records)?result.messages.records:Array.isArray(result.messages)?result.messages:Array.isArray(result.records)?result.records:[];
+   source={available:true,sample_count:messages.length,has_message_id:messages.some(m=>Boolean(m.key?.id)),shape: Array.isArray(result)?'array':Array.isArray(result.messages?.records)?'messages.records':Array.isArray(result.messages)?'messages':Array.isArray(result.records)?'records':'unknown'};
+  }catch(err){source={available:false,reason:err.upstreamStatus?'upstream_http_'+err.upstreamStatus:'network_or_api_error'}}
+  const counts=await query("SELECT COUNT(*)::int AS conversations FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE $2",[req.user.company_id,name+':%']);
+  res.json({instance:name,state:state.instance?.state||state.state||'unknown',evolution_message_source:source,crm_conversations:counts.rows[0].conversations,note:'Esta prueba no modifica ni sincroniza mensajes; solo verifica si Evolution puede consultarlos.'});
+ }));
  // Synthetic delivery test: validates the public route and stored secret without creating chats.
  app.post('/api/evolution/instances/:id/test-webhook',auth,admin,safe(async(req,res)=>{
   const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
@@ -140,7 +156,7 @@ export function registerEvolutionInstances(app,auth){
  const hash=digest(req.params.secret),found=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_webhook_instance_by_hash($1)',[hash]):await query('SELECT id,company_id,name FROM crm_evolution_instances WHERE webhook_secret_hash=$1',[hash]);if(!found.rowCount){console.warn('Evolution webhook rejected: unknown secret hash');return res.sendStatus(403)}
  const inst=found.rows[0],payload=req.body;tenantContext.enterWith({companyId:inst.company_id});if(String(payload?.instance||payload?.instanceName||'')!==inst.name){console.warn('Evolution webhook instance mismatch',{expected:inst.name,received:typeof payload?.instance});return res.sendStatus(200)}
  const event=String(payload.event||payload.type||'').toLowerCase().replace(/_/g,'.');if(event==='connection.update'){const state=String(payload.data?.state||payload.data?.instance?.state||'unknown').slice(0,30);try{await recordConnection(inst.id,inst.company_id,state,'webhook')}catch(err){console.warn('Evolution connection event logging failed',err.code||err.message);await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[inst.id,state])}return res.sendStatus(200)}
- if(event!=='messages.upsert')return res.sendStatus(200);
+ if(event!=='messages.upsert'){if(/message/i.test(event))console.warn('Evolution unhandled message event',{event});return res.sendStatus(200)}
  console.info('Evolution message event received',{instance:inst.name,items:Array.isArray(payload.data)?payload.data.length:Array.isArray(payload.data?.messages)?payload.data.messages.length:1});
  for(const raw of Array.isArray(payload.data)?payload.data:(Array.isArray(payload.data?.messages)?payload.data.messages:[payload.data])){
  const item=raw?.message?.key?raw.message:raw;
