@@ -179,7 +179,7 @@ export function registerEvolutionInstances(app,auth){
  const e=cfg();if(!ready(e))return res.sendStatus(503);
  if(match[2].startsWith('lid:'))return res.status(409).json({error:'This chat uses a WhatsApp LID without a verified phone number. Reply requires resolving its phone JID first.'});
  const sent=await remote(e,'/message/sendText/'+encodeURIComponent(match[1]),'POST',{number:match[2],text:body.trim()});
- const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT(external_id) DO NOTHING RETURNING *",[req.params.id,req.user.id,body.trim(),sent.key?.id?match[1]+':'+sent.key.id:null]);
+ const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body.trim(),sent.key?.id?match[1]+':'+sent.key.id:null]);
  await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
  res.status(201).json(x.rows[0]||{sent:true,external_id:sent.key?.id?match[1]+':'+sent.key.id:null});
  }));
