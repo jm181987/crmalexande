@@ -24,5 +24,25 @@
       "source": "/",
       "destination": "/index.html"
     }
+  ],
+  "headers": [
+    {
+      "source": "/legal.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/legal/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
   ]
 }
