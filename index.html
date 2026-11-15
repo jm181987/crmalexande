@@ -1,1 +1,18 @@
-<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#15233a"><title>Alexandre CRM</title><link rel="icon" type="image/jpeg" href="/zarko-upload.jpg"><link rel="apple-touch-icon" href="/zarko-upload.jpg"><meta name="theme-color" content="#0A192F"></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
+<!doctype html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#15233a"><title>Alexandre CRM</title><link rel="icon" type="image/jpeg" href="/zarko-upload.jpg"><link rel="apple-touch-icon" href="/zarko-upload.jpg"><meta name="theme-color" content="#0A192F"><script>
+(function(){
+  var fallback='/zarko-upload.jpg';
+  function update(logo){
+    var url=typeof logo==='string'&&/^data:image\/(png|jpeg|webp);base64,/.test(logo)?logo:fallback;
+    ['icon','apple-touch-icon'].forEach(function(rel){
+      var el=document.querySelector('link[rel="'+rel+'"]');
+      if(!el){el=document.createElement('link');el.rel=rel;document.head.appendChild(el)}
+      el.href=url;
+      if(rel==='icon')el.type=url.startsWith('data:')?url.slice(5,url.indexOf(';')):'image/jpeg';
+    });
+  }
+  function load(){fetch('/api/public/branding',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error('branding');return r.json()}).then(function(b){update(b.logo)}).catch(function(){update(null)})}
+  window.addEventListener('crm-brand-updated',function(e){update(e.detail&&e.detail.logo)});
+  window.addEventListener('message',function(e){if(e.origin===location.origin&&e.data&&e.data.type==='zarko-brand-logo')update(e.data.logo)});
+  load();
+})();
+</script></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script></body></html>
