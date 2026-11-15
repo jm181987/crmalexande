@@ -1,6 +1,6 @@
 import React,{useState,useEffect} from 'react';
 import{createRoot}from'react-dom/client';
-import{LayoutDashboard,MessagesSquare,ContactRound,KanbanSquare,CalendarDays,CheckSquare,Bot,Workflow,Send,Settings,LogOut,Plus,Globe,Menu,Users}from'lucide-react';
+import{LayoutDashboard,MessagesSquare,ContactRound,KanbanSquare,CalendarDays,CheckSquare,Bot,Workflow,Send,Settings,LogOut,Plus,Globe,Menu,Users,TrendingUp,ArrowUpRight,Activity,Target,Clock3,Sparkles}from'lucide-react';
 import './style.css';
 import Modules from './modules.jsx';
 const tr={
