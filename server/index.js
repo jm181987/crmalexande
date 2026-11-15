@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {query,tenantContext} from './db.js';
+import {registerBranding} from './branding.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerEvolutionInstances} from './evolution-instances.js';
 import {registerCampaignDelivery} from './campaign-delivery.js';
@@ -213,6 +214,7 @@ app.post('/api/appointments',auth,asyncRoute(async(req,res)=>{
  const conflict=await query("SELECT id FROM appointments WHERE company_id=$1 AND owner_id=$2 AND status='scheduled' AND start_at<$4 AND end_at>$3 LIMIT 1",[req.user.company_id,req.user.id,start_at,end_at]);if(conflict.rowCount)return res.status(409).json({error:'Time conflict'});
  const r=await query('INSERT INTO appointments(company_id,contact_id,owner_id,title,start_at,end_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.user.company_id,contact_id||null,req.user.id,title.trim(),start_at,end_at]);res.status(201).json(r.rows[0]);
 }));
+registerBranding(app,auth,owner);
 registerEvolutionInstances(app,auth);
 registerUnsubscribe(app);
 registerCampaignDelivery(app,auth);
