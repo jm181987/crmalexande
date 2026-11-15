@@ -18,10 +18,11 @@ function App(){
 const isDashboard=window.location.pathname.startsWith('/dashboard');
 const[brand,setBrand]=useState({name:'Alexandre CRM',logo:null});
 useEffect(()=>{let active=true;const refresh=()=>fetch('/api/public/branding',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{if(active&&d?.name)setBrand(d)}).catch(()=>{});refresh();window.addEventListener('crm-brand-updated',refresh);return()=>{active=false;window.removeEventListener('crm-brand-updated',refresh)}},[]);
-const[lang,setLang]=useState(localStorage.getItem('crm_lang')||'es'),[user,setUser]=useState(undefined),[page,setPage]=useState('dashboard'),[error,setError]=useState(''),[tick,setTick]=useState(0),[showMenu,setShowMenu]=useState(false);
+const[lang,setLang]=useState(['es','pt','en'].includes(localStorage.getItem('crm_lang'))?localStorage.getItem('crm_lang'):'pt'),[user,setUser]=useState(undefined),[page,setPage]=useState('dashboard'),[error,setError]=useState(''),[tick,setTick]=useState(0),[showMenu,setShowMenu]=useState(false);
+useEffect(()=>{document.documentElement.lang=lang},[lang]);
 const t=tr[lang],reload=()=>setTick(n=>n+1);
 useEffect(()=>{call('/auth/me').then(r=>setUser(r.user)).catch(()=>setUser(null))},[]);
-const language=<label className="language"><Globe size={16}/><select value={lang} onChange={e=>{setLang(e.target.value);localStorage.setItem('crm_lang',e.target.value)}}><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option></select></label>;
+const language=<label className="language"><Globe size={16}/><select value={lang} onChange={e=>{setLang(e.target.value);localStorage.setItem('crm_lang',e.target.value);document.documentElement.lang=e.target.value;window.dispatchEvent(new Event('crm-language-updated'))}}><option value="es">Español</option><option value="pt">Português</option><option value="en">English</option></select></label>;
 if(!isDashboard)return <Landing/>;
 if(user===undefined)return <div className="loading">{brand.name}...</div>;
 if(!user)return <Login t={t} setUser={setUser} language={language} brand={brand}/>;
@@ -58,7 +59,7 @@ function UsersPage({t,user,error,reload}){const users=useData('/users',error)||[
 function SettingsPage({t,user,error,reload}){
  const [tab,setTab]=useState('integrations'),[status,setStatus]=useState(null);
  useEffect(()=>{if(user.role!=='agent')call('/campaigns/operations/status').then(setStatus).catch(()=>{})},[user.role]);
- const tabs=[['integrations','Integraciones'],['operations','Campañas y automatizaciones'],['users',t.users],...(user.role==='owner'?[['branding','Marca y logo']]:[])];
+ const tabs=[['integrations',t.integrations],['operations',({es:'Campañas y automatizaciones',pt:'Campanhas e automações',en:'Campaigns and automations'})[localStorage.getItem('crm_lang')||'pt']],['users',t.users],...(user.role==='owner'?[['branding',({es:'Marca y logo',pt:'Marca e logotipo',en:'Brand and logo'})[localStorage.getItem('crm_lang')||'pt']]]:[])];
  return <><div className="toolbar" style={{flexWrap:'wrap',gap:8}}>{tabs.map(([key,label])=><button key={key} className={tab===key?'primary':''} onClick={()=>setTab(key)}>{label}</button>)}</div>
  {tab==='branding'&&user.role==='owner'&&<BrandingSettings/>}
  {tab==='users'&&<UsersPage t={t} user={user} error={error} reload={reload}/>}
