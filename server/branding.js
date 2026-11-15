@@ -1,5 +1,5 @@
 import {query} from './db.js';
-const defaults={name:'Alexandre CRM',logo:null};
+const defaults={name:'ZARKO | CRM & Inteligência Comercial',logo:null};
 const sanitize=row=>({name:row?.name||defaults.name,logo:row?.logo||null});
 export function registerBranding(app,auth,owner){
  app.get('/api/public/branding',async(req,res)=>{try{const r=await query('SELECT name,logo FROM crm_public_branding WHERE id=1');res.set('Cache-Control','no-store');res.json(sanitize(r.rows[0]));}catch(e){if(e.code==='42P01')return res.json(defaults);throw e;}});
