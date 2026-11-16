@@ -23,6 +23,10 @@ const renderItem=(x,locale,contactUrl='')=>{
  if(contactUrl)lines.push('', '💬 *'+labels.contact+':*',contactUrl);
  return lines.join('\n').slice(0,3500);
 };
+const photosOf=x=>{const gallery=Array.isArray(x.attributes?._image_urls)?x.attributes._image_urls:[];return [...new Set([x.image_url,...gallery].filter(Boolean))].slice(0,12)};
+const imageList=b=>{const raw=b.image_urls===undefined?[b.image_url].filter(Boolean):b.image_urls;return Array.isArray(raw)&&raw.length<=12&&raw.every(x=>typeof x==='string'&&publicImage(x))&&new Set(raw).size===raw.length?raw:null};
+const storeGallery=b=>{const images=imageList(b);if(!images)return null;const attrs={...(b.attributes||{})};delete attrs._image_urls;return {image_url:images[0]||null,attributes:JSON.stringify({...attrs,_image_urls:images})}};
+const itemView=x=>({...x,image_urls:photosOf(x)});
 export function registerInventoryRoutes(app,auth){
  const r=Router();r.use(auth);
  r.post('/inventory-images/upload',editor,wrap(async(req,res)=>{
@@ -45,10 +49,10 @@ export function registerInventoryRoutes(app,auth){
  }));
  r.get('/inventory/contact-settings',wrap(async(req,res)=>{const x=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);res.json({whatsapp_url:x.rows[0]?.whatsapp_url||''})}));
  r.put('/inventory/contact-settings',editor,wrap(async(req,res)=>{const raw=String(req.body?.whatsapp_url||'').trim();let url='';if(raw){try{const parsed=new URL(raw);if(parsed.protocol!=='https:'||!['wa.me','api.whatsapp.com','www.wa.me'].includes(parsed.hostname.toLowerCase())||raw.length>500)throw Error('invalid');url=parsed.href}catch{return res.status(400).json({error:'Ingresá un enlace válido de WhatsApp: https://wa.me/...'})}}const x=await query('INSERT INTO crm_inventory_contact_settings(company_id,whatsapp_url) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET whatsapp_url=EXCLUDED.whatsapp_url,updated_at=now() RETURNING whatsapp_url',[req.user.company_id,url]);res.json(x.rows[0])}));
- r.get('/inventory',wrap(async(req,res)=>{const kind=kinds.includes(req.query.kind)?req.query.kind:null;const term=String(req.query.search||'').slice(0,100);const rows=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND ($2::text IS NULL OR kind=$2) AND ($3::text=\'\' OR name ILIKE \'%\'||$3||\'%\' OR sku ILIKE \'%\'||$3||\'%\') ORDER BY updated_at DESC LIMIT 300',[req.user.company_id,kind,term]);res.json(rows.rows)}));
- r.get('/inventory/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const x=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.json(x.rows[0])}));
- r.post('/inventory',editor,wrap(async(req,res)=>{const b=req.body||{};if(!validate(b))return res.status(400).json({error:'Invalid inventory item: check name, type, status, currency, nonnegative price and quantity, photo URL and attributes'});const x=await query('INSERT INTO crm_inventory_items(company_id,kind,name,sku,description,price,currency,quantity,status,image_url,attributes,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *',[req.user.company_id,b.kind,b.name.trim(),b.sku?.trim()||null,b.description||'',b.price,b.currency,b.quantity,b.status,b.image_url||null,JSON.stringify(b.attributes||{}),req.user.id]);res.status(201).json(x.rows[0])}));
- r.put('/inventory/:id',editor,wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const b=req.body||{};if(!validate(b))return res.status(400).json({error:'Invalid inventory item'});const old=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!old.rowCount)return res.sendStatus(404);const x=await query('UPDATE crm_inventory_items SET kind=$3,name=$4,sku=$5,description=$6,price=$7,currency=$8,quantity=$9,status=$10,image_url=$11,attributes=$12,updated_by=$13,updated_at=now() WHERE company_id=$1 AND id=$2 RETURNING *',[req.user.company_id,req.params.id,b.kind,b.name.trim(),b.sku?.trim()||null,b.description||'',b.price,b.currency,b.quantity,b.status,b.image_url||null,JSON.stringify(b.attributes),req.user.id]);const previous=old.rows[0],current=x.rows[0];if(Number(previous.quantity)!==Number(current.quantity))await query('INSERT INTO crm_inventory_movements(company_id,item_id,actor_id,previous_quantity,new_quantity,reason) VALUES($1,$2,$3,$4,$5,$6)',[req.user.company_id,current.id,req.user.id,previous.quantity,current.quantity,'manual']);if(Number(previous.quantity)===0&&Number(current.quantity)>0)await query("INSERT INTO crm_inventory_notifications(company_id,item_id,event_type,old_value,new_value) VALUES($1,$2,'restock',$3,$4)",[req.user.company_id,current.id,String(previous.quantity),String(current.quantity)]);if(Number(previous.price)!==Number(current.price))await query("INSERT INTO crm_inventory_notifications(company_id,item_id,event_type,old_value,new_value) VALUES($1,$2,'price_change',$3,$4)",[req.user.company_id,current.id,String(previous.price),String(current.price)]);res.json(current)}));
+ r.get('/inventory',wrap(async(req,res)=>{const kind=kinds.includes(req.query.kind)?req.query.kind:null;const term=String(req.query.search||'').slice(0,100);const rows=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND ($2::text IS NULL OR kind=$2) AND ($3::text=\'\' OR name ILIKE \'%\'||$3||\'%\' OR sku ILIKE \'%\'||$3||\'%\') ORDER BY updated_at DESC LIMIT 300',[req.user.company_id,kind,term]);res.json(rows.rows.map(itemView))}));
+ r.get('/inventory/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const x=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.json(itemView(x.rows[0]))}));
+ r.post('/inventory',editor,wrap(async(req,res)=>{const b=req.body||{};const gallery=storeGallery(b);if(!validate(b)||!gallery)return res.status(400).json({error:'Invalid inventory item: check name, type, status, currency, nonnegative price and quantity, photo URL and attributes'});const x=await query('INSERT INTO crm_inventory_items(company_id,kind,name,sku,description,price,currency,quantity,status,image_url,attributes,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *',[req.user.company_id,b.kind,b.name.trim(),b.sku?.trim()||null,b.description||'',b.price,b.currency,b.quantity,b.status,gallery.image_url,gallery.attributes,req.user.id]);res.status(201).json(itemView(x.rows[0]))}));
+ r.put('/inventory/:id',editor,wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const b=req.body||{};const gallery=storeGallery(b);if(!validate(b)||!gallery)return res.status(400).json({error:'Invalid inventory item'});const old=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!old.rowCount)return res.sendStatus(404);const x=await query('UPDATE crm_inventory_items SET kind=$3,name=$4,sku=$5,description=$6,price=$7,currency=$8,quantity=$9,status=$10,image_url=$11,attributes=$12,updated_by=$13,updated_at=now() WHERE company_id=$1 AND id=$2 RETURNING *',[req.user.company_id,req.params.id,b.kind,b.name.trim(),b.sku?.trim()||null,b.description||'',b.price,b.currency,b.quantity,b.status,gallery.image_url,gallery.attributes,req.user.id]);const previous=old.rows[0],current=x.rows[0];if(Number(previous.quantity)!==Number(current.quantity))await query('INSERT INTO crm_inventory_movements(company_id,item_id,actor_id,previous_quantity,new_quantity,reason) VALUES($1,$2,$3,$4,$5,$6)',[req.user.company_id,current.id,req.user.id,previous.quantity,current.quantity,'manual']);if(Number(previous.quantity)===0&&Number(current.quantity)>0)await query("INSERT INTO crm_inventory_notifications(company_id,item_id,event_type,old_value,new_value) VALUES($1,$2,'restock',$3,$4)",[req.user.company_id,current.id,String(previous.quantity),String(current.quantity)]);if(Number(previous.price)!==Number(current.price))await query("INSERT INTO crm_inventory_notifications(company_id,item_id,event_type,old_value,new_value) VALUES($1,$2,'price_change',$3,$4)",[req.user.company_id,current.id,String(previous.price),String(current.price)]);res.json(itemView(current))}));
  r.get('/inventory/:id/movements',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const x=await query('SELECT * FROM crm_inventory_movements WHERE company_id=$1 AND item_id=$2 ORDER BY created_at DESC LIMIT 100',[req.user.company_id,req.params.id]);res.json(x.rows)}));
  r.get('/inventory-notifications',editor,wrap(async(req,res)=>{const x=await query("SELECT n.*,i.name AS item_name FROM crm_inventory_notifications n JOIN crm_inventory_items i ON i.company_id=n.company_id AND i.id=n.item_id WHERE n.company_id=$1 ORDER BY n.created_at DESC LIMIT 100",[req.user.company_id]);res.json(x.rows)}));
  r.post('/inventory/:id/interests',editor,wrap(async(req,res)=>{if(!uuid(req.params.id)||!uuid(req.body?.contact_id))return res.sendStatus(400);const x=await query('INSERT INTO crm_inventory_interests(company_id,item_id,contact_id,notify_on_restock,notify_on_price_change) SELECT $1,$2,c.id,$4,$5 FROM contacts c JOIN crm_inventory_items i ON i.company_id=c.company_id AND i.id=$2 WHERE c.company_id=$1 AND c.id=$3 ON CONFLICT(company_id,item_id,contact_id) DO UPDATE SET notify_on_restock=EXCLUDED.notify_on_restock,notify_on_price_change=EXCLUDED.notify_on_price_change RETURNING *',[req.user.company_id,req.params.id,req.body.contact_id,req.body.notify_on_restock!==false,req.body.notify_on_price_change===true]);if(!x.rowCount)return res.sendStatus(404);res.status(201).json(x.rows[0])}));
@@ -68,29 +72,28 @@ export function registerInventoryRoutes(app,auth){
  const contact=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);const contactUrl=contact.rows[0]?.whatsapp_url||'';
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
  for(const id of ids){const item=byId.get(id);if(item.status==='inactive'){return res.status(409).json({error:'Inactive item cannot be sent',sent})}
- const body=renderItem(item,locale,contactUrl);
- if(!item.image_url||!publicImage(item.image_url))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
- let result,hasImage=false;
- try{
-  if(item.image_url&&publicImage(item.image_url)){
-   const hosted=/\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(new URL(item.image_url).pathname);
-   let media=item.image_url,mimetype=/\.png(?:\?|$)/i.test(item.image_url)?'image/png':/\.webp(?:\?|$)/i.test(item.image_url)?'image/webp':'image/jpeg';
+ const body=renderItem(item,locale,contactUrl);const photos=photosOf(item);
+ if(!photos.length||!photos.every(publicImage))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
+ let photoIndex=0;
+ for(const photo of photos){
+  let result;
+  try{
+   const hosted=/\\/api\\/public\\/inventory-image\\/([0-9a-f-]{36})$/i.exec(new URL(photo).pathname);
+   let media=photo,mimetype=/\\.png(?:\\?|$)/i.test(photo)?'image/png':/\\.webp(?:\\?|$)/i.test(photo)?'image/webp':'image/jpeg';
    if(hosted){
     const image=await query('SELECT mime,content FROM crm_inventory_images WHERE company_id=$1 AND id=$2',[req.user.company_id,hosted[1]]);
     if(!image.rowCount)throw Object.assign(new Error('Inventory photo not found'),{status:404});
-    mimetype=image.rows[0].mime;
-    media=Buffer.from(image.rows[0].content).toString('base64');
+    mimetype=image.rows[0].mime;media=Buffer.from(image.rows[0].content).toString('base64');
    }
-   result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:body,media,fileName:'zarko-'+id+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
-   if(result.message&&!result.message.imageMessage&&!result.message.documentMessage)throw Object.assign(new Error('Evolution API did not confirm an image message. Check instance media support.'),{status:502});
-   hasImage=true;
-  }else{
-   throw Object.assign(new Error('Inventory image is required for this send'),{status:422});
-  }
- }catch(err){return res.status(err.status||502).json({error:err.message,sent})}
- const ext=result.key?.id?match[1]+':'+result.key.id:null;
- const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,body+(hasImage?'\n'+item.image_url:''),ext]);
- sent.push({item_id:id,message_id:saved.rows[0]?.id||null});
+   result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name,media,fileName:'inventory-'+id+'-'+(photoIndex+1)+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
+   if(result.message&&!result.message.imageMessage&&!result.message.documentMessage)throw Object.assign(new Error('Media delivery not confirmed'),{status:502});
+  }catch(err){return res.status(err.status||502).json({error:err.message,sent,partial_item_id:id,photos_sent:photoIndex})}
+  const ext=result.key?.id?match[1]+':'+result.key.id:null;
+  const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,(photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name)+'\\n'+photo,ext]);
+  sent.push({item_id:id,photo_index:photoIndex+1,message_id:saved.rows[0]?.id||null});
+  photoIndex++;
+ }
+
  }
  await query('UPDATE conversations SET updated_at=now() WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
  res.status(201).json({sent});
