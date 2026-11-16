@@ -29,13 +29,16 @@ const ownerSql=(u,column='owner_id',start=2)=>agent(u)?' AND '+column+'=$'+start
 const p=u=>agent(u)?[u.company_id,u.id]:[u.company_id];
 const cookie={httpOnly:true,sameSite:'lax',secure:process.env.COOKIE_SECURE==='true',maxAge:28800000,path:'/'};
 const auth=asyncRoute(async(req,res,next)=>{
- if(!secret)return res.status(503).json({error:'JWT_SECRET not configured'});
- try{
-  const data=jwt.verify(req.cookies.crm_session,secret,{algorithms:['HS256']});
-  const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_id($1)',[data.sub]):await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
-  if(!r.rowCount)return res.status(401).json({error:'Unauthorized'});
-  req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
- }catch{return res.status(401).json({error:'Unauthorized'});}
+ if(!secret)return res.status(503).json({error:'Authentication not configured'});
+ const token=req.cookies?.crm_session;
+ if(!token)return res.status(401).json({error:'Session required',code:'SESSION_REQUIRED'});
+ let data;
+ try{data=jwt.verify(token,secret,{algorithms:['HS256']});}
+ catch(err){return res.status(401).json({error:err.name==='TokenExpiredError'?'Session expired':'Invalid session',code:err.name==='TokenExpiredError'?'SESSION_EXPIRED':'INVALID_SESSION'});}
+ // Database failures must not be reported as invalid credentials.
+ const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_id($1)',[data.sub]):await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
+ if(!r.rowCount)return res.status(401).json({error:'User account unavailable',code:'ACCOUNT_UNAVAILABLE'});
+ req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
 const owner=(req,res,next)=>req.user.role==='owner'?next():res.status(403).json({error:'Forbidden'});
