@@ -6,9 +6,9 @@ const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSEC
 const webhookReady=e=>ready(e)&&e.origin.startsWith('https://');
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
 const admin=(req,res,next)=>req.user.role==='agent'?res.sendStatus(403):next();
-async function remote(e,path,method='GET',body){
+async function remote(e,path,method='GET',body,timeoutMs=12000){
  let response;
- try{response=await fetch(e.url+path,{method,headers:{apikey:e.key,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(12000)})}
+ try{response=await fetch(e.url+path,{method,headers:{apikey:e.key,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(timeoutMs)})}
  catch(err){console.error('Evolution network error',err?.cause?.code||err?.code||err?.name);throw Object.assign(new Error('Evolution API unreachable or timed out'),{status:502,phase:'network'})}
  const data=await response.json().catch(()=>({}));
  if(!response.ok){console.error('Evolution HTTP error',response.status,path.split('/').slice(0,3).join('/'));throw Object.assign(new Error('Evolution API returned HTTP '+response.status),{status:502,phase:'upstream',upstreamStatus:response.status})}
@@ -245,12 +245,27 @@ export function registerEvolutionInstances(app,auth){
   if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'WhatsApp sin número verificado'});
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
   const url=e.origin+'/api/public/chat-media/'+m.id;
-  await query("UPDATE crm_chat_media SET status='ready' WHERE id=$1 AND company_id=$2",[m.id,req.user.company_id]);
-  let sent;try{sent=m.mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:url}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[m.mime],mimetype:m.mime,media:url,fileName:m.filename,caption:String(req.body?.caption||'').slice(0,1000)})}catch(err){return res.status(502).json({error:'No se pudo enviar el archivo: '+err.message})}
   const caption=String(req.body?.caption||'').slice(0,1000);
-  const body=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
-  const msg=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
-  await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json(msg.rows[0]||{sent:true});
+  const mediaBody=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
+  // Store the attachment in the chat before contacting Evolution. An upstream timeout
+  // does not prove delivery failed; do not silently hide a potentially delivered video.
+  const pending=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,'⏳ Envío pendiente de confirmación\n'+mediaBody]);
+  await query("UPDATE crm_chat_media SET status='ready' WHERE id=$1 AND company_id=$2",[m.id,req.user.company_id]);
+  await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
+  let sent;
+  try{
+   sent=m.mime.startsWith('audio/')
+    ?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:url},45000)
+    :await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[m.mime],mimetype:m.mime,media:url,fileName:m.filename,caption},45000);
+  }catch(err){
+   const uncertain=err.phase==='network';
+   const label=uncertain?'⚠️ Envío sin confirmar (verificar en WhatsApp antes de reenviar)':'❌ Evolution rechazó el archivo';
+   await query("UPDATE messages SET body=$2 WHERE id=$1",[pending.rows[0].id,label+'\n'+mediaBody]);
+   return res.status(uncertain?202:502).json({message_id:pending.rows[0].id,delivery_status:uncertain?'unknown':'failed',error:uncertain?'Evolution no confirmó la entrega. El archivo se conserva en el chat; comprobá WhatsApp antes de volver a enviarlo.':err.message});
+  }
+  const external=sent.key?.id?match[1]+':'+sent.key.id:null;
+  const updated=await query("UPDATE messages SET body=$2,external_id=$3 WHERE id=$1 RETURNING *",[pending.rows[0].id,mediaBody,external]);
+  res.status(201).json(updated.rows[0]);
  }));
  app.post('/api/conversations/:id/evolution-media',auth,safe(async(req,res)=>{
   const {mime,data,filename,caption=''}=req.body||{};
