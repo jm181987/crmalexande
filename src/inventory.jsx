@@ -27,6 +27,11 @@ return <div style={{display:'grid',gap:16}}>
  {(draft.image_urls||[]).map((url,i)=><div key={url} style={{border:'1px solid var(--border,#dce3ed)',borderRadius:10,padding:6,display:'grid',gap:6}}>
  <a href={url} target="_blank" rel="noopener noreferrer" title={lang==='es'?'Ver foto completa':lang==='en'?'View full photo':'Ver foto completa'}><img src={url} alt={'Foto '+(i+1)+' — '+draft.name} loading="lazy" style={{width:'100%',height:115,objectFit:'cover',borderRadius:7}}/></a>
  <small>{i===0?(lang==='es'?'Portada':lang==='en'?'Cover':'Capa'):'Foto '+(i+1)}</small>
+ <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+ <button type="button" disabled={uploading||i===0} title={lang==='es'?'Mover foto a la izquierda':lang==='en'?'Move photo left':'Mover foto para a esquerda'} onClick={()=>setDraft(v=>{const a=[...(v.image_urls||[])];[a[i-1],a[i]]=[a[i],a[i-1]];return {...v,image_urls:a,image_url:a[0]||''}})}>←</button>
+ <button type="button" disabled={uploading||i===(draft.image_urls||[]).length-1} title={lang==='es'?'Mover foto a la derecha':lang==='en'?'Move photo right':'Mover foto para a direita'} onClick={()=>setDraft(v=>{const a=[...(v.image_urls||[])];[a[i+1],a[i]]=[a[i],a[i+1]];return {...v,image_urls:a,image_url:a[0]||''}})}>→</button>
+ {i!==0&&<button type="button" disabled={uploading} onClick={()=>setDraft(v=>{const a=[...(v.image_urls||[])];a.splice(i,1);a.unshift(url);return {...v,image_urls:a,image_url:a[0]||''}})}>{lang==='es'?'Elegir portada':lang==='en'?'Set cover':'Definir capa'}</button>}
+ </div>
  <button type="button" disabled={uploading} onClick={()=>setDraft(v=>{const images=(v.image_urls||[]).filter(x=>x!==url);return {...v,image_urls:images,image_url:images[0]||''}})}>{lang==='es'?'Eliminar':lang==='en'?'Remove':'Remover'}</button>
  </div>)}</div>}
  </div>
