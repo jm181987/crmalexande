@@ -48,6 +48,19 @@ export function registerModuleRoutes(app,auth){
  r.put('/ai-settings',permitted,safe(async(req,res)=>{const {mode='off',instructions='',handoff_enabled=true}=req.body;if(!['off','suggest','auto'].includes(mode)||typeof instructions!=='string'||instructions.length>10000||typeof handoff_enabled!=='boolean')return res.status(400).json({error:'Invalid settings'});const x=await query('INSERT INTO crm_ai_settings(company_id,mode,instructions,handoff_enabled) VALUES($1,$2,$3,$4) ON CONFLICT(company_id) DO UPDATE SET mode=EXCLUDED.mode,instructions=EXCLUDED.instructions,handoff_enabled=EXCLUDED.handoff_enabled,updated_at=now() RETURNING *',[req.user.company_id,mode,instructions,handoff_enabled]);res.json(x.rows[0])}));
  r.get('/knowledge',safe(async(req,res)=>{const x=await query('SELECT * FROM crm_knowledge WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
  r.post('/knowledge',permitted,safe(async(req,res)=>{const {title,url=null,content=''}=req.body;if(!valid(title)||typeof content!=='string'||content.length>50000||(url&&(!/^https:\/\//.test(url)||url.length>2000)))return res.status(400).json({error:'Invalid document'});const x=await query('INSERT INTO crm_knowledge(company_id,title,url,content) VALUES($1,$2,$3,$4) RETURNING *',[req.user.company_id,title.trim(),url,content]);res.status(201).json(x.rows[0])}));
+ r.put('/knowledge/:id',permitted,safe(async(req,res)=>{
+  const {title,url=null,content=''}=req.body||{};
+  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(req.params.id)||!valid(title)||title.length>180||typeof content!=='string'||content.length>50000||(url&&(typeof url!=='string'||!/^https:\/\//.test(url)||url.length>2000)))return res.status(400).json({error:'Invalid document'});
+  const x=await query('UPDATE crm_knowledge SET title=$3,url=$4,content=$5 WHERE id=$1 AND company_id=$2 RETURNING *',[req.params.id,req.user.company_id,title.trim(),url,content]);
+  if(!x.rowCount)return res.sendStatus(404);
+  res.json(x.rows[0]);
+ }));
+ r.delete('/knowledge/:id',permitted,safe(async(req,res)=>{
+  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(req.params.id))return res.sendStatus(400);
+  const x=await query('DELETE FROM crm_knowledge WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);
+  if(!x.rowCount)return res.sendStatus(404);
+  res.json({deleted:true,id:x.rows[0].id});
+ }));
  r.get('/reviews',safe(async(req,res)=>{const x=await query('SELECT r.*,c.name contact_name FROM crm_review_requests r JOIN contacts c ON c.id=r.contact_id WHERE r.company_id=$1'+(req.user.role==='agent'?' AND c.owner_id=$2':'')+' ORDER BY r.created_at DESC',[req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])]);res.json(x.rows)}));
  r.post('/reviews',safe(async(req,res)=>{const {contact_id,platform='google',review_url=null}=req.body;if(!['google','facebook','other'].includes(platform)||review_url&&(!/^https:\/\//.test(review_url)||review_url.length>2000))return res.status(400).json({error:'Invalid review request'});const c=await query('SELECT id FROM contacts WHERE id=$1 AND company_id=$2'+(req.user.role==='agent'?' AND owner_id=$3':''),[contact_id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])]);if(!c.rowCount)return res.status(404).json({error:'Contact not found'});const x=await query('INSERT INTO crm_review_requests(company_id,contact_id,platform,review_url) VALUES($1,$2,$3,$4) RETURNING *',[req.user.company_id,contact_id,platform,review_url]);res.status(201).json(x.rows[0])}));
  app.use('/api',r);
