@@ -10,10 +10,10 @@ if(process.env.TENANT_RLS_ENABLED==='true'&&process.env.TENANT_DB_CONTEXT!=='tru
 
 // Scoped queries always use a dedicated transaction and SET LOCAL, preventing
 // tenant context from leaking between requests through pooled connections.
-// The flag is intentionally opt-in until policies and auth/webhook paths are migrated.
+// Tenant-scoped requests always set the local context so inventory RLS works even when legacy RLS is disabled.
 export const query=async(sql,args=[])=>{
  const tenant=tenantContext.getStore()?.companyId;
- if(!tenant||process.env.TENANT_DB_CONTEXT!=='true')return pool.query(sql,args);
+ if(!tenant)return pool.query(sql,args);
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
