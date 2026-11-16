@@ -38,7 +38,7 @@ export function registerAiReceptionRoutes(app,auth){
   if(!conv.rowCount)return res.sendStatus(404);
   const [history,knowledge]=await Promise.all([
    query("SELECT direction,body FROM messages WHERE conversation_id=$1 ORDER BY created_at DESC LIMIT 12",[id]),
-   query("SELECT title,content FROM crm_knowledge WHERE company_id=$1 ORDER BY created_at DESC LIMIT 12",[req.user.company_id])
+   query("SELECT title,content FROM crm_knowledge WHERE company_id=$1 ORDER BY created_at DESC LIMIT 200",[req.user.company_id])
   ]);
   const latestInbound=history.rows.find(m=>m.direction==='inbound'&&m.body&&!m.body.includes('[CRM_MEDIA:'))?.body||'';
   const relevant=selectKnowledge(knowledge.rows,latestInbound);
