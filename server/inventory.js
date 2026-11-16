@@ -10,7 +10,7 @@ const validate=b=>typeof b.name==='string'&&b.name.trim().length>0&&b.name.lengt
 const evolution=()=>({url:String(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY||''});
 const remote=async(e,instance,route,payload)=>{let response;try{response=await fetch(e.url+'/message/'+route+'/'+encodeURIComponent(instance),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(18000)})}catch{throw Object.assign(new Error('Evolution API unavailable'),{status:502})}if(!response.ok){const detail=await response.text().catch(()=>'');console.error('Evolution inventory media failed',{status:response.status,route,detail:detail.slice(0,500)});throw Object.assign(new Error('Evolution API rejected '+route+' (HTTP '+response.status+'). Verify the Evolution instance media configuration.'),{status:502})}return response.json().catch(()=>({}))};
 const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&u.username===''&&u.password===''&&u.hostname!=='localhost'&&!isIP(u.hostname)&&!u.hostname.endsWith('.local')&&u.href.length<=2048}catch{return false}};
-const renderItem=(x,locale)=>{
+const renderItem=(x,locale,contactUrl='')=>{
  const language=['es','pt','en'].includes(locale)?locale:'pt';
  const labels={es:{price:'Precio',availability:'Disponibilidad',available:'Disponible',reserved:'Reservado',sold:'Vendido',unavailable:'Consultar',reference:'Referencia',details:'Detalles',units:'unidades',contact:'Consultanos para más información'},pt:{price:'Preço',availability:'Disponibilidade',available:'Disponível',reserved:'Reservado',sold:'Vendido',unavailable:'Consultar',reference:'Referência',details:'Detalhes',units:'unidades',contact:'Fale conosco para mais informações'},en:{price:'Price',availability:'Availability',available:'Available',reserved:'Reserved',sold:'Sold',unavailable:'Ask us',reference:'Reference',details:'Details',units:'units',contact:'Contact us for more information'}}[language];
  const money=new Intl.NumberFormat(language==='es'?'es-UY':language==='en'?'en-US':'pt-BR',{style:'currency',currency:x.currency||'BRL'}).format(Number(x.price));
@@ -20,7 +20,7 @@ const renderItem=(x,locale)=>{
  if(x.sku)lines.push('🔖 *'+labels.reference+':* '+x.sku);
  if(x.description?.trim())lines.push('', '📝 *'+labels.details+':*',x.description.trim().slice(0,1200));
  if(x.attributes&&typeof x.attributes==='object'){const details=Object.entries(x.attributes).filter(([k,v])=>k&&v!==null&&v!==''&&typeof v!=='object').slice(0,6);if(details.length)lines.push('',...details.map(([k,v])=>'• '+k+': '+String(v).slice(0,100)))}
- lines.push('', '💬 '+labels.contact);
+ if(contactUrl)lines.push('', '💬 *'+labels.contact+':*',contactUrl);
  return lines.join('\n').slice(0,3500);
 };
 export function registerInventoryRoutes(app,auth){
@@ -43,6 +43,8 @@ export function registerInventoryRoutes(app,auth){
   const url=origin+'/api/public/inventory-image/'+row.rows[0].id;
   res.status(201).json({url,id:row.rows[0].id,stored:true});
  }));
+ r.get('/inventory/contact-settings',wrap(async(req,res)=>{const x=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);res.json({whatsapp_url:x.rows[0]?.whatsapp_url||''})}));
+ r.put('/inventory/contact-settings',editor,wrap(async(req,res)=>{const raw=String(req.body?.whatsapp_url||'').trim();let url='';if(raw){try{const parsed=new URL(raw);if(parsed.protocol!=='https:'||!['wa.me','api.whatsapp.com','www.wa.me'].includes(parsed.hostname.toLowerCase())||raw.length>500)throw Error('invalid');url=parsed.href}catch{return res.status(400).json({error:'Ingresá un enlace válido de WhatsApp: https://wa.me/...'})}}const x=await query('INSERT INTO crm_inventory_contact_settings(company_id,whatsapp_url) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET whatsapp_url=EXCLUDED.whatsapp_url,updated_at=now() RETURNING whatsapp_url',[req.user.company_id,url]);res.json(x.rows[0])}));
  r.get('/inventory',wrap(async(req,res)=>{const kind=kinds.includes(req.query.kind)?req.query.kind:null;const term=String(req.query.search||'').slice(0,100);const rows=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND ($2::text IS NULL OR kind=$2) AND ($3::text=\'\' OR name ILIKE \'%\'||$3||\'%\' OR sku ILIKE \'%\'||$3||\'%\') ORDER BY updated_at DESC LIMIT 300',[req.user.company_id,kind,term]);res.json(rows.rows)}));
  r.get('/inventory/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const x=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.json(x.rows[0])}));
  r.post('/inventory',editor,wrap(async(req,res)=>{const b=req.body||{};if(!validate(b))return res.status(400).json({error:'Invalid inventory item: check name, type, status, currency, nonnegative price and quantity, photo URL and attributes'});const x=await query('INSERT INTO crm_inventory_items(company_id,kind,name,sku,description,price,currency,quantity,status,image_url,attributes,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *',[req.user.company_id,b.kind,b.name.trim(),b.sku?.trim()||null,b.description||'',b.price,b.currency,b.quantity,b.status,b.image_url||null,JSON.stringify(b.attributes||{}),req.user.id]);res.status(201).json(x.rows[0])}));
@@ -63,9 +65,10 @@ export function registerInventoryRoutes(app,auth){
  const e=evolution();const allowHttp=process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url);if(!e.key||!(e.url.startsWith('https://')||allowHttp))return res.status(503).json({error:'Evolution API connection unavailable. Check EVOLUTION_API_URL, EVOLUTION_API_KEY and configured HTTP/HTTPS policy'});
  const items=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=ANY($2::uuid[])',[req.user.company_id,ids]);
  if(items.rowCount!==ids.length)return res.status(404).json({error:'One or more inventory items unavailable'});
+ const contact=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);const contactUrl=contact.rows[0]?.whatsapp_url||'';
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
  for(const id of ids){const item=byId.get(id);if(item.status==='inactive'){return res.status(409).json({error:'Inactive item cannot be sent',sent})}
- const body=renderItem(item,locale);
+ const body=renderItem(item,locale,contactUrl);
  if(!item.image_url||!publicImage(item.image_url))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
  let result,hasImage=false;
  try{
@@ -79,6 +82,7 @@ export function registerInventoryRoutes(app,auth){
     media=Buffer.from(image.rows[0].content).toString('base64');
    }
    result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:body,media,fileName:'zarko-'+id+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
+   if(result.message&&!result.message.imageMessage&&!result.message.documentMessage)throw Object.assign(new Error('Evolution API did not confirm an image message. Check instance media support.'),{status:502});
    hasImage=true;
   }else{
    throw Object.assign(new Error('Inventory image is required for this send'),{status:422});
