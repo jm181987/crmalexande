@@ -130,3 +130,40 @@ En **Configuración → Integraciones → WhatsApp** se puede consultar estado r
 Si el estado remoto cambia de `open` a `close`/ `connecting`, revisar los logs del contenedor Evolution (motivo de desconexión y reinicios), estabilidad de red, persistencia del volumen de sesiones, disponibilidad de PostgreSQL/Redis si aplica, y el estado de **Dispositivos vinculados** en el teléfono. Una caída de webhook puede impedir recibir mensajes en CRM pero no equivale a una desconexión de WhatsApp. No borrar ni recrear instancias ni rotar sesiones como primer paso. La URL pública `PUBLIC_APP_URL` es obligatoria para crear y reparar webhooks, pero no para consultar estado ni enviar mensajes.
 
 **Limitación:** sin acceso operativo al servidor Evolution y sin logs de desconexión no se puede confirmar la causa ni garantizar que una sesión permanezca conectada. El estado de la API no se puede inferir solo del panel.
+
+
+## Stock e inventario: múltiples fotografías por artículo
+
+El módulo **Stock e inventario** permite registrar productos, vehículos, inmuebles y servicios con nombre, código SKU, descripción, precio, moneda, cantidad, estado, características y fotografías. La edición corresponde a usuarios con rol **owner** o **manager**; los datos se consultan dentro de la empresa autenticada.
+
+### Galería de fotografías en el editor
+
+1. Abrir **Stock e inventario** y pulsar **Agregar artículo** o **Editar** en un artículo existente.
+2. En la sección **Fotos**, seleccionar varias imágenes JPG, PNG o WebP (hasta **12 por artículo** y **2 MB por archivo**).
+3. Las imágenes cargadas aparecen como miniaturas; la primera está identificada como **Portada**. Es posible abrir cada imagen en tamaño completo y quitarla de la galería.
+4. Pulsar **Guardar** para asociar la galería al artículo. Si se cancela la edición, las fotos subidas pero no asociadas pueden permanecer almacenadas; actualmente no hay limpieza automática de archivos huérfanos.
+
+Los artículos que ya tenían una única foto siguen siendo compatibles: `image_url` conserva la portada. La galería se guarda en `attributes._image_urls`, y la API devuelve `image_urls` como lista. No se requiere una migración SQL adicional **para la galería**, pero la carga de imágenes depende de las tablas y funciones existentes en `scripts/inventory.sql`. En instalaciones antiguas, aplicar primero ese script en la base correcta y revisar permisos y RLS.
+
+### Compartir todas las fotos por WhatsApp
+
+En una conversación WhatsApp vinculada a una instancia de Evolution API, el envío de inventario (`POST /api/conversations/:id/inventory-send`) admite **1 a 8 artículos diferentes** por solicitud. Por cada artículo se envía **una imagen por mensaje**, en el orden de la galería:
+
+- **Primera foto:** incluye en el texto adjunto la ficha del artículo (nombre, precio, disponibilidad, referencia y descripción, cuando existen).
+- **Fotos siguientes:** llevan una identificación correlativa (`2/N`, `3/N`, etc.) y el nombre del artículo.
+- Cada envío se registra en el historial de mensajes de la conversación. Si una imagen falla, la API informa los envíos ya efectuados y el número de fotos enviadas del artículo parcial; no se debe repetir toda la operación sin revisar ese resultado.
+
+La ruta de envío exige fotos con URL HTTPS válida, comprueba que los archivos internos pertenezcan a la empresa y utiliza la instancia de WhatsApp ya vinculada a la conversación. **No crea una nueva sesión QR ni habilita envíos automáticos de inventario.** La entrega final al dispositivo del cliente depende de Evolution API y WhatsApp: una respuesta correcta de la API no equivale a una confirmación de lectura o recepción.
+
+El botón **Compartir por WhatsApp** del listado abre un enlace `wa.me` con texto y enlaces a las fotos; **no adjunta automáticamente imágenes como archivos multimedia**. Para mandar las fotos como imágenes individuales, usar el envío desde una conversación WhatsApp del CRM.
+
+### Configuración y pruebas
+
+- Configurar `PUBLIC_APP_URL` con el origen HTTPS público para la carga de fotos.
+- Configurar `EVOLUTION_API_URL` y `EVOLUTION_API_KEY` únicamente como secretos del servidor, con la política HTTP/HTTPS definida para la instancia.
+- Probar con un artículo de 3 fotos: guardar, cerrar y volver a abrir **Editar** para comprobar la galería; enviar desde una conversación de prueba y verificar los tres mensajes multimedia y sus textos.
+- Comprobar el comportamiento ante un fallo en la segunda imagen para evitar duplicados al reintentar.
+
+### Recepcionista IA: marca blanca y alcance actual
+
+El panel de **Recepcionista IA** se presenta con marca propia en español, portugués e inglés. La integración actual es preparatoria: guarda configuración no secreta por empresa, pero **no conecta todavía un proveedor de respuestas automáticas ni comparte la sesión QR**. No cargar tokens privados en el panel ni habilitar una segunda conexión WhatsApp para el mismo número sin verificar la compatibilidad técnica.
