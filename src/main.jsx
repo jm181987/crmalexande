@@ -47,7 +47,34 @@ function VoiceRecorder({onSend,disabled,lang}){
  const locale={es:['Grabar audio','Detener','Enviar audio','Descartar','Grabando','No se pudo acceder al micrófono','Formato de grabación no compatible','El audio supera 8 MB'],pt:['Gravar áudio','Parar','Enviar áudio','Descartar','Gravando','Não foi possível acessar o microfone','Formato de gravação incompatível','O áudio supera 8 MB'],en:['Record audio','Stop','Send audio','Discard','Recording','Microphone access failed','Unsupported recording format','Audio exceeds 8 MB']}[lang]||[];
  const [recording,setRecording]=useState(false),[preview,setPreview]=useState(null),[errorText,setErrorText]=useState(''),[seconds,setSeconds]=useState(0);
  const recorder=React.useRef(null),stream=React.useRef(null),chunks=React.useRef([]),ticker=React.useRef(null),previewUrl=React.useRef(null);
- const release=()=>{clearInterval(ticker.current);stream.current?.getTracks().forEach(t=>t.stop());stream.current=null};
+ const meter=React.useRef(null),audioContext=React.useRef(null),levelTimer=React.useRef(null);
+ const release=()=>{
+  clearInterval(ticker.current);clearInterval(levelTimer.current);levelTimer.current=null;
+  if(meter.current)meter.current.style.setProperty('--voice-level','0');
+  const context=audioContext.current;audioContext.current=null;
+  if(context)void context.close().catch(()=>{});
+  stream.current?.getTracks().forEach(t=>t.stop());stream.current=null;
+ };
+ const monitor=source=>{
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)return;
+  try{
+   const context=new AudioContextClass();audioContext.current=context;
+   const input=context.createMediaStreamSource(source),analyser=context.createAnalyser();
+   analyser.fftSize=512;analyser.smoothingTimeConstant=.55;input.connect(analyser);
+   const samples=new Uint8Array(analyser.fftSize);
+   levelTimer.current=setInterval(()=>{
+    if(context.state!=='running'||!meter.current)return;
+    analyser.getByteTimeDomainData(samples);
+    let sum=0;for(const value of samples){const amplitude=(value-128)/128;sum+=amplitude*amplitude}
+    const rms=Math.sqrt(sum/samples.length);
+    const level=rms<.015?0:Math.min(1,(rms-.015)*9);
+    meter.current.style.setProperty('--voice-level',level.toFixed(2));
+    meter.current.setAttribute('data-audio-active',level>.07?'true':'false');
+   },80);
+   void context.resume().catch(()=>{});
+  }catch{ /* Audio recording still works when level monitoring is unavailable. */ }
+ };
  const clear=()=>{if(recorder.current?.state==='recording'){recorder.current.onstop=null;recorder.current.stop()}release();setRecording(false);setPreview(null);setSeconds(0);if(previewUrl.current)URL.revokeObjectURL(previewUrl.current);previewUrl.current=null};
  useEffect(()=>()=>{if(recorder.current?.state==='recording'){recorder.current.onstop=null;recorder.current.stop()}release();if(previewUrl.current)URL.revokeObjectURL(previewUrl.current)},[]);
  const start=async()=>{
@@ -61,11 +88,11 @@ function VoiceRecorder({onSend,disabled,lang}){
    r.ondataavailable=e=>{if(e.data.size)chunks.current.push(e.data)};
    r.onstop=()=>{release();setRecording(false);const blob=new Blob(chunks.current,{type:mime.split(';')[0]});if(blob.size>8*1024*1024){setErrorText(locale[7]);return}if(blob.size){previewUrl.current=URL.createObjectURL(blob);setPreview({blob,url:previewUrl.current})}};
    r.onerror=()=>{release();setRecording(false);setErrorText(locale[5])};
-   r.start(1000);setRecording(true);ticker.current=setInterval(()=>{setSeconds(Math.floor((Date.now()-startTime)/1000));if(chunks.current.reduce((n,v)=>n+v.size,0)>8*1024*1024&&r.state==='recording')r.stop()},1000);
+   r.start(1000);setRecording(true);monitor(source);ticker.current=setInterval(()=>{setSeconds(Math.floor((Date.now()-startTime)/1000));if(chunks.current.reduce((n,v)=>n+v.size,0)>8*1024*1024&&r.state==='recording')r.stop()},1000);
   }catch{release();setErrorText(locale[5])}
  };
  const send=async()=>{if(!preview||disabled)return;const ext=preview.blob.type==='audio/ogg'?'ogg':preview.blob.type==='audio/mp4'?'m4a':'webm';const ok=await onSend(new File([preview.blob],'nota-de-voz-'+Date.now()+'.'+ext,{type:preview.blob.type}));if(ok)clear()};
- return <div className={'wa-voice wa-voice-inline'+(recording||preview?' wa-voice-expanded':'')}>{recording?<div className="wa-voice-state"><b className="wa-record-indicator">● {locale[4]} {Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</b><button className="wa-voice-stop" type="button" onClick={()=>recorder.current?.state==='recording'&&recorder.current.stop()} title={locale[1]}>■ {locale[1]}</button><button className="wa-voice-discard" type="button" onClick={clear} aria-label={locale[3]} title={locale[3]}>✕</button></div>:preview?<div className="wa-voice-state wa-voice-preview"><audio controls preload="metadata" src={preview.url}/><button className="wa-voice-send" type="button" disabled={disabled} onClick={send} aria-label={locale[2]} title={locale[2]}>➤</button><button className="wa-voice-discard" type="button" onClick={clear} aria-label={locale[3]} title={locale[3]}>✕</button></div>:<button type="button" className="wa-voice-mic" disabled={disabled} onClick={start} aria-label={locale[0]} title={locale[0]}>🎙</button>}{errorText&&<small className="wa-voice-error" role="alert">{errorText}</small>}</div>;
+ return <div className={'wa-voice wa-voice-inline'+(recording||preview?' wa-voice-expanded':'')}>{recording?<div className="wa-voice-state wa-voice-recording"><span ref={meter} className="wa-live-mic" data-audio-active="false" aria-hidden="true">🎙</span><b className="wa-record-indicator">● {locale[4]} {Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</b><button className="wa-voice-stop" type="button" onClick={()=>recorder.current?.state==='recording'&&recorder.current.stop()} title={locale[1]}>■ {locale[1]}</button><button className="wa-voice-discard" type="button" onClick={clear} aria-label={locale[3]} title={locale[3]}>✕</button></div>:preview?<div className="wa-voice-state wa-voice-preview"><audio controls preload="metadata" src={preview.url}/><button className="wa-voice-send" type="button" disabled={disabled} onClick={send} aria-label={locale[2]} title={locale[2]}>➤</button><button className="wa-voice-discard" type="button" onClick={clear} aria-label={locale[3]} title={locale[3]}>✕</button></div>:<button type="button" className="wa-voice-mic" disabled={disabled} onClick={start} aria-label={locale[0]} title={locale[0]}>🎙</button>}{errorText&&<small className="wa-voice-error" role="alert">{errorText}</small>}</div>;
 }
 
 function Conversations({t,error,reload,user}){
