@@ -181,17 +181,41 @@ export function registerEvolutionInstances(app,auth){
   catch(err){console.error('Round Robin assignment failed',err.code||err.message)}
  }
  const m=item.message||{},unwrapped=m.ephemeralMessage?.message||m.viewOnceMessage?.message||m,body=unwrapped.conversation||unwrapped.extendedTextMessage?.text||unwrapped.imageMessage?.caption||unwrapped.videoMessage?.caption||('[WhatsApp '+String(item.messageType||'media')+']');
+ // Download inbound voice notes and restrict replay to authorized CRM users.
+ let audioMarker='';
+ if(unwrapped.audioMessage){
+  try{
+   const supplied=item.message?.base64||item.base64||null;
+   const mediaResult=supplied?{base64:supplied,mimetype:unwrapped.audioMessage.mimetype}:await remote(cfg(),'/chat/getBase64FromMediaMessage/'+encodeURIComponent(inst.name),'POST',{message:{key,message:unwrapped,messageType:'audioMessage'},convertToMp4:false});
+   const encoded=String(mediaResult.base64||mediaResult.data?.base64||'').replace(/^data:audio\/[\w.+-]+;base64,/,'');
+   const mime=String(mediaResult.mimetype||unwrapped.audioMessage.mimetype||'audio/ogg').split(';')[0];
+   const bytes=Buffer.from(encoded,'base64');
+   const validHeader=mime==='audio/ogg'?bytes.subarray(0,4).toString()==='OggS':mime==='audio/webm'?bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])):mime==='audio/mp4'?bytes.toString('ascii',4,8)==='ftyp':mime==='audio/mpeg'?(bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255):false;
+   if(validHeader&&bytes.length<=8*1024*1024){
+    const name='audio-recibido.'+(mime==='audio/ogg'?'ogg':mime==='audio/mp4'?'m4a':mime==='audio/webm'?'webm':'mp3');
+    const stored=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[inst.company_id,conv.rows[0].id,mime,name,bytes,bytes.length]);
+    audioMarker='[CRM_MEDIA:audio:/api/conversations/'+conv.rows[0].id+'/media/'+stored.rows[0].id+':'+name+']';
+   }
+  }catch(err){console.warn('Evolution inbound audio unavailable',{instance:inst.name,error:err?.message||'unknown'})}
+ }
  const direction=key.fromMe===true?'outbound':'inbound';
- const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,direction,String(body).slice(0,10000),external]);
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,direction,audioMarker?('🎤 Mensaje de voz\n'+audioMarker):String(body).slice(0,10000),external]);
  if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+$2,updated_at=now() WHERE id=$1',[conv.rows[0].id,direction==='inbound'?1:0]);console.info('Evolution message stored',{instance:inst.name,direction})}
  }res.sendStatus(200);
  }));
- const mediaTypes={'application/pdf':'document','image/jpeg':'image','image/png':'image','image/webp':'image','audio/mpeg':'audio','audio/ogg':'audio','audio/mp4':'audio','video/mp4':'video'};
+ const mediaTypes={'application/pdf':'document','image/jpeg':'image','image/png':'image','image/webp':'image','audio/mpeg':'audio','audio/ogg':'audio','audio/mp4':'audio','audio/webm':'audio','video/mp4':'video'};
  const mediaUuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
  app.get('/api/public/chat-media/:id',safe(async(req,res)=>{
   if(!mediaUuid(req.params.id))return res.sendStatus(404);
   const x=await query('SELECT * FROM public.crm_public_chat_media($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);
   const m=x.rows[0];res.set('Content-Type',m.mime);res.set('Content-Disposition','inline; filename="'+m.filename.replace(/[^a-zA-Z0-9._-]/g,'_')+'"');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','public,max-age=86400');res.send(m.content);
+ }));
+ app.get('/api/conversations/:id/media/:mediaId',auth,safe(async(req,res)=>{
+  if(!mediaUuid(req.params.id)||!mediaUuid(req.params.mediaId))return res.sendStatus(404);
+  const args=[req.params.id,req.params.mediaId,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
+  const m=await query("SELECT f.mime,f.content FROM crm_chat_media f JOIN conversations c ON c.id=f.conversation_id WHERE c.id=$1 AND f.id=$2 AND c.company_id=$3 AND f.company_id=$3 AND f.status='ready'"+(req.user.role==='agent'?' AND c.assignee_id=$4':''),args);
+  if(!m.rowCount)return res.sendStatus(404);
+  res.set('Content-Type',m.rows[0].mime);res.set('Content-Disposition','inline');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','private,no-store');res.send(m.rows[0].content);
  }));
  app.get('/api/chat-media',auth,safe(async(req,res)=>{if(req.user.role==='agent')return res.sendStatus(403);const x=await query("SELECT id,filename,mime,COALESCE(NULLIF(size_bytes,0),octet_length(content))::bigint AS size_bytes,created_at,status FROM crm_chat_media WHERE company_id=$1 ORDER BY created_at DESC LIMIT 200",[req.user.company_id]);res.json(x.rows)}));
  app.delete('/api/chat-media/:id',auth,safe(async(req,res)=>{if(!['owner','manager'].includes(req.user.role))return res.sendStatus(403);if(!mediaUuid(req.params.id))return res.sendStatus(404);const x=await query('DELETE FROM crm_chat_media WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);res.json({deleted:true})}));
@@ -214,7 +238,7 @@ export function registerEvolutionInstances(app,auth){
   if(!mediaUuid(req.params.mediaId))return res.sendStatus(404);
   const x=await query("SELECT id,mime,filename,content FROM crm_chat_media WHERE id=$1 AND company_id=$2 AND conversation_id=$3 AND uploaded_by=$4 AND status='uploading'",[req.params.mediaId,req.user.company_id,req.params.id,req.user.id]);if(!x.rowCount)return res.sendStatus(404);
   const m=x.rows[0],bytes=m.content;
-  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
+  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),'video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
   if(!bytes.length||!signatures[m.mime])return res.status(400).json({error:'Archivo vacío o inválido'});
   const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0]?.external_id||'');
@@ -222,7 +246,7 @@ export function registerEvolutionInstances(app,auth){
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
   const url=e.origin+'/api/public/chat-media/'+m.id;
   await query("UPDATE crm_chat_media SET status='ready' WHERE id=$1 AND company_id=$2",[m.id,req.user.company_id]);
-  let sent;try{sent=await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[m.mime],mimetype:m.mime,media:url,fileName:m.filename,caption:String(req.body?.caption||'').slice(0,1000)})}catch(err){return res.status(502).json({error:'No se pudo enviar el archivo: '+err.message})}
+  let sent;try{sent=m.mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:url}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[m.mime],mimetype:m.mime,media:url,fileName:m.filename,caption:String(req.body?.caption||'').slice(0,1000)})}catch(err){return res.status(502).json({error:'No se pudo enviar el archivo: '+err.message})}
   const caption=String(req.body?.caption||'').slice(0,1000);
   const body=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
   const msg=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
@@ -232,7 +256,7 @@ export function registerEvolutionInstances(app,auth){
   const {mime,data,filename,caption=''}=req.body||{};
   if(!mediaTypes[mime]||typeof data!=='string'||data.length>11000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||typeof caption!=='string'||caption.length>1000)return res.status(400).json({error:'Archivo inválido. PDF, foto, audio o video, máximo 8 MB.'});
   const bytes=Buffer.from(data,'base64');if(!bytes.length||bytes.length>8*1024*1024)return res.status(400).json({error:'Archivo supera 8 MB'});
-  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
+  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),'video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
   if(!signatures[mime])return res.status(400).json({error:'El contenido no coincide con el tipo de archivo'});
   const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
   const c=await query("SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);
@@ -247,7 +271,7 @@ export function registerEvolutionInstances(app,auth){
   const row=await query('INSERT INTO crm_chat_media(company_id,mime,filename,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,mime,safeName,bytes]);
   const url=origin+'/api/public/chat-media/'+row.rows[0].id;
   let sent;
-  try{sent=await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
+  try{sent=mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:bytes.toString('base64')}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
   catch(err){return res.status(502).json({error:'Evolution rechazó el archivo: '+err.message})}
   const body=(caption.trim()?caption.trim()+'\n':'')+'[CRM_MEDIA:'+mediaTypes[mime]+':'+url+':'+safeName+']';
   const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
