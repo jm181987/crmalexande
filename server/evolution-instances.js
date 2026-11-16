@@ -246,10 +246,10 @@ export function registerEvolutionInstances(app,auth){
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
   const url=e.origin+'/api/public/chat-media/'+m.id;
   const caption=String(req.body?.caption||'').slice(0,1000);
-  const mediaBody=(caption?caption+'\\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
+  const mediaBody=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
   // Store the attachment in the chat before contacting Evolution. An upstream timeout
   // does not prove delivery failed; do not silently hide a potentially delivered video.
-  const pending=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,'⏳ Envío pendiente de confirmación\\n'+mediaBody]);
+  const pending=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,'⏳ Envío pendiente de confirmación\n'+mediaBody]);
   await query("UPDATE crm_chat_media SET status='ready' WHERE id=$1 AND company_id=$2",[m.id,req.user.company_id]);
   await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
   let sent;
@@ -260,7 +260,7 @@ export function registerEvolutionInstances(app,auth){
   }catch(err){
    const uncertain=err.phase==='network';
    const label=uncertain?'⚠️ Envío sin confirmar (verificar en WhatsApp antes de reenviar)':'❌ Evolution rechazó el archivo';
-   await query("UPDATE messages SET body=$2 WHERE id=$1",[pending.rows[0].id,label+'\\n'+mediaBody]);
+   await query("UPDATE messages SET body=$2 WHERE id=$1",[pending.rows[0].id,label+'\n'+mediaBody]);
    return res.status(uncertain?202:502).json({message_id:pending.rows[0].id,delivery_status:uncertain?'unknown':'failed',error:uncertain?'Evolution no confirmó la entrega. El archivo se conserva en el chat; comprobá WhatsApp antes de volver a enviarlo.':err.message});
   }
   const external=sent.key?.id?match[1]+':'+sent.key.id:null;
