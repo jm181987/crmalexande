@@ -209,3 +209,21 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
  .wa-compose-tools{display:flex;flex-direction:column}
  .wa-compose-actions .wa-stock-trigger{font-size:12px;padding:9px}
 }
+
+/* Familiar WhatsApp-style composer: microphone beside the green send action. */
+.wa-compose-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wa-compose-row textarea{flex:1 1 180px;min-width:0}
+.wa-compose-row .wa-send{flex:0 0 auto;min-height:46px;border-radius:24px;padding:10px 17px;background:#16865b;color:#fff}
+.wa-compose-row .wa-voice-inline{display:flex;align-items:center;flex:0 0 auto;margin:0;min-width:0}
+.wa-voice-mic{display:grid;place-items:center;width:46px;height:46px;min-width:46px;padding:0;border:1px solid #d4e4de;border-radius:50%;background:#fff;color:#176b51;font-size:20px;cursor:pointer}
+.wa-voice-mic:hover:not(:disabled){background:#e7f5ed;border-color:#8ac7ac}
+.wa-voice-mic:disabled{opacity:.45;cursor:not-allowed}
+.wa-compose-row .wa-voice-expanded{flex:1 1 100%;order:3}
+.wa-compose-row .wa-voice-state{display:flex;width:100%;min-width:0;gap:9px;align-items:center;flex-wrap:wrap;border-radius:14px;background:#fff;padding:9px}
+.wa-compose-row .wa-voice-preview audio{flex:1 1 210px;width:auto;max-width:100%;min-width:0;height:44px}
+.wa-compose-row .wa-record-indicator{color:#c33232;font-weight:750;white-space:nowrap}
+.wa-compose-row .wa-voice-stop,.wa-compose-row .wa-voice-discard,.wa-compose-row .wa-voice-send{min-height:42px;border-radius:22px;padding:8px 13px;font-weight:700}
+.wa-compose-row .wa-voice-send{background:#16865b;color:#fff;border-color:#16865b}
+.wa-compose-row .wa-voice-discard{background:#fff3f3;color:#a52d2d;border-color:#efc9c9}
+.wa-compose-row .wa-voice-error{flex-basis:100%}
+@media(max-width:650px){.wa-compose-row{gap:7px}.wa-compose-row textarea{flex-basis:125px}.wa-compose-row .wa-send{padding:9px 12px}.wa-voice-mic{width:44px;height:44px;min-width:44px}}
