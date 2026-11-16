@@ -19,7 +19,17 @@ return <div style={{display:'grid',gap:16}}>
  {error&&<p className="error">{error}</p>}
  {draft&&<div className="panel" style={{padding:20}}><h2>{draft.id?t.edit:t.new}</h2><form onSubmit={save} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:12}}>
  {[['name',t.name],['sku',t.sku],['price',t.price],['quantity',t.quantity]].map(([key,label])=><label key={key} style={{display:'grid',gap:5}}>{label}<input required={key==='name'} type={['price','quantity'].includes(key)?'number':key==='image_url'?'url':'text'} min={['price','quantity'].includes(key)?0:undefined} step={['price','quantity'].includes(key)?'0.01':undefined} value={draft[key]??''} onChange={e=>setDraft({...draft,[key]:e.target.value})}/></label>)}
- <label style={{display:'grid',gap:5}}>{t.image}<input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={e=>{upload(e.target.files);e.target.value=""}}/>{uploading&&<small>Subiendo…</small>}{photoStatus&&<small role="status">{photoStatus}</small>}<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{(draft.image_urls||[]).map((url,i)=><div key={url} style={{display:'grid',gap:4}}><img src={url} alt={'Foto '+(i+1)} style={{width:90,height:90,objectFit:'cover',borderRadius:8}}/><button type="button" disabled={uploading} onClick={()=>setDraft(v=>{const images=v.image_urls.filter(x=>x!==url);return {...v,image_urls:images,image_url:images[0]||''}})}>×</button></div>)}</div></label>
+ <div style={{gridColumn:'1/-1',display:'grid',gap:10,padding:14,border:'1px solid var(--border,#dce3ed)',borderRadius:12}}>
+ <strong>{t.image} · {(draft.image_urls||[]).length}/12</strong>
+ <input aria-label={t.image} type="file" multiple accept="image/jpeg,image/png,image/webp" disabled={uploading||(draft.image_urls||[]).length>=12} onChange={e=>{upload(e.target.files);e.target.value=""}}/>
+ {uploading&&<small role="status">Subiendo fotografías…</small>}{photoStatus&&<small role="status">{photoStatus}</small>}
+ {(draft.image_urls||[]).length===0?<p style={{margin:0,opacity:.7}}>{lang==='es'?'Este producto todavía no tiene fotografías.':lang==='en'?'This item has no photos yet.':'Este item ainda não tem fotos.'}</p>:<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(125px,1fr))',gap:12}}>
+ {(draft.image_urls||[]).map((url,i)=><div key={url} style={{border:'1px solid var(--border,#dce3ed)',borderRadius:10,padding:6,display:'grid',gap:6}}>
+ <a href={url} target="_blank" rel="noopener noreferrer" title={lang==='es'?'Ver foto completa':lang==='en'?'View full photo':'Ver foto completa'}><img src={url} alt={'Foto '+(i+1)+' — '+draft.name} loading="lazy" style={{width:'100%',height:115,objectFit:'cover',borderRadius:7}}/></a>
+ <small>{i===0?(lang==='es'?'Portada':lang==='en'?'Cover':'Capa'):'Foto '+(i+1)}</small>
+ <button type="button" disabled={uploading} onClick={()=>setDraft(v=>{const images=(v.image_urls||[]).filter(x=>x!==url);return {...v,image_urls:images,image_url:images[0]||''}})}>{lang==='es'?'Eliminar':lang==='en'?'Remove':'Remover'}</button>
+ </div>)}</div>}
+ </div>
  <label style={{display:'grid',gap:5}}>{t.kind}<select value={draft.kind} onChange={e=>setDraft({...draft,kind:e.target.value})}>{kinds.map((k,i)=><option key={k} value={k}>{t.types[i]}</option>)}</select></label>
  <label style={{display:'grid',gap:5}}>{t.status}<select value={draft.status} onChange={e=>setDraft({...draft,status:e.target.value})}>{states.map((k,i)=><option key={k} value={k}>{t.states[i]}</option>)}</select></label>
  <label style={{display:'grid',gap:5}}>{t.currency}<select value={draft.currency} onChange={e=>setDraft({...draft,currency:e.target.value})}>{['BRL','USD','UYU','ARS','EUR'].map(k=><option key={k}>{k}</option>)}</select></label>
