@@ -181,3 +181,31 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-bubble:has(.wa-attachment audio) .wa-attachment{display:block;width:100%;min-width:0}
 .wa-bubble:has(.wa-attachment audio) .wa-attachment audio{display:block;width:100%;max-width:100%;min-width:0;height:48px}
 @media(max-width:650px){.wa-bubble:has(.wa-attachment audio){width:min(330px,calc(100% - 8px))}}
+
+/* Clear WhatsApp composer hierarchy and touch-friendly controls */
+.wa-compose-tools{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.wa-compose-mode{display:inline-flex;align-items:stretch;gap:3px;padding:4px;background:#e9efed;border:1px solid #dce5e1;border-radius:13px}
+.wa-compose-mode button{margin:0;border:0!important;border-radius:9px!important;background:transparent!important;min-height:38px;padding:8px 13px;color:#566b69;box-shadow:none;transition:background .15s,color .15s}
+.wa-compose-mode button.active{background:#fff!important;color:#176b51!important;box-shadow:0 1px 4px #173a2d1b;font-weight:750}
+.wa-compose-mode button:focus-visible,.wa-stock-trigger:focus-visible,.wa-send:focus-visible,.wa-voice button:focus-visible{outline:3px solid #279a7b;outline-offset:2px}
+.wa-compose-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;min-width:0}
+.wa-compose-actions .wa-stock-trigger{margin:0;min-height:42px;padding:9px 13px;border-radius:11px;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+.wa-compose-actions .wa-stock-trigger:hover:not(:disabled){background:#eef7f3;border-color:#9bcbb8}
+.wa-compose-actions .wa-stock-trigger:active:not(:disabled){transform:translateY(1px)}
+.wa-compose-actions .wa-attach-trigger.is-disabled{opacity:.5;pointer-events:none}
+.wa-compose-actions .wa-admin-files{color:#526a74;background:#f7fafb}
+.wa-compose-row .wa-send{min-height:46px;padding:10px 18px;font-size:13px;font-weight:750;cursor:pointer}
+.wa-compose-row .wa-send:not(:disabled):hover{filter:brightness(.94)}
+.wa-voice>.wa-stock-trigger{margin-left:0;min-height:42px;cursor:pointer}
+.wa-voice-state button{min-height:40px;cursor:pointer}
+@media(max-width:650px){
+ .wa-compose-tools{align-items:stretch;gap:9px}
+ .wa-compose-mode{width:100%;display:grid;grid-template-columns:1fr 1fr}
+ .wa-compose-actions{width:100%;justify-content:flex-start;gap:7px}
+ .wa-compose-actions .wa-stock-trigger{flex:1 1 auto;min-width:0;min-height:44px}
+ .wa-compose-row .wa-send{min-height:44px}
+}
+@media(max-width:370px){
+ .wa-compose-tools{display:flex;flex-direction:column}
+ .wa-compose-actions .wa-stock-trigger{font-size:12px;padding:9px}
+}
