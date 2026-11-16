@@ -227,3 +227,10 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-compose-row .wa-voice-discard{background:#fff3f3;color:#a52d2d;border-color:#efc9c9}
 .wa-compose-row .wa-voice-error{flex-basis:100%}
 @media(max-width:650px){.wa-compose-row{gap:7px}.wa-compose-row textarea{flex-basis:125px}.wa-compose-row .wa-send{padding:9px 12px}.wa-voice-mic{width:44px;height:44px;min-width:44px}}
+
+/* Microphone activity reacts to real input level (not a decorative loop). */
+.wa-live-mic{--voice-level:0;position:relative;isolation:isolate;display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;border-radius:50%;background:#f0f4f2;border:1px solid #d2e4dc;font-size:21px;transition:background .12s,border-color .12s}
+.wa-live-mic::before{content:'';position:absolute;z-index:-1;inset:-4px;border-radius:50%;background:rgba(22,134,91,.18);transform:scale(calc(1 + var(--voice-level)*.45));opacity:calc(var(--voice-level)*.95);transition:transform .09s linear,opacity .09s linear}
+.wa-live-mic[data-audio-active="true"]{background:#e1f6e9;border-color:#66b990}
+.wa-voice-recording{overflow:visible}
+@media(prefers-reduced-motion:reduce){.wa-live-mic,.wa-live-mic::before{transition:none}}
