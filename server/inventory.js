@@ -19,9 +19,9 @@ export function registerInventoryRoutes(app,auth){
   const bytes=Buffer.from(raw,'base64');if(bytes.length<32||bytes.length>2097152)return res.status(400).json({error:'Image must be smaller than 2 MB'});
   const signature=mime==='image/jpeg'?bytes[0]===255&&bytes[1]===216&&bytes[2]===255:mime==='image/png'?bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])):bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
   if(!signature)return res.status(400).json({error:'Invalid image content'});
-  const row=await query('INSERT INTO crm_inventory_images(company_id,uploaded_by,mime,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,req.user.id,mime,bytes]);
   const origin=String(process.env.PUBLIC_APP_URL||'').replace(/\/$/,'');
   if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL must be configured with HTTPS'});
+  const row=await query('INSERT INTO crm_inventory_images(company_id,uploaded_by,mime,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,req.user.id,mime,bytes]);
   res.status(201).json({url:origin+'/api/public/inventory-image/'+row.rows[0].id});
  }));
  r.get('/inventory',wrap(async(req,res)=>{const kind=kinds.includes(req.query.kind)?req.query.kind:null;const term=String(req.query.search||'').slice(0,100);const rows=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND ($2::text IS NULL OR kind=$2) AND ($3::text=\'\' OR name ILIKE \'%\'||$3||\'%\' OR sku ILIKE \'%\'||$3||\'%\') ORDER BY updated_at DESC LIMIT 300',[req.user.company_id,kind,term]);res.json(rows.rows)}));
@@ -57,6 +57,6 @@ export function registerInventoryRoutes(app,auth){
  res.status(201).json({sent});
  }));
  // Notification events are queued for review; no unsolicited WhatsApp messages are sent.
- app.get('/api/public/inventory-image/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(404);const x=await query('SELECT mime,content FROM crm_inventory_images WHERE id=$1',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.set('Content-Type',x.rows[0].mime);res.set('Cache-Control','public, max-age=86400');res.set('X-Content-Type-Options','nosniff');res.send(x.rows[0].content)}));
+ app.get('/api/public/inventory-image/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(404);const x=await query('SELECT * FROM public.crm_public_inventory_image($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.set('Content-Type',x.rows[0].mime);res.set('Cache-Control','public, max-age=86400');res.set('X-Content-Type-Options','nosniff');res.send(x.rows[0].content)}));
  app.use('/api',r);
 }
