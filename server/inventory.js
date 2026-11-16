@@ -39,7 +39,7 @@ export function registerInventoryRoutes(app,auth){
  let result;
  try{result=item.image_url&&publicImage(item.image_url)?await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype:/\.png(?:\?|$)/i.test(item.image_url)?'image/png':'image/jpeg',caption:body,media:item.image_url,fileName:'zarko-product.jpg'}):await remote(e,match[1],'sendText',{number:match[2],text:body})}catch(err){return res.status(err.status||502).json({error:err.message,sent})}
  const ext=result.key?.id?match[1]+':'+result.key.id:null;
- const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,body,ext]);
+ const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,body+(item.image_url&&publicImage(item.image_url)?'\n'+item.image_url:''),ext]);
  sent.push({item_id:id,message_id:saved.rows[0]?.id||null});
  }
  await query('UPDATE conversations SET updated_at=now() WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
