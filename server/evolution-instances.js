@@ -193,6 +193,41 @@ export function registerEvolutionInstances(app,auth){
   const x=await query('SELECT * FROM public.crm_public_chat_media($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);
   const m=x.rows[0];res.set('Content-Type',m.mime);res.set('Content-Disposition','inline; filename="'+m.filename.replace(/[^a-zA-Z0-9._-]/g,'_')+'"');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','public,max-age=86400');res.send(m.content);
  }));
+ app.get('/api/chat-media',auth,safe(async(req,res)=>{if(req.user.role==='agent')return res.sendStatus(403);const x=await query("SELECT id,filename,mime,COALESCE(NULLIF(size_bytes,0),octet_length(content))::bigint AS size_bytes,created_at,status FROM crm_chat_media WHERE company_id=$1 ORDER BY created_at DESC LIMIT 200",[req.user.company_id]);res.json(x.rows)}));
+ app.delete('/api/chat-media/:id',auth,safe(async(req,res)=>{if(!['owner','manager'].includes(req.user.role))return res.sendStatus(403);if(!mediaUuid(req.params.id))return res.sendStatus(404);const x=await query('DELETE FROM crm_chat_media WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);res.json({deleted:true})}));
+ app.post('/api/conversations/:id/media-start',auth,safe(async(req,res)=>{
+  const {mime,filename}=req.body||{};if(!mediaTypes[mime])return res.status(400).json({error:'Formato no admitido'});
+  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
+  const c=await query("SELECT id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);if(!c.rowCount)return res.sendStatus(404);
+  const name=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
+  const x=await query("INSERT INTO crm_chat_media(company_id,conversation_id,uploaded_by,mime,filename,content,status) VALUES($1,$2,$3,$4,$5,$6,'uploading') RETURNING id",[req.user.company_id,req.params.id,req.user.id,mime,name,Buffer.alloc(0)]);
+  res.status(201).json({id:x.rows[0].id});
+ }));
+ app.post('/api/conversations/:id/media-chunk/:mediaId',auth,safe(async(req,res)=>{
+  if(!mediaUuid(req.params.mediaId))return res.sendStatus(404);
+  const {data,offset}=req.body||{};if(typeof data!=='string'||data.length>800000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||!Number.isSafeInteger(offset)||offset<0)return res.status(400).json({error:'Bloque inválido'});
+  const bytes=Buffer.from(data,'base64');if(!bytes.length||bytes.length>512*1024)return res.status(400).json({error:'Bloque demasiado grande'});
+  const x=await query("UPDATE crm_chat_media SET content=content || $1::bytea,size_bytes=size_bytes+$2 WHERE id=$3 AND company_id=$4 AND conversation_id=$5 AND uploaded_by=$6 AND status='uploading' AND size_bytes=$7 RETURNING size_bytes",[bytes,bytes.length,req.params.mediaId,req.user.company_id,req.params.id,req.user.id,offset]);
+  if(!x.rowCount)return res.status(409).json({error:'Carga interrumpida o bloque fuera de orden'});res.json({size_bytes:Number(x.rows[0].size_bytes)});
+ }));
+ app.post('/api/conversations/:id/media-finish/:mediaId',auth,safe(async(req,res)=>{
+  if(!mediaUuid(req.params.mediaId))return res.sendStatus(404);
+  const x=await query("SELECT id,mime,filename,content FROM crm_chat_media WHERE id=$1 AND company_id=$2 AND conversation_id=$3 AND uploaded_by=$4 AND status='uploading'",[req.params.mediaId,req.user.company_id,req.params.id,req.user.id]);if(!x.rowCount)return res.sendStatus(404);
+  const m=x.rows[0],bytes=m.content;
+  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
+  if(!bytes.length||!signatures[m.mime])return res.status(400).json({error:'Archivo vacío o inválido'});
+  const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0]?.external_id||'');
+  if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'WhatsApp sin número verificado'});
+  const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
+  const url=e.origin+'/api/public/chat-media/'+m.id;
+  await query("UPDATE crm_chat_media SET status='ready' WHERE id=$1 AND company_id=$2",[m.id,req.user.company_id]);
+  let sent;try{sent=await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[m.mime],mimetype:m.mime,media:url,fileName:m.filename,caption:String(req.body?.caption||'').slice(0,1000)})}catch(err){return res.status(502).json({error:'No se pudo enviar el archivo: '+err.message})}
+  const caption=String(req.body?.caption||'').slice(0,1000);
+  const body=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
+  const msg=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
+  await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json(msg.rows[0]||{sent:true});
+ }));
  app.post('/api/conversations/:id/evolution-media',auth,safe(async(req,res)=>{
   const {mime,data,filename,caption=''}=req.body||{};
   if(!mediaTypes[mime]||typeof data!=='string'||data.length>11000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||typeof caption!=='string'||caption.length>1000)return res.status(400).json({error:'Archivo inválido. PDF, foto, audio o video, máximo 8 MB.'});
