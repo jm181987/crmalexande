@@ -152,6 +152,22 @@ app.post('/api/pipelines',auth,manager,asyncRoute(async(req,res)=>{
  await query('INSERT INTO stages(pipeline_id,name,position,status) VALUES($1,$2,$3,$4)',[r.rows[0].id,name,i,i===3?'won':i===4?'lost':'open']);
  res.status(201).json(r.rows[0]);
 }));
+// Tenant-scoped stage customization; status determines reporting semantics.
+app.post('/api/pipelines/:pipelineId/stages',auth,manager,asyncRoute(async(req,res)=>{
+ const name=String(req.body?.name||'').trim(),status=req.body?.status||'open';
+ if(!name||name.length>100||!['open','won','lost','abandoned'].includes(status))return res.status(400).json({error:'Invalid stage'});
+ const p=await query('SELECT id FROM pipelines WHERE id=$1 AND company_id=$2',[req.params.pipelineId,req.user.company_id]);
+ if(!p.rowCount)return res.sendStatus(404);
+ const r=await query('INSERT INTO stages(pipeline_id,name,position,status) VALUES($1,$2,(SELECT COALESCE(MAX(position),-1)+1 FROM stages WHERE pipeline_id=$1),$3) RETURNING *',[req.params.pipelineId,name,status]);
+ res.status(201).json(r.rows[0]);
+}));
+app.patch('/api/pipelines/:pipelineId/stages/:stageId',auth,manager,asyncRoute(async(req,res)=>{
+ const name=String(req.body?.name||'').trim();
+ if(!name||name.length>100)return res.status(400).json({error:'Invalid stage name'});
+ const r=await query('UPDATE stages s SET name=$4 FROM pipelines p WHERE s.id=$1 AND s.pipeline_id=$2 AND p.id=s.pipeline_id AND p.company_id=$3 RETURNING s.*',[req.params.stageId,req.params.pipelineId,req.user.company_id,name]);
+ if(!r.rowCount)return res.sendStatus(404);
+ res.json(r.rows[0]);
+}));
 app.get('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT o.*,c.name AS contact_name FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
 }));
