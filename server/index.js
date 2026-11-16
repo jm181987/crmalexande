@@ -10,6 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {query,tenantContext} from './db.js';
 import {registerBranding} from './branding.js';
 import {registerModuleRoutes} from './modules.js';
+import {registerInventoryRoutes} from './inventory.js';
 import {registerEvolutionInstances} from './evolution-instances.js';
 import {registerCampaignDelivery} from './campaign-delivery.js';
 import {dispatchCampaignBatch} from './campaign-worker.js';
@@ -219,6 +220,7 @@ registerEvolutionInstances(app,auth);
 registerUnsubscribe(app);
 registerCampaignDelivery(app,auth);
 registerModuleRoutes(app,auth);
+registerInventoryRoutes(app,auth);
 app.use('/api',(req,res)=>res.status(404).json({error:'API route not found'}));
 if(process.env.NODE_ENV==='production'){
  const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
