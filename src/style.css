@@ -234,3 +234,9 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-live-mic[data-audio-active="true"]{background:#e1f6e9;border-color:#66b990}
 .wa-voice-recording{overflow:visible}
 @media(prefers-reduced-motion:reduce){.wa-live-mic,.wa-live-mic::before{transition:none}}
+
+/* AI receptionist drafts are explicitly reviewed before WhatsApp send. */
+.wa-compose-row .wa-ai-draft{min-height:44px;padding:8px 12px;border:1px solid #c4d7ec;border-radius:22px;background:#eef5ff;color:#28538a;font-size:12px;font-weight:750;white-space:nowrap;cursor:pointer}
+.wa-compose-row .wa-ai-draft:hover:not(:disabled){background:#deebff}
+.wa-compose-row .wa-ai-draft:disabled{opacity:.55;cursor:wait}
+.wa-compose-row .wa-ai-draft:focus-visible{outline:3px solid #279a7b;outline-offset:2px}
