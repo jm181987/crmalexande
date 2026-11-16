@@ -86,6 +86,26 @@ app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
  if(!valid(name)||!valid(email)||!valid(password)||password.length<12||!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Invalid user'});
  const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
 }));
+app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
+ const {name,email,role,password}=req.body||{};
+ if((name!==undefined&&(!valid(name)||name.length>120))||(email!==undefined&&(!valid(email)||email.length>254))||(role!==undefined&&!['owner','manager','agent'].includes(role))||(password!==undefined&&(typeof password!=='string'||password.length<12)))return res.status(400).json({error:'Datos inválidos; contraseña mínima de 12 caracteres'});
+ const current=await query('SELECT id,role FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[req.params.id,req.user.company_id]);
+ if(!current.rowCount)return res.sendStatus(404);
+ if(current.rows[0].role==='owner'&&role&&role!=='owner'){
+  const count=await query("SELECT count(*)::int AS n FROM users WHERE company_id=$1 AND role='owner' AND is_active=true",[req.user.company_id]);
+  if(count.rows[0].n<=1)return res.status(409).json({error:'No se puede quitar el último owner'});
+  if(req.params.id===String(req.user.id))return res.status(409).json({error:'No podés quitarte tu propio rol owner'});
+ }
+ const hash=password?await bcrypt.hash(password,12):null;
+ const x=await query('UPDATE users SET name=COALESCE($3,name),email=COALESCE(lower($4),email),role=COALESCE($5,role),password_hash=COALESCE($6,password_hash) WHERE id=$1 AND company_id=$2 AND is_active=true RETURNING id,name,email,role',[req.params.id,req.user.company_id,name?.trim()||null,email?.trim()||null,role||null,hash]);
+ res.json(x.rows[0]);
+}));
+app.delete('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
+ if(req.params.id===String(req.user.id))return res.status(409).json({error:'No podés desactivar tu propia cuenta'});
+ const x=await query("UPDATE users SET is_active=false WHERE id=$1 AND company_id=$2 AND is_active=true AND role<>'owner' RETURNING id",[req.params.id,req.user.company_id]);
+ if(!x.rowCount)return res.status(409).json({error:'Usuario inexistente o owner; cambiá primero su rol'});
+ res.json({deactivated:true});
+}));
 // Saved contact segments, scoped to the authenticated company.
 app.get('/api/smart-lists',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT id,name,filters,created_at FROM crm_smart_lists WHERE company_id=$1 ORDER BY name',[req.user.company_id]);res.json(r.rows);
