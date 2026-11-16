@@ -41,7 +41,7 @@ export function registerInventoryRoutes(app,auth){
  if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'Conversation has no verified WhatsApp phone number'});
  const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);
  if(!inst.rowCount)return res.status(403).json({error:'WhatsApp instance unavailable'});
- const e=evolution();if(!e.key||!e.url.startsWith('https://'))return res.status(503).json({error:'Evolution API HTTPS credentials missing'});
+ const e=evolution();const allowHttp=process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url);if(!e.key||!(e.url.startsWith('https://')||allowHttp))return res.status(503).json({error:'Evolution API connection unavailable. Check EVOLUTION_API_URL, EVOLUTION_API_KEY and configured HTTP/HTTPS policy'});
  const items=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=ANY($2::uuid[])',[req.user.company_id,ids]);
  if(items.rowCount!==ids.length)return res.status(404).json({error:'One or more inventory items unavailable'});
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
