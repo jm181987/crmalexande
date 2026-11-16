@@ -33,8 +33,15 @@ export function registerInventoryRoutes(app,auth){
   if(!signature)return res.status(400).json({error:'Invalid image content'});
   const origin=String(process.env.PUBLIC_APP_URL||(process.env.VERCEL_PROJECT_PRODUCTION_URL?'https://'+process.env.VERCEL_PROJECT_PRODUCTION_URL:'')).replace(/\/$/,'');
   if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL must be configured with HTTPS'});
-  const row=await query('INSERT INTO crm_inventory_images(company_id,uploaded_by,mime,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,req.user.id,mime,bytes]);
-  res.status(201).json({url:origin+'/api/public/inventory-image/'+row.rows[0].id});
+  let row;
+  try{row=await query('INSERT INTO crm_inventory_images(company_id,uploaded_by,mime,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,req.user.id,mime,bytes])}
+  catch(err){
+   if(err.code==='42P01'||err.code==='42883')return res.status(503).json({error:'La tabla de fotografías no existe. Ejecutá scripts/inventory.sql en PostgreSQL de producción.'});
+   if(err.code==='42501')return res.status(503).json({error:'La base de datos no permite guardar fotografías. Revisá los permisos y las políticas RLS de crm_inventory_images.'});
+   throw err;
+  }
+  const url=origin+'/api/public/inventory-image/'+row.rows[0].id;
+  res.status(201).json({url,id:row.rows[0].id,stored:true});
  }));
  r.get('/inventory',wrap(async(req,res)=>{const kind=kinds.includes(req.query.kind)?req.query.kind:null;const term=String(req.query.search||'').slice(0,100);const rows=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND ($2::text IS NULL OR kind=$2) AND ($3::text=\'\' OR name ILIKE \'%\'||$3||\'%\' OR sku ILIKE \'%\'||$3||\'%\') ORDER BY updated_at DESC LIMIT 300',[req.user.company_id,kind,term]);res.json(rows.rows)}));
  r.get('/inventory/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(400);const x=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=$2',[req.user.company_id,req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.json(x.rows[0])}));
