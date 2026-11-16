@@ -10,7 +10,19 @@ const validate=b=>typeof b.name==='string'&&b.name.trim().length>0&&b.name.lengt
 const evolution=()=>({url:String(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY||''});
 const remote=async(e,instance,route,payload)=>{let response;try{response=await fetch(e.url+'/message/'+route+'/'+encodeURIComponent(instance),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(18000)})}catch{throw Object.assign(new Error('Evolution API unavailable'),{status:502})}if(!response.ok)throw Object.assign(new Error('Evolution API rejected media or text (HTTP '+response.status+')'),{status:502});return response.json().catch(()=>({}))};
 const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&u.username===''&&u.password===''&&u.hostname!=='localhost'&&!isIP(u.hostname)&&!u.hostname.endsWith('.local')&&u.href.length<=2048}catch{return false}};
-const renderItem=(x,locale)=>{const p=new Intl.NumberFormat(locale==='es'?'es-UY':locale==='en'?'en-US':'pt-BR',{style:'currency',currency:x.currency||'BRL'}).format(Number(x.price));const status=Number(x.quantity)>0&&x.status==='available'?(locale==='es'?'Disponible':locale==='en'?'Available':'Disponível'):(locale==='es'?'Consultar disponibilidad':locale==='en'?'Check availability':'Consultar disponibilidade');return [x.name,x.description,p,status,x.sku?'SKU: '+x.sku:''].filter(Boolean).join('\n')};
+const renderItem=(x,locale)=>{
+ const language=['es','pt','en'].includes(locale)?locale:'pt';
+ const labels={es:{price:'Precio',availability:'Disponibilidad',available:'Disponible',reserved:'Reservado',sold:'Vendido',unavailable:'Consultar',reference:'Referencia',details:'Detalles',units:'unidades',contact:'Consultanos para más información'},pt:{price:'Preço',availability:'Disponibilidade',available:'Disponível',reserved:'Reservado',sold:'Vendido',unavailable:'Consultar',reference:'Referência',details:'Detalhes',units:'unidades',contact:'Fale conosco para mais informações'},en:{price:'Price',availability:'Availability',available:'Available',reserved:'Reserved',sold:'Sold',unavailable:'Ask us',reference:'Reference',details:'Details',units:'units',contact:'Contact us for more information'}}[language];
+ const money=new Intl.NumberFormat(language==='es'?'es-UY':language==='en'?'en-US':'pt-BR',{style:'currency',currency:x.currency||'BRL'}).format(Number(x.price));
+ const state=x.status==='available'?(Number(x.quantity)>0?labels.available:labels.unavailable):labels[x.status]||labels.unavailable;
+ const kind={product:'📦',vehicle:'🚗',property:'🏠',service:'🛠️'}[x.kind]||'📦';
+ const lines=[kind+' *'+String(x.name).replace(/[\r\n*]/g,' ').trim()+'*','', '💰 *'+labels.price+':* '+money,'✅ *'+labels.availability+':* '+state+(x.kind==='product'&&Number(x.quantity)>0?' ('+x.quantity+' '+labels.units+')':'')];
+ if(x.sku)lines.push('🔖 *'+labels.reference+':* '+x.sku);
+ if(x.description?.trim())lines.push('', '📝 *'+labels.details+':*',x.description.trim().slice(0,1200));
+ if(x.attributes&&typeof x.attributes==='object'){const details=Object.entries(x.attributes).filter(([k,v])=>k&&v!==null&&v!==''&&typeof v!=='object').slice(0,6);if(details.length)lines.push('',...details.map(([k,v])=>'• '+k+': '+String(v).slice(0,100)))}
+ lines.push('', '💬 '+labels.contact);
+ return lines.join('\n').slice(0,3500);
+};
 export function registerInventoryRoutes(app,auth){
  const r=Router();r.use(auth);
  r.post('/inventory-images/upload',editor,wrap(async(req,res)=>{
@@ -47,10 +59,25 @@ export function registerInventoryRoutes(app,auth){
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
  for(const id of ids){const item=byId.get(id);if(item.status==='inactive'){return res.status(409).json({error:'Inactive item cannot be sent',sent})}
  const body=renderItem(item,locale);
- let result;
- try{result=item.image_url&&publicImage(item.image_url)?await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype:/\.png(?:\?|$)/i.test(item.image_url)?'image/png':'image/jpeg',caption:body,media:item.image_url,fileName:'zarko-product.jpg'}):await remote(e,match[1],'sendText',{number:match[2],text:body})}catch(err){return res.status(err.status||502).json({error:err.message,sent})}
+ let result,hasImage=false;
+ try{
+  if(item.image_url&&publicImage(item.image_url)){
+   const hosted=/\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(new URL(item.image_url).pathname);
+   let media=item.image_url,mimetype=/\.png(?:\?|$)/i.test(item.image_url)?'image/png':/\.webp(?:\?|$)/i.test(item.image_url)?'image/webp':'image/jpeg';
+   if(hosted){
+    const image=await query('SELECT mime,content FROM crm_inventory_images WHERE company_id=$1 AND id=$2',[req.user.company_id,hosted[1]]);
+    if(!image.rowCount)throw Object.assign(new Error('Inventory photo not found'),{status:404});
+    mimetype=image.rows[0].mime;
+    media=Buffer.from(image.rows[0].content).toString('base64');
+   }
+   result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:body,media,fileName:'zarko-'+id+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
+   hasImage=true;
+  }else{
+   result=await remote(e,match[1],'sendText',{number:match[2],text:body});
+  }
+ }catch(err){return res.status(err.status||502).json({error:err.message,sent})}
  const ext=result.key?.id?match[1]+':'+result.key.id:null;
- const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,body+(item.image_url&&publicImage(item.image_url)?'\n'+item.image_url:''),ext]);
+ const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,body+(hasImage?'\n'+item.image_url:''),ext]);
  sent.push({item_id:id,message_id:saved.rows[0]?.id||null});
  }
  await query('UPDATE conversations SET updated_at=now() WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
