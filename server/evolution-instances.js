@@ -186,6 +186,39 @@ export function registerEvolutionInstances(app,auth){
  if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+$2,updated_at=now() WHERE id=$1',[conv.rows[0].id,direction==='inbound'?1:0]);console.info('Evolution message stored',{instance:inst.name,direction})}
  }res.sendStatus(200);
  }));
+ const mediaTypes={'application/pdf':'document','image/jpeg':'image','image/png':'image','image/webp':'image','audio/mpeg':'audio','audio/ogg':'audio','audio/mp4':'audio','video/mp4':'video'};
+ const mediaUuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
+ app.get('/api/public/chat-media/:id',safe(async(req,res)=>{
+  if(!mediaUuid(req.params.id))return res.sendStatus(404);
+  const x=await query('SELECT * FROM public.crm_public_chat_media($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);
+  const m=x.rows[0];res.set('Content-Type',m.mime);res.set('Content-Disposition','inline; filename="'+m.filename.replace(/[^a-zA-Z0-9._-]/g,'_')+'"');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','public,max-age=86400');res.send(m.content);
+ }));
+ app.post('/api/conversations/:id/evolution-media',auth,safe(async(req,res)=>{
+  const {mime,data,filename,caption=''}=req.body||{};
+  if(!mediaTypes[mime]||typeof data!=='string'||data.length>11000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||typeof caption!=='string'||caption.length>1000)return res.status(400).json({error:'Archivo inválido. PDF, foto, audio o video, máximo 8 MB.'});
+  const bytes=Buffer.from(data,'base64');if(!bytes.length||bytes.length>8*1024*1024)return res.status(400).json({error:'Archivo supera 8 MB'});
+  const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
+  if(!signatures[mime])return res.status(400).json({error:'El contenido no coincide con el tipo de archivo'});
+  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
+  const c=await query("SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);
+  if(!c.rowCount)return res.sendStatus(404);
+  const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0].external_id||'');
+  if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'Conversación sin número WhatsApp verificado'});
+  const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);
+  if(!inst.rowCount)return res.sendStatus(403);
+  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
+  const safeName=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
+  const origin=e.origin;if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL HTTPS requerido'});
+  const row=await query('INSERT INTO crm_chat_media(company_id,mime,filename,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,mime,safeName,bytes]);
+  const url=origin+'/api/public/chat-media/'+row.rows[0].id;
+  let sent;
+  try{sent=await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
+  catch(err){return res.status(502).json({error:'Evolution rechazó el archivo: '+err.message})}
+  const body=(caption.trim()?caption.trim()+'\n':'')+'[CRM_MEDIA:'+mediaTypes[mime]+':'+url+':'+safeName+']';
+  const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
+  await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
+  res.status(201).json(x.rows[0]||{sent:true});
+ }));
  app.post('/api/conversations/:id/evolution-send',auth,safe(async(req,res)=>{
  const body=req.body?.body;if(typeof body!=='string'||!body.trim()||body.length>4096)return res.status(400).json({error:'Invalid message'});
  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
