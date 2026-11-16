@@ -8,7 +8,7 @@ const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 const decimal=x=>x!==''&&x!==null&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0&&Number(x)<=999999999999;
 const validate=b=>typeof b.name==='string'&&b.name.trim().length>0&&b.name.length<=180&&kinds.includes(b.kind)&&statuses.includes(b.status)&&decimal(b.price)&&decimal(b.quantity)&&['BRL','USD','UYU','ARS','EUR'].includes(b.currency)&&(!b.sku||String(b.sku).length<=100)&&(!b.description||String(b.description).length<=5000)&&(!b.image_url||(/^https:\/\//.test(b.image_url)&&b.image_url.length<=2048))&&(b.attributes===undefined||b.attributes===null||typeof b.attributes==='object')&&!Array.isArray(b.attributes||{})&&JSON.stringify(b.attributes||{}).length<=12000;
 const evolution=()=>({url:String(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY||''});
-const remote=async(e,instance,route,payload)=>{let response;try{response=await fetch(e.url+'/message/'+route+'/'+encodeURIComponent(instance),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(18000)})}catch{throw Object.assign(new Error('Evolution API unavailable'),{status:502})}if(!response.ok)throw Object.assign(new Error('Evolution API rejected media or text (HTTP '+response.status+')'),{status:502});return response.json().catch(()=>({}))};
+const remote=async(e,instance,route,payload)=>{let response;try{response=await fetch(e.url+'/message/'+route+'/'+encodeURIComponent(instance),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(18000)})}catch{throw Object.assign(new Error('Evolution API unavailable'),{status:502})}if(!response.ok){const detail=await response.text().catch(()=>'');console.error('Evolution inventory media failed',{status:response.status,route,detail:detail.slice(0,500)});throw Object.assign(new Error('Evolution API rejected '+route+' (HTTP '+response.status+'). Verify the Evolution instance media configuration.'),{status:502})}return response.json().catch(()=>({}))};
 const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&u.username===''&&u.password===''&&u.hostname!=='localhost'&&!isIP(u.hostname)&&!u.hostname.endsWith('.local')&&u.href.length<=2048}catch{return false}};
 const renderItem=(x,locale)=>{
  const language=['es','pt','en'].includes(locale)?locale:'pt';
@@ -59,6 +59,7 @@ export function registerInventoryRoutes(app,auth){
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
  for(const id of ids){const item=byId.get(id);if(item.status==='inactive'){return res.status(409).json({error:'Inactive item cannot be sent',sent})}
  const body=renderItem(item,locale);
+ if(!item.image_url||!publicImage(item.image_url))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
  let result,hasImage=false;
  try{
   if(item.image_url&&publicImage(item.image_url)){
@@ -73,7 +74,7 @@ export function registerInventoryRoutes(app,auth){
    result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:body,media,fileName:'zarko-'+id+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
    hasImage=true;
   }else{
-   result=await remote(e,match[1],'sendText',{number:match[2],text:body});
+   throw Object.assign(new Error('Inventory image is required for this send'),{status:422});
   }
  }catch(err){return res.status(err.status||502).json({error:err.message,sent})}
  const ext=result.key?.id?match[1]+':'+result.key.id:null;
