@@ -31,17 +31,17 @@ export function registerModuleRoutes(app,auth){
  r.post('/campaigns',permitted,safe(async(req,res)=>{const {name,channel='whatsapp',content='',template_name=null}=req.body;if(!valid(name)||!['whatsapp','email','sms'].includes(channel)||typeof content!=='string'||content.length>10000)return res.status(400).json({error:'Invalid campaign'});const x=await query('INSERT INTO crm_campaigns(company_id,name,channel,content,template_name) VALUES($1,$2,$3,$4,$5) RETURNING *',[req.user.company_id,name.trim(),channel,content,template_name]);res.status(201).json(x.rows[0])}));
  r.get('/integrations',safe(async(req,res)=>{const x=await query('SELECT provider,status,config,updated_at FROM crm_integrations WHERE company_id=$1 ORDER BY provider',[req.user.company_id]);res.json(x.rows)}));
  r.post('/integrations',permitted,safe(async(req,res)=>{const {provider,config={}}=req.body;if(!['whatsapp','instagram','messenger','email','sms','google_calendar','outlook_calendar','meta_ads','google_ads','google_reviews'].includes(provider)||!config||typeof config!=='object'||Array.isArray(config)||Object.keys(config).some(k=>/secret|token|password|key/i.test(k)))return res.status(400).json({error:'Invalid provider or secret configuration'});const x=await query("INSERT INTO crm_integrations(company_id,provider,status,config) VALUES($1,$2,'disconnected',$3) ON CONFLICT(company_id,provider) DO UPDATE SET config=EXCLUDED.config,updated_at=now() RETURNING provider,status,config",[req.user.company_id,provider,JSON.stringify(config)]);res.json(x.rows[0])}));
- r.get('/builderbot',safe(async(req,res)=>{
-  const result=await query("SELECT status,config,updated_at FROM crm_integrations WHERE company_id=$1 AND provider='builderbot'",[req.user.company_id]);
+ r.get('/ai-provider',safe(async(req,res)=>{
+  const result=await query("SELECT status,config,updated_at FROM crm_integrations WHERE company_id=$1 AND provider='ai_reception_cloud'",[req.user.company_id]);
   const row=result.rows[0];
   const config=row?.config||{};
   res.json({status:row?.status||'disconnected',workspace_id:config.workspace_id||'',bot_id:config.bot_id||'',connection_strategy:'preserve_evolution',qr_owner:'evolution',automatic_replies:false,session_sharing_verified:false,updated_at:row?.updated_at||null});
  }));
- r.put('/builderbot',permitted,safe(async(req,res)=>{
+ r.put('/ai-provider',permitted,safe(async(req,res)=>{
   const {workspace_id='',bot_id=''}=req.body||{};
   if(typeof workspace_id!=='string'||typeof bot_id!=='string'||workspace_id.length>120||bot_id.length>120||!/^[-_a-zA-Z0-9]*$/.test(workspace_id)||!/^[-_a-zA-Z0-9]*$/.test(bot_id))return res.status(400).json({error:'Invalid BuilderBot identifiers'});
   const config={workspace_id:workspace_id.trim(),bot_id:bot_id.trim(),connection_strategy:'preserve_evolution'};
-  await query("INSERT INTO crm_integrations(company_id,provider,status,config) VALUES($1,'builderbot','disconnected',$2) ON CONFLICT(company_id,provider) DO UPDATE SET status='disconnected',config=EXCLUDED.config,updated_at=now()",[req.user.company_id,JSON.stringify(config)]);
+  await query("INSERT INTO crm_integrations(company_id,provider,status,config) VALUES($1,'ai_reception_cloud','disconnected',$2) ON CONFLICT(company_id,provider) DO UPDATE SET status='disconnected',config=EXCLUDED.config,updated_at=now()",[req.user.company_id,JSON.stringify(config)]);
   res.json({status:'disconnected',...config,qr_owner:'evolution',automatic_replies:false,session_sharing_verified:false});
  }));
  r.get('/ai-settings',safe(async(req,res)=>{const x=await query('SELECT * FROM crm_ai_settings WHERE company_id=$1',[req.user.company_id]);res.json(x.rows[0]||{mode:'off',instructions:'',handoff_enabled:true})}));
