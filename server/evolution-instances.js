@@ -190,7 +190,7 @@ export function registerEvolutionInstances(app,auth){
    const encoded=String(mediaResult.base64||mediaResult.data?.base64||'').replace(/^data:audio\/[\w.+-]+;base64,/,'');
    const mime=String(mediaResult.mimetype||unwrapped.audioMessage.mimetype||'audio/ogg').split(';')[0];
    const bytes=Buffer.from(encoded,'base64');
-   const validHeader=mime==='audio/ogg'?bytes.subarray(0,4).toString()==='OggS':mime==='audio/webm'?bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])):mime==='audio/mp4'?bytes.toString('ascii',4,8)==='ftyp':mime==='audio/mpeg'&&(bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255):false;
+   const validHeader=mime==='audio/ogg'?bytes.subarray(0,4).toString()==='OggS':mime==='audio/webm'?bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])):mime==='audio/mp4'?bytes.toString('ascii',4,8)==='ftyp':mime==='audio/mpeg'?(bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255):false;
    if(validHeader&&bytes.length<=8*1024*1024){
     const name='audio-recibido.'+(mime==='audio/ogg'?'ogg':mime==='audio/mp4'?'m4a':mime==='audio/webm'?'webm':'mp3');
     const stored=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[inst.company_id,conv.rows[0].id,mime,name,bytes,bytes.length]);
