@@ -170,3 +170,6 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 @media(max-width:650px){.wa-attach-trigger{min-height:40px}.wa-attachment img,.wa-attachment video{max-height:240px}.wa-bubble:has(.wa-attachment){max-width:94%}}
 
 .wa-media-row{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:1px solid #e4ebed;padding:9px 0}.wa-media-row span{min-width:0;overflow-wrap:anywhere;font-size:12px}.wa-media-row button{flex-shrink:0;border:1px solid #f0c6c6;background:#fff1f1;color:#9b2525;border-radius:8px;padding:7px 10px}.wa-stock-panel>small{display:block;margin:9px 0;color:#667781}.wa-attach-trigger:focus-within{outline:3px solid #26a3a2;outline-offset:2px}
+
+/* Voice notes in the WhatsApp conversation composer */
+.wa-voice{margin:8px 0;min-width:0}.wa-voice-state{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;padding:10px;border-radius:12px;border:1px solid #dce8e4;font-size:12px}.wa-voice-state audio{max-width:100%;width:260px;height:38px}.wa-voice-state button{border:1px solid #dce8e4;border-radius:8px;padding:9px 11px;background:#f6fbf8;font-weight:650}.wa-voice-state b{color:#b22222}.wa-voice-error{display:block;margin:6px 0;color:#b22222}
