@@ -7,8 +7,8 @@ const labels={
 export default function AiReceptionPanel({lang='es',user,error}){
  const t=labels[lang]||labels.es;
  const [config,setConfig]=useState({workspace_id:'',bot_id:''}),[busy,setBusy]=useState(false),[saved,setSaved]=useState(false),[loading,setLoading]=useState(true);
- useEffect(()=>{let alive=true;fetch('/api/builderbot',{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');if(alive)setConfig({workspace_id:d.workspace_id||'',bot_id:d.bot_id||''})}).catch(e=>error(e.message)).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[]);
- const save=async e=>{e.preventDefault();setBusy(true);setSaved(false);try{const r=await fetch('/api/builderbot',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');setSaved(true)}catch(e){error(e.message)}finally{setBusy(false)}};
+ useEffect(()=>{let alive=true;fetch('/api/ai-provider',{credentials:'include'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');if(alive)setConfig({workspace_id:d.workspace_id||'',bot_id:d.bot_id||''})}).catch(e=>error(e.message)).finally(()=>{if(alive)setLoading(false)});return()=>{alive=false}},[]);
+ const save=async e=>{e.preventDefault();setBusy(true);setSaved(false);try{const r=await fetch('/api/ai-provider',{method:'PUT',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');setSaved(true)}catch(e){error(e.message)}finally{setBusy(false)}};
  return <section className="panel" style={{padding:20,marginBottom:18}}>
   <h2>{t.title}</h2><p>{t.intro}</p>
   <p><strong>{t.status}:</strong> {t.inactive}</p>
