@@ -86,3 +86,14 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public
 AS $$ SELECT i.mime,i.content FROM public.crm_inventory_images i WHERE i.id=p_id LIMIT 1 $$;
 REVOKE ALL ON FUNCTION public.crm_public_inventory_image(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.crm_public_inventory_image(uuid) TO PUBLIC;
+
+CREATE TABLE IF NOT EXISTS crm_inventory_contact_settings (
+ company_id uuid PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+ whatsapp_url text NOT NULL DEFAULT '',
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE crm_inventory_contact_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS inventory_tenant ON crm_inventory_contact_settings;
+CREATE POLICY inventory_tenant ON crm_inventory_contact_settings FOR ALL
+ USING (company_id = NULLIF(current_setting('app.company_id',true),'')::uuid)
+ WITH CHECK (company_id = NULLIF(current_setting('app.company_id',true),'')::uuid);
