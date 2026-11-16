@@ -78,8 +78,8 @@ export function registerInventoryRoutes(app,auth){
  for(const photo of photos){
   let result;
   try{
-   const hosted=/\\/api\\/public\\/inventory-image\\/([0-9a-f-]{36})$/i.exec(new URL(photo).pathname);
-   let media=photo,mimetype=/\\.png(?:\\?|$)/i.test(photo)?'image/png':/\\.webp(?:\\?|$)/i.test(photo)?'image/webp':'image/jpeg';
+   const hosted=/\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(new URL(photo).pathname);
+   let media=photo,mimetype=/\.png(?:\?|$)/i.test(photo)?'image/png':/\.webp(?:\?|$)/i.test(photo)?'image/webp':'image/jpeg';
    if(hosted){
     const image=await query('SELECT mime,content FROM crm_inventory_images WHERE company_id=$1 AND id=$2',[req.user.company_id,hosted[1]]);
     if(!image.rowCount)throw Object.assign(new Error('Inventory photo not found'),{status:404});
@@ -89,7 +89,7 @@ export function registerInventoryRoutes(app,auth){
    if(result.message&&!result.message.imageMessage&&!result.message.documentMessage)throw Object.assign(new Error('Media delivery not confirmed'),{status:502});
   }catch(err){return res.status(err.status||502).json({error:err.message,sent,partial_item_id:id,photos_sent:photoIndex})}
   const ext=result.key?.id?match[1]+':'+result.key.id:null;
-  const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,(photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name)+'\\n'+photo,ext]);
+  const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,(photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name)+'\n'+photo,ext]);
   sent.push({item_id:id,photo_index:photoIndex+1,message_id:saved.rows[0]?.id||null});
   photoIndex++;
  }
