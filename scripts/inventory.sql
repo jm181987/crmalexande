@@ -64,3 +64,25 @@ DO $$ DECLARE tab text; BEGIN
 END $$;
 -- For installations with TENANT_DB_CONTEXT=false, a dedicated non-bypass role
 -- requires the tenant context to be enabled before these tables can be queried.
+
+CREATE TABLE IF NOT EXISTS crm_inventory_images(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+ uploaded_by uuid REFERENCES users(id) ON DELETE SET NULL,
+ mime text NOT NULL CHECK(mime IN ('image/jpeg','image/png','image/webp')),
+ content bytea NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE crm_inventory_images ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS inventory_tenant ON crm_inventory_images;
+CREATE POLICY inventory_tenant ON crm_inventory_images FOR ALL
+ USING (company_id = NULLIF(current_setting('app.company_id',true),'')::uuid)
+ WITH CHECK (company_id = NULLIF(current_setting('app.company_id',true),'')::uuid);
+-- Images are accessed through unguessable UUIDs to support Evolution API media retrieval.
+-- The SECURITY DEFINER function exposes only image bytes and MIME for known IDs.
+CREATE OR REPLACE FUNCTION public.crm_public_inventory_image(p_id uuid)
+RETURNS TABLE(mime text, content bytea)
+LANGUAGE sql SECURITY DEFINER SET search_path = public
+AS $$ SELECT i.mime,i.content FROM public.crm_inventory_images i WHERE i.id=p_id LIMIT 1 $$;
+REVOKE ALL ON FUNCTION public.crm_public_inventory_image(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.crm_public_inventory_image(uuid) TO PUBLIC;
