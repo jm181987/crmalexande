@@ -173,3 +173,11 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 
 /* Voice notes in the WhatsApp conversation composer */
 .wa-voice{margin:8px 0;min-width:0}.wa-voice-state{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;padding:10px;border-radius:12px;border:1px solid #dce8e4;font-size:12px}.wa-voice-state audio{max-width:100%;width:260px;height:38px}.wa-voice-state button{border:1px solid #dce8e4;border-radius:8px;padding:9px 11px;background:#f6fbf8;font-weight:650}.wa-voice-state b{color:#b22222}.wa-voice-error{display:block;margin:6px 0;color:#b22222}
+
+/* Audio notes need a real horizontal track: otherwise the browser's native
+   controls collapse to a tiny circle when the message bubble shrink-wraps. */
+.wa-bubble:has(.wa-attachment audio){width:min(350px,calc(100% - 8px));min-width:0;max-width:calc(100% - 8px)}
+.wa-bubble:has(.wa-attachment audio) > p:empty{display:none}
+.wa-bubble:has(.wa-attachment audio) .wa-attachment{display:block;width:100%;min-width:0}
+.wa-bubble:has(.wa-attachment audio) .wa-attachment audio{display:block;width:100%;max-width:100%;min-width:0;height:48px}
+@media(max-width:650px){.wa-bubble:has(.wa-attachment audio){width:min(330px,calc(100% - 8px))}}
