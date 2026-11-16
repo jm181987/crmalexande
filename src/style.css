@@ -159,3 +159,12 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 @media(max-width:900px){.wa-compose{padding:10px}.wa-compose-tools{gap:6px}.wa-compose-mode button,.wa-stock-trigger{padding:8px 10px}}
 @media(max-width:650px){.wa-chat-head{gap:7px;flex-wrap:wrap}.wa-chat-identity{flex:1 1 110px}.wa-owner{max-width:100%;margin-left:auto}.wa-owner select{max-width:115px}.wa-compose{padding:9px 10px calc(10px + env(safe-area-inset-bottom,0px))}.wa-compose-tools{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}.wa-compose-mode{display:flex;flex-wrap:nowrap}.wa-compose-mode button{font-size:11px;padding:7px 9px;min-height:40px}.wa-stock-trigger{min-height:40px;padding:7px 10px;font-size:11px}.wa-compose-row{grid-template-columns:minmax(0,1fr) auto;gap:7px}.wa-send{min-width:76px;padding:9px 10px}.wa-stock-panel{max-height:35dvh}.wa-stock-panel label{min-width:0}.wa-stock-panel label span{min-width:0;overflow-wrap:anywhere}}
 @media(max-width:370px){.wa-compose-tools{grid-template-columns:1fr}.wa-compose-mode{width:100%}.wa-compose-mode button{flex:1}.wa-stock-trigger{width:100%;margin-left:0}.wa-compose-row{grid-template-columns:minmax(0,1fr) auto}.wa-send{min-width:66px;font-size:12px;padding:8px}}
+
+/* Chat media attachments */
+.wa-attach-trigger{cursor:pointer;user-select:none;margin-left:0}
+.wa-attachment{display:grid;gap:7px;margin-top:7px;min-width:0;max-width:100%}
+.wa-attachment img,.wa-attachment video{display:block;max-width:100%;width:auto;max-height:310px;border-radius:10px;object-fit:contain}
+.wa-attachment audio{width:min(290px,100%);max-width:100%}
+.wa-pdf-link{display:flex;align-items:center;gap:8px;padding:12px;border-radius:10px;border:1px solid #c9dbe1;background:#fff;color:#176c83;text-decoration:none;font-weight:650;overflow-wrap:anywhere}
+.wa-bubble:has(.wa-attachment){max-width:min(85%,560px)}
+@media(max-width:650px){.wa-attach-trigger{min-height:40px}.wa-attachment img,.wa-attachment video{max-height:240px}.wa-bubble:has(.wa-attachment){max-width:94%}}
