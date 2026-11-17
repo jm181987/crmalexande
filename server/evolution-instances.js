@@ -27,7 +27,20 @@ async function recordConnection(instanceId,companyId,state,source){
 }
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
- app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='owner'?'':' AND owner_user_id=$2')+' ORDER BY created_at DESC',req.user.role==='owner'?[req.user.company_id]:[req.user.company_id,req.user.id]);res.json(x.rows)}));
+ app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at,owner_user_id FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='owner'?'':' AND owner_user_id=$2')+' ORDER BY created_at DESC',req.user.role==='owner'?[req.user.company_id]:[req.user.company_id,req.user.id]);res.json(x.rows)}));
+ // Only a tenant owner may assign or unassign an instance to a user in the same company.
+ app.put('/api/evolution/instances/:id/owner',auth,safe(async(req,res)=>{
+  if(req.user.role!=='owner')return res.sendStatus(403);
+  const target=req.body?.user_id;
+  if(target!==null&&(typeof target!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target)))return res.status(400).json({error:'Invalid user_id'});
+  if(target!==null){
+   const user=await query('SELECT id FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[target,req.user.company_id]);
+   if(!user.rowCount)return res.sendStatus(404);
+  }
+  const changed=await query('UPDATE crm_evolution_instances SET owner_user_id=$3 WHERE id=$1 AND company_id=$2 RETURNING id,name,label,owner_user_id',[req.params.id,req.user.company_id,target]);
+  if(!changed.rowCount)return res.sendStatus(404);
+  res.json(changed.rows[0]);
+ }));
  // Remove only obsolete CRM registrations. Never disconnect or delete a live Evolution instance.
  app.delete('/api/evolution/instances/:id',auth,admin,safe(async(req,res)=>{
   const found=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
