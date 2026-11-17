@@ -12,7 +12,7 @@ import {registerBranding} from './branding.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerAiReceptionRoutes} from './ai-reception.js';
 import {registerInventoryRoutes} from './inventory.js';
-import {registerEvolutionInstances,createEvolutionInstanceForCompany} from './evolution-instances.js';
+import {registerEvolutionInstances,createEvolutionInstanceForCompany,removeEvolutionInstance} from './evolution-instances.js';
 import {registerCampaignDelivery} from './campaign-delivery.js';
 import {dispatchCampaignBatch} from './campaign-worker.js';
 import {registerUnsubscribe} from './campaign-unsubscribe.js';
@@ -131,8 +131,22 @@ app.post('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async
  // No source company, existing contacts, or previous conversations are touched.
  return createEvolutionInstanceForCompany(req.body,companyId,ownerUserId,pool,res);
 }));
+app.delete('/api/platform/evolution/instances/:id',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id)||req.body?.confirm!==true)return res.status(400).json({error:'Confirmación requerida'});
+ const found=await pool.query("SELECT id,name,company_id,status FROM public.crm_evolution_instances WHERE id=$1",[req.params.id]);
+ if(!found.rowCount)return res.sendStatus(404);
+ const instance=found.rows[0];
+ if(instance.status==='deleted')return res.json({removed:true,already_removed:true,history_preserved:true});
+ // Remove remote connection first. If Evolution rejects deletion, keep the CRM record intact.
+ let remoteResult;
+ try{remoteResult=await removeEvolutionInstance(instance.name)}
+ catch(err){return res.status(err.status||502).json({error:'No se pudo eliminar la instancia en Evolution API. No se modificó el CRM.',upstreamStatus:err.upstreamStatus||null})}
+ await pool.query("UPDATE public.crm_evolution_instances SET status='deleted',owner_user_id=NULL WHERE id=$1",[instance.id]);
+ console.info('Platform Evolution instance archived',{instance_id:instance.id,company_id:instance.company_id,admin_user_id:req.user.id});
+ res.json({removed:true,history_preserved:true,...remoteResult});
+}));
 app.get('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
- const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id ORDER BY c.name,i.name');
+ const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id WHERE i.status <> \'deleted\' ORDER BY c.name,i.name');
  res.json(r.rows);
 }));
 app.post('/api/platform/evolution/instances/:id/transfer-preview',auth,platformAdmin,asyncRoute(async(req,res)=>{
