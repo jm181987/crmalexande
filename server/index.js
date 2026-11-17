@@ -87,8 +87,11 @@ app.patch('/api/company',auth,owner,asyncRoute(async(req,res)=>{
 }));
 app.get('/api/users',auth,asyncRoute(async(req,res)=>{const r=await query('SELECT id,name,email,role FROM users WHERE company_id=$1 AND is_active=true ORDER BY name',[req.user.company_id]);res.json(r.rows);}));
 app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
- const {name,email,password,role='agent'}=req.body;
- if(!valid(name)||!valid(email)||!valid(password)||password.length<12||!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Invalid user'});
+ const {name,email,password,role='agent'}=req.body||{};
+ if(!valid(name)||name.trim().length>120)return res.status(400).json({error:'Ingresá un nombre válido (máximo 120 caracteres)'});
+ if(!valid(email)||email.trim().length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()))return res.status(400).json({error:'Ingresá un correo electrónico válido'});
+ if(typeof password!=='string'||password.length<12)return res.status(400).json({error:'La contraseña debe tener al menos 12 caracteres'});
+ if(!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Seleccioná un rol válido: usuario, manager u owner'});
  const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
 }));
 app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
