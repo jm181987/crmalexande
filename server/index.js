@@ -92,6 +92,60 @@ const platformAdmin=asyncRoute(async(req,res,next)=>{
  next();
 });
 const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
+// Global transfer: preview first; reject shared contacts or unsupported dependent records.
+const transferPlan=async(db,id,destination,lock=false)=>{
+ const inst=await db.query('SELECT id,name,label,company_id FROM public.crm_evolution_instances WHERE id=$1'+(lock?' FOR UPDATE':''),[id]);
+ if(!inst.rowCount)return {error:'Instance not found',status:404};
+ const source=inst.rows[0].company_id;
+ if(source===destination)return {error:'Destination must differ from source',status:400};
+ const co=await db.query('SELECT id FROM public.companies WHERE id=$1',[destination]);if(!co.rowCount)return {error:'Destination company not found',status:404};
+ const conv=await db.query("SELECT id,contact_id FROM public.conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE replace(replace(replace($2,'\\','\\\\'),'%','\\%'),'_','\\_') || ':%' ESCAPE '\\'",[source,inst.rows[0].name]);
+ const convIds=conv.rows.map(x=>x.id),contactIds=[...new Set(conv.rows.map(x=>x.contact_id))];
+ const blockers=[];
+ if(contactIds.length){
+  const shared=await db.query('SELECT count(*)::int AS n FROM public.conversations WHERE contact_id=ANY($1::uuid[]) AND NOT(id=ANY($2::uuid[]))',[contactIds,convIds]);
+  if(shared.rows[0].n)blockers.push('Contacts are shared with other conversations');
+  const dependent=await db.query(`SELECT tc.table_name,kcu.column_name FROM information_schema.table_constraints tc JOIN information_schema.key_column_usage kcu ON tc.constraint_name=kcu.constraint_name AND tc.table_schema=kcu.table_schema JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name=ccu.constraint_name AND tc.table_schema=ccu.table_schema WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema='public' AND ccu.table_name='contacts' AND ccu.column_name='id' AND tc.table_name NOT IN ('conversations')`);
+  for(const row of dependent.rows){
+   if(!/^[a-z_][a-z_0-9]*$/.test(row.table_name)||!/^[a-z_][a-z_0-9]*$/.test(row.column_name))continue;
+   const count=await db.query('SELECT count(*)::int AS n FROM public."'+row.table_name+'" WHERE "'+row.column_name+'"=ANY($1::uuid[])',[contactIds]);
+   if(count.rows[0].n)blockers.push(row.table_name+' has '+count.rows[0].n+' related records');
+  }
+ }
+ const messages=convIds.length?(await db.query('SELECT count(*)::int AS n FROM public.messages WHERE conversation_id=ANY($1::uuid[])',[convIds])).rows[0].n:0;
+ const media=convIds.length?(await db.query('SELECT count(*)::int AS n FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[])',[convIds])).rows[0].n:0;
+ // Media without conversation_id cannot be attributed safely to a specific instance.
+ return {instance:inst.rows[0],source_company_id:source,destination_company_id:destination,conversations:convIds.length,contacts:contactIds.length,messages,media,blockers,convIds,contactIds};
+};
+app.get('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id ORDER BY c.name,i.name');
+ res.json(r.rows);
+}));
+app.post('/api/platform/evolution/instances/:id/transfer-preview',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id)||!validUuid(req.body?.destination_company_id))return res.sendStatus(400);
+ const plan=await transferPlan(pool,req.params.id,req.body.destination_company_id);
+ if(plan.error)return res.status(plan.status).json({error:plan.error});
+ const {convIds,contactIds,...publicPlan}=plan;res.json(publicPlan);
+}));
+app.post('/api/platform/evolution/instances/:id/transfer',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id)||!validUuid(req.body?.destination_company_id)||req.body?.confirm!==true)return res.sendStatus(400);
+ const db=await pool.connect();
+ try{
+  await db.query('BEGIN');
+  const plan=await transferPlan(db,req.params.id,req.body.destination_company_id,true);
+  if(plan.error||plan.blockers?.length){await db.query('ROLLBACK');return res.status(plan.status||409).json({error:plan.error||'Unsafe transfer blocked',blockers:plan.blockers});}
+  const {source_company_id:source,destination_company_id:dest,convIds,contactIds}=plan;
+  // Reject unknown media associations and move all identifiable data together.
+  await db.query('UPDATE public.contacts SET company_id=$2,owner_id=NULL WHERE id=ANY($1::uuid[]) AND company_id=$3',[contactIds,dest,source]);
+  await db.query('UPDATE public.conversations SET company_id=$2,assignee_id=NULL,updated_at=now() WHERE id=ANY($1::uuid[]) AND company_id=$3',[convIds,dest,source]);
+  await db.query('UPDATE public.crm_chat_media SET company_id=$2,uploaded_by=NULL WHERE conversation_id=ANY($1::uuid[]) AND company_id=$3',[convIds,dest,source]);
+  await db.query('UPDATE public.crm_evolution_connection_events SET company_id=$2 WHERE instance_id=$1 AND company_id=$3',[req.params.id,dest,source]);
+  await db.query('UPDATE public.crm_evolution_instances SET company_id=$2,owner_user_id=NULL WHERE id=$1 AND company_id=$3',[req.params.id,dest,source]);
+  await db.query('INSERT INTO public.crm_platform_instance_transfers(instance_id,source_company_id,destination_company_id,admin_user_id,conversation_count,contact_count,message_count,media_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[req.params.id,source,dest,req.user.id,plan.conversations,plan.contacts,plan.messages,plan.media]);
+  await db.query('COMMIT');
+  res.json({ok:true,conversations:plan.conversations,contacts:plan.contacts,messages:plan.messages,media:plan.media});
+ }catch(err){await db.query('ROLLBACK');throw err}finally{db.release()}
+}));
 app.get('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const companies=await pool.query('SELECT id,name,created_at FROM public.companies ORDER BY name');
  const rows=await pool.query('SELECT company_id,tool_key,enabled FROM public.crm_company_tools');
