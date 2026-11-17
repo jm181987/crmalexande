@@ -259,7 +259,7 @@ export function registerEvolutionInstances(app,auth){
   const m=x.rows[0],bytes=m.content;
   const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),'video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
   if(!bytes.length||!signatures[m.mime])return res.status(400).json({error:'Archivo vacío o inválido'});
-  const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
+  const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0]?.external_id||'');
   if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'WhatsApp sin número verificado'});
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
