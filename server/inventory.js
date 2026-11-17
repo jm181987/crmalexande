@@ -71,7 +71,7 @@ export function registerInventoryRoutes(app,auth){
  if(!convo.rowCount)return res.status(404).json({error:'WhatsApp conversation unavailable'});
  const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(convo.rows[0].external_id||'');
  if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'Conversation has no verified WhatsApp phone number'});
- const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);
+ const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2'+(req.user.role==='owner'?'':' AND owner_user_id=$3'),req.user.role==='owner'?[req.user.company_id,match[1]]:[req.user.company_id,match[1],req.user.id]);
  if(!inst.rowCount)return res.status(403).json({error:'WhatsApp instance unavailable'});
  const e=evolution();const allowHttp=process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url);if(!e.key||!(e.url.startsWith('https://')||allowHttp))return res.status(503).json({error:'Evolution API connection unavailable. Check EVOLUTION_API_URL, EVOLUTION_API_KEY and configured HTTP/HTTPS policy'});
  const items=await query('SELECT * FROM crm_inventory_items WHERE company_id=$1 AND id=ANY($2::uuid[])'+(req.user.role==='owner'?'':' AND created_by=$3'),itemArgs(req,req.user.company_id,ids));
