@@ -272,3 +272,28 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .crm-status-abandoned{background:#fef3c7;color:#92400e}
 .crm-deal-value{display:block;font-size:17px!important;color:#1f5a92!important;margin-top:8px}
 @media(max-width:700px){.crm-section-intro{align-items:stretch}.crm-stats{width:100%}.crm-stats span{flex:1;min-width:90px}.crm-filter-toolbar>*{max-width:100%}.crm-kanban-stage{min-width:260px}}
+
+
+/* Compact Kanban cards and chronological opportunity view */
+.crm-deal-details{margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px}
+.crm-deal-details>summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:8px;color:#2563a6;font-weight:650;font-size:12px;border-radius:7px}
+.crm-deal-details>summary::after{content:'⌄';font-size:17px;transition:transform .15s}
+.crm-deal-details[open]>summary::after{transform:rotate(180deg)}
+.crm-deal-details>summary::-webkit-details-marker{display:none}
+.crm-deal-details>summary:hover{background:#eff6ff}
+.crm-deal-detail-body{padding:7px 0 4px}
+.crm-view-switch{display:inline-flex;gap:3px;padding:3px;background:#e9eef5;border-radius:9px}
+.crm-view-switch button{border:0;border-radius:7px;background:transparent;padding:8px 11px;color:#475569}
+.crm-view-switch button.active{background:#fff;color:#1d4ed8;box-shadow:0 1px 5px #0001;font-weight:700}
+.crm-date-view{display:grid;gap:14px}
+.crm-date-group{border:1px solid #dce5ef;background:var(--card,#fff);border-radius:12px;overflow:hidden}
+.crm-date-group>header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 17px;background:#eff5fc;color:#1f3857}
+.crm-date-group>header span{font-size:12px;color:#536b85}
+.crm-date-deal{border-top:1px solid #e8edf4}
+.crm-date-deal>summary{cursor:pointer;display:grid;grid-template-columns:minmax(140px,2fr) minmax(100px,1fr) auto auto;gap:12px;align-items:center;padding:13px 17px;font-size:13px}
+.crm-date-deal>summary:hover{background:#f8fafc}
+.crm-date-deal>summary span{color:#64748b}
+.crm-date-deal>summary strong{color:#2563a6}
+.crm-date-deal>summary small{padding:4px 8px;background:#e2e8f0;border-radius:20px}
+.crm-date-deal-body{padding:0 17px 15px 32px;font-size:13px;color:#475569}
+@media(max-width:700px){.crm-date-deal>summary{grid-template-columns:1fr auto;gap:6px}.crm-date-deal>summary span{grid-column:1}.crm-date-deal>summary small{grid-column:2;grid-row:2}.crm-date-group>header{align-items:flex-start}}
