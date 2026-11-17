@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {query,tenantContext} from './db.js';
+import {query,pool,tenantContext} from './db.js';
 import {registerBranding} from './branding.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerAiReceptionRoutes} from './ai-reception.js';
@@ -40,7 +40,28 @@ const auth=asyncRoute(async(req,res,next)=>{
  // Database failures must not be reported as invalid credentials.
  const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_id($1)',[data.sub]):await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
  if(!r.rowCount)return res.status(401).json({error:'User account unavailable',code:'ACCOUNT_UNAVAILABLE'});
- req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
+ req.user=r.rows[0];
+ if(data.supportCompanyId){
+  const platform=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.user.id]);
+  if(!platform.rowCount)return res.status(403).json({error:'Support access revoked'});
+  const company=await pool.query('SELECT id FROM public.companies WHERE id=$1',[data.supportCompanyId]);
+  if(!company.rowCount)return res.status(403).json({error:'Support company unavailable'});
+  req.user={...req.user,company_id:data.supportCompanyId,role:'owner',support_mode:true,home_company_id:r.rows[0].company_id};
+ }
+ // Entitlements are enforced on the server, not merely hidden in navigation.
+ const toolFromPath=(p)=>{
+  if(/^\/api\/evolution\//.test(p))return 'evolution';
+  if(/^\/api\/inventory(?:\/|$)|^\/api\/inventory-images\//.test(p))return 'inventory';
+  for(const key of ['conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports'])
+   if(p==='/api/'+key||p.startsWith('/api/'+key+'/'))return key;
+  return null;
+ };
+ const tool=toolFromPath(req.path);
+ if(tool){
+  const access=await query('SELECT enabled FROM public.crm_company_tools WHERE company_id=$1 AND tool_key=$2',[req.user.company_id,tool]);
+  if(access.rowCount&&!access.rows[0].enabled)return res.status(403).json({error:'Tool disabled for this company',code:'TOOL_DISABLED',tool});
+ }
+ tenantContext.enterWith({companyId:req.user.company_id});next();
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
 const owner=(req,res,next)=>req.user.role==='owner'?next():res.status(403).json({error:'Forbidden'});
@@ -65,6 +86,75 @@ app.post('/api/auth/login',asyncRoute(async(req,res)=>{
  res.json({user:{id:u.id,name:u.name,email:u.email,role:u.role}});
 }));
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('crm_session',{path:'/',httpOnly:true,sameSite:'lax',secure:cookie.secure});res.json({ok:true});});
+const platformAdmin=asyncRoute(async(req,res,next)=>{
+ const r=await pool.query('SELECT 1 FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE a.user_id=$1 AND u.is_active=true',[req.user.id]);
+ if(!r.rowCount)return res.status(403).json({error:'Platform administrator access required'});
+ next();
+});
+const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
+app.get('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const companies=await pool.query('SELECT id,name,created_at FROM public.companies ORDER BY name');
+ const rows=await pool.query('SELECT company_id,tool_key,enabled FROM public.crm_company_tools');
+ res.json(companies.rows.map(c=>({...c,tools:Object.fromEntries(TOOL_KEYS.map(k=>[k,rows.rows.find(t=>t.company_id===c.id&&t.tool_key===k)?.enabled??true]))})));
+}));
+app.put('/api/platform/companies/:id/tools/:tool',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const {id,tool}=req.params;
+ if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)||!TOOL_KEYS.includes(tool)||typeof req.body?.enabled!=='boolean')return res.status(400).json({error:'Invalid company, tool or enabled value'});
+ const c=await pool.query('SELECT id FROM public.companies WHERE id=$1',[id]);if(!c.rowCount)return res.sendStatus(404);
+ const result=await pool.query('INSERT INTO public.crm_company_tools(company_id,tool_key,enabled,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,tool_key) DO UPDATE SET enabled=excluded.enabled,updated_by=excluded.updated_by,updated_at=now() RETURNING company_id,tool_key,enabled',[id,tool,req.body.enabled,req.user.id]);
+ res.json(result.rows[0]);
+}));
+const validUuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x);
+app.post('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const name=req.body?.name;
+ if(typeof name!=='string'||!name.trim()||name.trim().length>120)return res.status(400).json({error:'Invalid company name'});
+ const c=await pool.query('INSERT INTO public.companies(name) VALUES($1) RETURNING id,name,created_at',[name.trim()]);
+ res.status(201).json(c.rows[0]);
+}));
+app.patch('/api/platform/companies/:id',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id)||typeof req.body?.name!=='string'||!req.body.name.trim()||req.body.name.trim().length>120)return res.sendStatus(400);
+ const r=await pool.query('UPDATE public.companies SET name=$2 WHERE id=$1 RETURNING id,name',[req.params.id,req.body.name.trim()]);
+ if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);
+}));
+app.get('/api/platform/companies/:id/users',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id))return res.sendStatus(400);
+ const r=await pool.query('SELECT id,name,email,role,is_active FROM public.users WHERE company_id=$1 ORDER BY name',[req.params.id]);res.json(r.rows);
+}));
+app.post('/api/platform/companies/:id/users',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const {name,email,password,role='agent'}=req.body||{};
+ if(!validUuid(req.params.id)||!valid(name)||name.trim().length>120||!valid(email)||!isValidUserEmail(email)||typeof password!=='string'||password.length<12||!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Invalid user details or password under 12 characters'});
+ const company=await pool.query('SELECT id FROM public.companies WHERE id=$1',[req.params.id]);if(!company.rowCount)return res.sendStatus(404);
+ const r=await pool.query('INSERT INTO public.users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.params.id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
+}));
+app.patch('/api/platform/companies/:id/users/:userId',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const {name,email,role,is_active,password}=req.body||{};
+ if(!validUuid(req.params.id)||!validUuid(req.params.userId)||name!==undefined&&(!valid(name)||name.length>120)||email!==undefined&&(!valid(email)||!isValidUserEmail(email))||role!==undefined&&!['owner','manager','agent'].includes(role)||is_active!==undefined&&typeof is_active!=='boolean'||password!==undefined&&(typeof password!=='string'||password.length<12))return res.sendStatus(400);
+ const current=await pool.query('SELECT id,role,is_active FROM public.users WHERE id=$1 AND company_id=$2',[req.params.userId,req.params.id]);if(!current.rowCount)return res.sendStatus(404);
+ if(current.rows[0].role==='owner'&&(role&&role!=='owner'||is_active===false)){
+  const n=await pool.query("SELECT count(*)::int AS n FROM public.users WHERE company_id=$1 AND role='owner' AND is_active=true",[req.params.id]);
+  if(n.rows[0].n<=1)return res.status(409).json({error:'Cannot remove the last active owner'});
+ }
+ const r=await pool.query('UPDATE public.users SET name=COALESCE($3,name),email=COALESCE(lower($4),email),role=COALESCE($5,role),is_active=COALESCE($6,is_active),password_hash=COALESCE($7,password_hash) WHERE id=$1 AND company_id=$2 RETURNING id,name,email,role,is_active',[req.params.userId,req.params.id,name??null,email??null,role??null,is_active??null,password?await bcrypt.hash(password,12):null]);res.json(r.rows[0]);
+}));
+app.post('/api/platform/support/:id/start',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id))return res.sendStatus(400);
+ const c=await pool.query('SELECT id,name FROM public.companies WHERE id=$1',[req.params.id]);if(!c.rowCount)return res.sendStatus(404);
+ await pool.query('INSERT INTO public.crm_platform_support_audit(admin_user_id,company_id,action) VALUES($1,$2,$3)',[req.user.id,req.params.id,'start']);
+ res.cookie('crm_session',jwt.sign({sub:req.user.id,supportCompanyId:req.params.id},secret,{algorithm:'HS256',expiresIn:'2h'}),cookie);
+ res.json({company:c.rows[0]});
+}));
+app.post('/api/platform/support/end',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(req.user.support_mode)await pool.query('INSERT INTO public.crm_platform_support_audit(admin_user_id,company_id,action) VALUES($1,$2,$3)',[req.user.id,req.user.company_id,'end']);
+ res.cookie('crm_session',jwt.sign({sub:req.user.id},secret,{algorithm:'HS256',expiresIn:'8h'}),cookie);res.json({ok:true});
+}));
+app.get('/api/company/tools',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT tool_key,enabled FROM public.crm_company_tools WHERE company_id=$1',[req.user.company_id]);
+ res.json(Object.fromEntries(TOOL_KEYS.map(k=>[k,r.rows.find(x=>x.tool_key===k)?.enabled??true])));
+}));
+app.get('/api/platform/me',auth,asyncRoute(async(req,res)=>{
+ const r=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.user.id]);
+ res.json({platform_admin:!!r.rowCount});
+}));
 app.get('/api/auth/me',auth,(req,res)=>res.json({user:req.user}));
 app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  const u=req.user,scope=ownerSql(u),q=p(u),[a,b,c,d,e]=await Promise.all([
