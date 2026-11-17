@@ -1,3 +1,4 @@
+import {signedMediaPath,mediaAuthorized} from './media-access.js';
 import {Router} from 'express';
 import {query} from './db.js';
 import {isIP} from 'node:net';
@@ -48,7 +49,7 @@ export function registerInventoryRoutes(app,auth){
    if(err.code==='42501')return res.status(503).json({error:'La base de datos no permite guardar fotografías. Revisá los permisos y las políticas RLS de crm_inventory_images.'});
    throw err;
   }
-  const url='/api/public/inventory-image/'+row.rows[0].id;
+  const url=signedMediaPath('inventory',row.rows[0].id,7*86400);
   res.status(201).json({url,id:row.rows[0].id,stored:true});
  }));
  r.get('/inventory/contact-settings',wrap(async(req,res)=>{const x=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);res.json({whatsapp_url:x.rows[0]?.whatsapp_url||''})}));
@@ -107,6 +108,6 @@ export function registerInventoryRoutes(app,auth){
  res.status(201).json({sent,delivery_status:'accepted_by_evolution',note:'La API aceptó los archivos, pero la entrega al destinatario no está confirmada.'});
  }));
  // Notification events are queued for review; no unsolicited WhatsApp messages are sent.
- app.get('/api/public/inventory-image/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(404);const x=await query('SELECT * FROM public.crm_public_inventory_image($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.set('Content-Type',x.rows[0].mime);res.set('Cache-Control','public, max-age=86400');res.set('X-Content-Type-Options','nosniff');res.send(x.rows[0].content)}));
+ app.get('/api/public/inventory-image/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(404);if(!mediaAuthorized(req,'inventory'))return res.sendStatus(404);const x=await query('SELECT * FROM public.crm_public_inventory_image($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.set('Content-Type',x.rows[0].mime);res.set('Cache-Control',process.env.CRM_MEDIA_REQUIRE_SIGNATURE==='true'?'private,no-store':'public, max-age=86400');res.set('X-Content-Type-Options','nosniff');res.send(x.rows[0].content)}));
  app.use('/api',r);
 }
