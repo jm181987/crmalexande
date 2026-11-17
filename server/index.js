@@ -146,7 +146,7 @@ app.delete('/api/platform/evolution/instances/:id',auth,platformAdmin,asyncRoute
  res.json({removed:true,history_preserved:true,...remoteResult});
 }));
 app.get('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
- const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id WHERE i.status <> 'deleted' ORDER BY c.name,i.name');
+ const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id WHERE i.status <> \'deleted\' ORDER BY c.name,i.name');
  res.json(r.rows);
 }));
 app.post('/api/platform/evolution/instances/:id/transfer-preview',auth,platformAdmin,asyncRoute(async(req,res)=>{
