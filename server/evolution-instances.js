@@ -1,3 +1,4 @@
+import {signedMediaPath,mediaAuthorized} from './media-access.js';
 import crypto from 'node:crypto';
 import {query,tenantContext} from './db.js';
 const safe=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
@@ -222,8 +223,9 @@ export function registerEvolutionInstances(app,auth){
  const mediaUuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
  app.get('/api/public/chat-media/:id',safe(async(req,res)=>{
   if(!mediaUuid(req.params.id))return res.sendStatus(404);
+  if(!mediaAuthorized(req,'chat'))return res.sendStatus(404);
   const x=await query('SELECT * FROM public.crm_public_chat_media($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);
-  const m=x.rows[0];res.set('Content-Type',m.mime);res.set('Content-Disposition','inline; filename="'+m.filename.replace(/[^a-zA-Z0-9._-]/g,'_')+'"');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control','public,max-age=86400');res.send(m.content);
+  const m=x.rows[0];res.set('Content-Type',m.mime);res.set('Content-Disposition','inline; filename="'+m.filename.replace(/[^a-zA-Z0-9._-]/g,'_')+'"');res.set('X-Content-Type-Options','nosniff');res.set('Cache-Control',process.env.CRM_MEDIA_REQUIRE_SIGNATURE==='true'?'private,no-store':'public,max-age=86400');res.send(m.content);
  }));
  app.get('/api/conversations/:id/media/:mediaId',auth,safe(async(req,res)=>{
   if(!mediaUuid(req.params.id)||!mediaUuid(req.params.mediaId))return res.sendStatus(404);
@@ -259,7 +261,7 @@ export function registerEvolutionInstances(app,auth){
   const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0]?.external_id||'');
   if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'WhatsApp sin número verificado'});
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
-  const url=e.origin+'/api/public/chat-media/'+m.id;
+  const url=e.origin+signedMediaPath('chat',m.id);
   const caption=String(req.body?.caption||'').slice(0,1000);
   const mediaBody=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':/api/conversations/'+req.params.id+'/media/'+m.id+':'+m.filename+']';
   // Store the attachment in the chat before contacting Evolution. An upstream timeout
@@ -299,7 +301,7 @@ export function registerEvolutionInstances(app,auth){
   const safeName=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
   const origin=e.origin;if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL HTTPS requerido'});
   const row=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[req.user.company_id,req.params.id,mime,safeName,bytes,bytes.length]);
-  const url=origin+'/api/public/chat-media/'+row.rows[0].id;
+  const url=origin+signedMediaPath('chat',row.rows[0].id);
   let sent;
   try{sent=mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:bytes.toString('base64')}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
   catch(err){return res.status(502).json({error:'Evolution rechazó el archivo: '+err.message})}
