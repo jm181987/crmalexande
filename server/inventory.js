@@ -9,6 +9,7 @@ const decimal=x=>x!==''&&x!==null&&x!==undefined&&Number.isFinite(Number(x))&&Nu
 const validate=b=>typeof b.name==='string'&&b.name.trim().length>0&&b.name.length<=180&&kinds.includes(b.kind)&&statuses.includes(b.status)&&decimal(b.price)&&decimal(b.quantity)&&['BRL','USD','UYU','ARS','EUR'].includes(b.currency)&&(!b.sku||String(b.sku).length<=100)&&(!b.description||String(b.description).length<=5000)&&(!b.image_url||(typeof b.image_url==='string'&&b.image_url.length<=2048&&(publicImage(b.image_url)||/^\/api\/public\/inventory-image\/[0-9a-f-]{36}$/i.test(b.image_url))))&&(b.attributes===undefined||b.attributes===null||typeof b.attributes==='object')&&!Array.isArray(b.attributes||{})&&JSON.stringify(b.attributes||{}).length<=12000;
 const evolution=()=>({url:String(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:process.env.EVOLUTION_API_KEY||''});
 const remote=async(e,instance,route,payload)=>{let response;try{response=await fetch(e.url+'/message/'+route+'/'+encodeURIComponent(instance),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(18000)})}catch{throw Object.assign(new Error('Evolution API unavailable'),{status:502})}if(!response.ok){const detail=await response.text().catch(()=>'');console.error('Evolution inventory media failed',{status:response.status,route,detail:detail.slice(0,500)});throw Object.assign(new Error('Evolution API rejected '+route+' (HTTP '+response.status+'). Verify the Evolution instance media configuration.'),{status:502})}return response.json().catch(()=>({}))};
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const publicImage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&u.username===''&&u.password===''&&u.hostname!=='localhost'&&!isIP(u.hostname)&&!u.hostname.endsWith('.local')&&u.href.length<=2048}catch{return false}};
 const renderItem=(x,locale,contactUrl='')=>{
  const language=['es','pt','en'].includes(locale)?locale:'pt';
@@ -79,6 +80,8 @@ export function registerInventoryRoutes(app,auth){
  if(!photos.length||!photos.every(x=>publicImage(x)||/^\/api\/public\/inventory-image\/[0-9a-f-]{36}$/i.test(x)))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
  let photoIndex=0;
  for(const photo of photos){
+  // Avoid flooding a single Evolution/WhatsApp instance with back-to-back media requests.
+  if(photoIndex>0)await wait(1200);
   let result;
   try{
    const hosted=/^\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(portableImageUrl(photo));
@@ -89,17 +92,19 @@ export function registerInventoryRoutes(app,auth){
     mimetype=image.rows[0].mime;media=Buffer.from(image.rows[0].content).toString('base64');
    }
    result=await remote(e,match[1],'sendMedia',{number:match[2],mediatype:'image',mimetype,caption:photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name,media,fileName:'inventory-'+id+'-'+(photoIndex+1)+'.'+(mimetype==='image/png'?'png':mimetype==='image/webp'?'webp':'jpg')});
-   if(result.message&&!result.message.imageMessage&&!result.message.documentMessage)throw Object.assign(new Error('Media delivery not confirmed'),{status:502});
-  }catch(err){return res.status(err.status||502).json({error:err.message,sent,partial_item_id:id,photos_sent:photoIndex})}
+   // HTTP 200 only means Evolution accepted the request, not that WhatsApp delivered it.
+   // Do not report success when Evolution returns an error payload or no message key.
+   if(result.error||result.status==='error'||!result.key?.id)throw Object.assign(new Error('Evolution did not confirm acceptance of photo '+(photoIndex+1)),{status:502});
+  }catch(err){console.error('Inventory photo dispatch failed',{item_id:id,photo_index:photoIndex+1,total:photos.length,error:err.message});return res.status(err.status||502).json({error:err.message,sent,partial_item_id:id,photos_sent:photoIndex,photos_total:photos.length})}
   const ext=result.key?.id?match[1]+':'+result.key.id:null;
   const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING id",[req.params.id,req.user.id,(photoIndex===0?body:'📷 '+(photoIndex+1)+'/'+photos.length+' — '+item.name)+'\n'+photo,ext]);
-  sent.push({item_id:id,photo_index:photoIndex+1,message_id:saved.rows[0]?.id||null});
+  sent.push({item_id:id,photo_index:photoIndex+1,message_id:saved.rows[0]?.id||null,delivery_status:'accepted_by_evolution'});
   photoIndex++;
  }
 
  }
  await query('UPDATE conversations SET updated_at=now() WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
- res.status(201).json({sent});
+ res.status(201).json({sent,delivery_status:'accepted_by_evolution',note:'La API aceptó los archivos, pero la entrega al destinatario no está confirmada.'});
  }));
  // Notification events are queued for review; no unsolicited WhatsApp messages are sent.
  app.get('/api/public/inventory-image/:id',wrap(async(req,res)=>{if(!uuid(req.params.id))return res.sendStatus(404);const x=await query('SELECT * FROM public.crm_public_inventory_image($1)',[req.params.id]);if(!x.rowCount)return res.sendStatus(404);res.set('Content-Type',x.rows[0].mime);res.set('Cache-Control','public, max-age=86400');res.set('X-Content-Type-Options','nosniff');res.send(x.rows[0].content)}));
