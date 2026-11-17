@@ -12,7 +12,7 @@ import {registerBranding} from './branding.js';
 import {registerModuleRoutes} from './modules.js';
 import {registerAiReceptionRoutes} from './ai-reception.js';
 import {registerInventoryRoutes} from './inventory.js';
-import {registerEvolutionInstances} from './evolution-instances.js';
+import {registerEvolutionInstances,createEvolutionInstanceForCompany} from './evolution-instances.js';
 import {registerCampaignDelivery} from './campaign-delivery.js';
 import {dispatchCampaignBatch} from './campaign-worker.js';
 import {registerUnsubscribe} from './campaign-unsubscribe.js';
@@ -117,6 +117,20 @@ const transferPlan=async(db,id,destination,lock=false)=>{
  // Media without conversation_id cannot be attributed safely to a specific instance.
  return {instance:inst.rows[0],source_company_id:source,destination_company_id:destination,conversations:convIds.length,contacts:contactIds.length,messages,media,blockers,convIds,contactIds};
 };
+app.post('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const companyId=req.body?.company_id;
+ if(!validUuid(companyId))return res.status(400).json({error:'Seleccioná una empresa válida'});
+ const company=await pool.query('SELECT id FROM public.companies WHERE id=$1',[companyId]);
+ if(!company.rowCount)return res.status(404).json({error:'Empresa no encontrada'});
+ const ownerUserId=req.body?.owner_user_id||null;
+ if(ownerUserId!==null){
+  if(!validUuid(ownerUserId))return res.status(400).json({error:'Agente inválido'});
+  const agent=await pool.query("SELECT id FROM public.users WHERE id=$1 AND company_id=$2 AND role='agent' AND is_active=true",[ownerUserId,companyId]);
+  if(!agent.rowCount)return res.status(400).json({error:'El agente debe estar activo y pertenecer a la empresa seleccionada'});
+ }
+ // No source company, existing contacts, or previous conversations are touched.
+ return createEvolutionInstanceForCompany(req.body,companyId,ownerUserId,pool,res);
+}));
 app.get('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id ORDER BY c.name,i.name');
  res.json(r.rows);
