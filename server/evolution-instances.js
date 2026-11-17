@@ -23,7 +23,13 @@ async function recordConnection(instanceId,companyId,state,source){
  const previous=await query('SELECT state FROM crm_evolution_connection_events WHERE instance_id=$1 ORDER BY id DESC LIMIT 1',[instanceId]);
  if(previous.rows[0]?.state===value)return;
  await query('INSERT INTO crm_evolution_connection_events(instance_id,company_id,state,source) VALUES($1,$2,$3,$4)',[instanceId,companyId,value,source]);
- await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[instanceId,value]);
+ await query("UPDATE crm_evolution_instances SET status=$2 WHERE id=$1 AND status <> 'deleted'",[instanceId,value]);
+}
+export async function removeEvolutionInstance(name){
+ const e=cfg();
+ if(!ready(e))throw Object.assign(new Error('Evolution API no configurada'),{status:503});
+ try{await remote(e,'/instance/delete/'+encodeURIComponent(name),'DELETE');return {remote_removed:true}}
+ catch(err){if(err.upstreamStatus===404)return {remote_removed:false,already_missing:true};throw err}
 }
 export async function createEvolutionInstanceForCompany(details,companyId,ownerUserId,database,response){
  const e=cfg(),label=details.label,name=details.name;if(!webhookReady(e))return response.status(503).json({error:'Evolution configuration incomplete',details:{evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://')},hint:'PUBLIC_APP_URL can be set to the HTTPS CRM origin; VERCEL_PROJECT_PRODUCTION_URL is also supported.'});
