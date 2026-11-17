@@ -297,7 +297,7 @@ export function registerEvolutionInstances(app,auth){
   if(!c.rowCount)return res.sendStatus(404);
   const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0].external_id||'');
   if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'Conversación sin número WhatsApp verificado'});
-  const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);
+  const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2'+(req.user.role==='owner'?'':' AND owner_user_id=$3'),req.user.role==='owner'?[req.user.company_id,match[1]]:[req.user.company_id,match[1],req.user.id]);
   if(!inst.rowCount)return res.sendStatus(403);
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
   const safeName=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
@@ -317,7 +317,7 @@ export function registerEvolutionInstances(app,auth){
  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
  const c=await query("SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);if(!c.rowCount)return res.sendStatus(404);
  const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0].external_id||'');if(!match)return res.status(409).json({error:'Conversation not linked to an Evolution instance'});
- const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,match[1]]);if(!inst.rowCount)return res.sendStatus(403);
+ const inst=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2'+(req.user.role==='owner'?'':' AND owner_user_id=$3'),req.user.role==='owner'?[req.user.company_id,match[1]]:[req.user.company_id,match[1],req.user.id]);if(!inst.rowCount)return res.sendStatus(403);
  const e=cfg();if(!ready(e))return res.sendStatus(503);
  if(match[2].startsWith('lid:'))return res.status(409).json({error:'This chat uses a WhatsApp LID without a verified phone number. Reply requires resolving its phone JID first.'});
  const sent=await remote(e,'/message/sendText/'+encodeURIComponent(match[1]),'POST',{number:match[2],text:body.trim()});
