@@ -297,3 +297,23 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .crm-date-deal>summary small{padding:4px 8px;background:#e2e8f0;border-radius:20px}
 .crm-date-deal-body{padding:0 17px 15px 32px;font-size:13px;color:#475569}
 @media(max-width:700px){.crm-date-deal>summary{grid-template-columns:1fr auto;gap:6px}.crm-date-deal>summary span{grid-column:1}.crm-date-deal>summary small{grid-column:2;grid-row:2}.crm-date-group>header{align-items:flex-start}}
+
+
+/* Collapsible desktop module navigation: mobile drawer remains full-width */
+@media(min-width:901px){
+.sidebar{transition:width .2s ease}
+.sidebar.collapsed{width:76px}
+.sidebar.collapsed .sidebar-label{display:none}
+.sidebar.collapsed .nav-caption{display:none}
+.sidebar.collapsed .brand{flex-direction:column;gap:10px;padding:20px 8px 16px}
+.sidebar.collapsed .brand-logo{flex-shrink:0}
+.sidebar.collapsed nav{padding:0 9px}
+.sidebar.collapsed .nav-item{justify-content:center;padding:12px 8px}
+.sidebar.collapsed .profile{flex-direction:column;padding:14px 6px;gap:8px}
+.sidebar.collapsed .profile .sidebar-logout{padding:7px}
+}
+.sidebar-collapse-control{margin-left:auto;background:transparent;color:#bcd0ec;border:0;padding:6px;flex-shrink:0}
+.sidebar-collapse-control:hover{color:#fff;background:#294366}
+.sidebar.collapsed .sidebar-collapse-control{margin-left:0}
+.sidebar .nav-item:focus-visible,.sidebar-collapse-control:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+@media(max-width:900px){.sidebar-collapse-control{display:none}.sidebar.collapsed .sidebar-label{display:initial}.sidebar.collapsed .nav-caption{display:block}}
