@@ -1,0 +1,20 @@
+name: Validate CRM build
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: Check server JavaScript syntax
+        run: |
+          find server -name '*.js' -type f -print0 | xargs -0 -n1 node --check
+      - name: Build frontend
+        run: npm run build
