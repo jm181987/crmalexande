@@ -169,7 +169,7 @@ app.patch('/api/pipelines/:pipelineId/stages/:stageId',auth,manager,asyncRoute(a
  res.json(r.rows[0]);
 }));
 app.get('/api/opportunities',auth,asyncRoute(async(req,res)=>{
- const r=await query('SELECT o.*,c.name AS contact_name,c.phone AS contact_phone,c.email AS contact_email,c.source AS contact_source,c.tags AS contact_tags,c.notes AS contact_notes FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
+ const r=await query('SELECT o.*,c.name AS contact_name,c.phone AS contact_phone,c.email AS contact_email,c.source AS contact_source,c.tags AS contact_tags,c.notes AS contact_notes FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1 AND o.deleted_at IS NULL'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
 }));
 // Bulk add existing contacts to a pipeline stage; never duplicate a contact or an existing deal in that pipeline.
 app.post('/api/opportunities/bulk-from-contacts',auth,asyncRoute(async(req,res)=>{
@@ -182,7 +182,7 @@ app.post('/api/opportunities/bulk-from-contacts',auth,asyncRoute(async(req,res)=
  const sql=`INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status)
  SELECT $1,$2,$3,c.id,$4,c.name,0,$5 FROM contacts c
  WHERE c.company_id=$1 AND c.id=ANY($6::uuid[])${scope}
- AND NOT EXISTS(SELECT 1 FROM opportunities o WHERE o.company_id=$1 AND o.pipeline_id=$2 AND o.contact_id=c.id)
+ AND NOT EXISTS(SELECT 1 FROM opportunities o WHERE o.company_id=$1 AND o.pipeline_id=$2 AND o.contact_id=c.id AND o.deleted_at IS NULL)
  RETURNING id,contact_id`;
  const result=await query(sql,args);
  res.status(201).json({created:result.rowCount,skipped:contact_ids.length-result.rowCount,contact_ids:result.rows.map(x=>x.contact_id)});
@@ -194,6 +194,17 @@ app.post('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const stage=await query('SELECT s.status FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND p.company_id=$3',[stage_id,pipeline_id,req.user.company_id]);
  if(!contact.rowCount||!stage.rowCount)return res.status(400).json({error:'Invalid contact or pipeline stage'});
  const r=await query('INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[req.user.company_id,pipeline_id,stage_id,contact_id,req.user.id,title.trim(),value,stage.rows[0].status]);res.status(201).json(r.rows[0]);
+}));
+app.patch('/api/opportunities/:id',auth,asyncRoute(async(req,res)=>{
+ const {title,value,contact_id}=req.body||{};
+ if(!valid(title)||title.trim().length>200||!Number.isFinite(Number(value))||Number(value)<0||Number(value)>999999999999)return res.status(400).json({error:'Invalid opportunity'});
+ const contact=await query('SELECT id FROM contacts WHERE company_id=$1 AND id=$2',[req.user.company_id,contact_id]);if(!contact.rowCount)return res.status(400).json({error:'Invalid contact'});
+ const r=await query('UPDATE opportunities SET title=$3,value=$4,contact_id=$5,updated_at=now() WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL'+ownerSql(req.user,'owner_id',6)+' RETURNING *',[req.params.id,req.user.company_id,title.trim(),Number(value),contact_id,...(agent(req.user)?[req.user.id]:[])]);
+ if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);
+}));
+app.delete('/api/opportunities/:id',auth,asyncRoute(async(req,res)=>{
+ const r=await query('UPDATE opportunities SET deleted_at=now(),updated_at=now() WHERE id=$1 AND company_id=$2 AND deleted_at IS NULL'+ownerSql(req.user,'owner_id',3)+' RETURNING id',[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])]);
+ if(!r.rowCount)return res.sendStatus(404);res.json({ok:true});
 }));
 app.patch('/api/opportunities/:id/stage',auth,asyncRoute(async(req,res)=>{
  const {stage_id,lost_reason}=req.body;
