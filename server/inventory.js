@@ -81,7 +81,7 @@ export function registerInventoryRoutes(app,auth){
  for(const photo of photos){
   let result;
   try{
-   const hosted=/\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(new URL(photo).pathname);
+   const hosted=/^\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i.exec(portableImageUrl(photo));
    let media=photo,mimetype=/\.png(?:\?|$)/i.test(photo)?'image/png':/\.webp(?:\?|$)/i.test(photo)?'image/webp':'image/jpeg';
    if(hosted){
     const image=await query('SELECT mime,content FROM crm_inventory_images WHERE company_id=$1 AND id=$2',[req.user.company_id,hosted[1]]);
