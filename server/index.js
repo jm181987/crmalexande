@@ -40,7 +40,21 @@ const auth=asyncRoute(async(req,res,next)=>{
  // Database failures must not be reported as invalid credentials.
  const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_id($1)',[data.sub]):await query('SELECT id,company_id,name,email,role FROM users WHERE id=$1 AND is_active=true',[data.sub]);
  if(!r.rowCount)return res.status(401).json({error:'User account unavailable',code:'ACCOUNT_UNAVAILABLE'});
- req.user=r.rows[0];tenantContext.enterWith({companyId:req.user.company_id});next();
+ req.user=r.rows[0];
+ // Entitlements are enforced on the server, not merely hidden in navigation.
+ const toolFromPath=(p)=>{
+  if(/^\/api\/evolution\//.test(p))return 'evolution';
+  if(/^\/api\/inventory(?:\/|$)|^\/api\/inventory-images\//.test(p))return 'inventory';
+  for(const key of ['conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports'])
+   if(p==='/api/'+key||p.startsWith('/api/'+key+'/'))return key;
+  return null;
+ };
+ const tool=toolFromPath(req.path);
+ if(tool){
+  const access=await query('SELECT enabled FROM public.crm_company_tools WHERE company_id=$1 AND tool_key=$2',[req.user.company_id,tool]);
+  if(access.rowCount&&!access.rows[0].enabled)return res.status(403).json({error:'Tool disabled for this company',code:'TOOL_DISABLED',tool});
+ }
+ tenantContext.enterWith({companyId:req.user.company_id});next();
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
 const owner=(req,res,next)=>req.user.role==='owner'?next():res.status(403).json({error:'Forbidden'});
@@ -65,6 +79,32 @@ app.post('/api/auth/login',asyncRoute(async(req,res)=>{
  res.json({user:{id:u.id,name:u.name,email:u.email,role:u.role}});
 }));
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('crm_session',{path:'/',httpOnly:true,sameSite:'lax',secure:cookie.secure});res.json({ok:true});});
+const platformAdmin=asyncRoute(async(req,res,next)=>{
+ const r=await query('SELECT 1 FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE a.user_id=$1 AND u.is_active=true',[req.user.id]);
+ if(!r.rowCount)return res.status(403).json({error:'Platform administrator access required'});
+ next();
+});
+const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
+app.get('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const companies=await query('SELECT id,name,created_at FROM public.companies ORDER BY name');
+ const rows=await query('SELECT company_id,tool_key,enabled FROM public.crm_company_tools');
+ res.json(companies.rows.map(c=>({...c,tools:Object.fromEntries(TOOL_KEYS.map(k=>[k,rows.rows.find(t=>t.company_id===c.id&&t.tool_key===k)?.enabled??true]))})));
+}));
+app.put('/api/platform/companies/:id/tools/:tool',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const {id,tool}=req.params;
+ if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id)||!TOOL_KEYS.includes(tool)||typeof req.body?.enabled!=='boolean')return res.status(400).json({error:'Invalid company, tool or enabled value'});
+ const c=await query('SELECT id FROM public.companies WHERE id=$1',[id]);if(!c.rowCount)return res.sendStatus(404);
+ const result=await query('INSERT INTO public.crm_company_tools(company_id,tool_key,enabled,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,tool_key) DO UPDATE SET enabled=excluded.enabled,updated_by=excluded.updated_by,updated_at=now() RETURNING company_id,tool_key,enabled',[id,tool,req.body.enabled,req.user.id]);
+ res.json(result.rows[0]);
+}));
+app.get('/api/company/tools',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT tool_key,enabled FROM public.crm_company_tools WHERE company_id=$1',[req.user.company_id]);
+ res.json(Object.fromEntries(TOOL_KEYS.map(k=>[k,r.rows.find(x=>x.tool_key===k)?.enabled??true])));
+}));
+app.get('/api/platform/me',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.user.id]);
+ res.json({platform_admin:!!r.rowCount});
+}));
 app.get('/api/auth/me',auth,(req,res)=>res.json({user:req.user}));
 app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  const u=req.user,scope=ownerSql(u),q=p(u),[a,b,c,d,e]=await Promise.all([
