@@ -6,7 +6,7 @@ const cfg=()=>({url:(process.env.EVOLUTION_API_URL||'').replace(/\/$/,''),key:pr
 const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url)))&&Boolean(e.key);
 const webhookReady=e=>ready(e)&&e.origin.startsWith('https://');
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
-const admin=(req,res,next)=>req.user.role==='agent'?res.sendStatus(403):next();
+const admin=(req,res,next)=>req.user.role!=='owner'?res.sendStatus(403):next();
 const instanceScope=req=>req.user.role==='agent'?' AND owner_user_id=$3':'';
 const instanceArgs=(req,...args)=>req.user.role==='agent'?[...args,req.user.id]:args;
 async function remote(e,path,method='GET',body,timeoutMs=12000){
@@ -30,7 +30,7 @@ export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at,owner_user_id FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='agent'?' AND owner_user_id=$2':'')+' ORDER BY created_at DESC',req.user.role==='agent'?[req.user.company_id,req.user.id]:[req.user.company_id]);res.json(x.rows)}));
  // Only a tenant owner may assign or unassign an instance to a user in the same company.
  app.put('/api/evolution/instances/:id/owner',auth,safe(async(req,res)=>{
-  if(req.user.role==='agent')return res.sendStatus(403);
+  if(req.user.role!=='owner')return res.sendStatus(403);
   const target=req.body?.user_id;
   if(target!==null&&(typeof target!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target)))return res.status(400).json({error:'Invalid user_id'});
   if(target!==null){
