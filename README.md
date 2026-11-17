@@ -167,3 +167,24 @@ El botón **Compartir por WhatsApp** del listado abre un enlace `wa.me` con text
 ### Recepcionista IA: marca blanca y alcance actual
 
 El panel de **Recepcionista IA** se presenta con marca propia en español, portugués e inglés. La integración actual es preparatoria: guarda configuración no secreta por empresa, pero **no conecta todavía un proveedor de respuestas automáticas ni comparte la sesión QR**. No cargar tokens privados en el panel ni habilitar una segunda conexión WhatsApp para el mismo número sin verificar la compatibilidad técnica.
+
+
+## Motor de automatizaciones internas (Coolify)
+
+El CRM incluye un motor de seguimiento que **crea tareas internas**; no envía WhatsApp, correo ni SMS.
+
+Para habilitarlo en el servicio Node persistente de Coolify, configurar estas variables de entorno:
+
+```env
+CRM_AUTOMATIONS_ENABLED=true
+CRM_AUTOMATIONS_SCHEDULER=true
+CRM_AUTOMATIONS_INTERVAL_MINUTES=15
+```
+
+Reiniciar o redesplegar el servicio tras guardar las variables. El intervalo permitido es de 5 a 1440 minutos; se ejecuta una vez al iniciar y luego periódicamente. Sin estas variables, el motor permanece desactivado. Para desactivarlo, usar `CRM_AUTOMATIONS_ENABLED=false`.
+
+Desde Automatizaciones, crear una regla de **contacto inactivo** o **estado de oportunidad**, y activarla explícitamente. El motor evalúa los días configurados y crea tareas para contactos con responsable asignado. Las reglas manuales no se ejecutan automáticamente. El motor registra ejecuciones para evitar duplicados diarios y evita crear otra tarea mientras la anterior siga pendiente. Si existen múltiples réplicas, se recomienda un único scheduler o un cron externo: la tabla de ejecuciones mitiga duplicados, pero el motor no proporciona coordinación distribuida integral.
+
+También existe el endpoint privado `POST /api/internal/automation-run` para un scheduler externo. Requiere `Authorization: Bearer <CAMPAIGN_WORKER_SECRET>`, con secreto de al menos 24 caracteres. No exponer el secreto al navegador.
+
+**Importante:** comprobar que las migraciones de la base de datos estén aplicadas, incluida `crm_automation_executions`, antes de habilitar el motor. Supervisar logs de Coolify tras activarlo.
