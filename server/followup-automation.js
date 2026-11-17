@@ -2,6 +2,7 @@ import {query} from './db.js';
 // Internal tasks only: no customer messages are sent by automation.
 export async function runFollowupAutomations({limit=50}={}){
  if(process.env.CRM_AUTOMATIONS_ENABLED!=='true')return {disabled:true,created:0};
+ const safeLimit=Math.min(100,Math.max(1,Number(limit)||50));
  const rules=await query("SELECT id,company_id,name,config FROM crm_automation_rules WHERE enabled=true AND trigger_event IN ('contact_inactive','opportunity_status') AND action_type='create_task' ORDER BY created_at LIMIT 100");
  let created=0;
  for(const rule of rules.rows){
@@ -12,12 +13,12 @@ export async function runFollowupAutomations({limit=50}={}){
   const tag=typeof rule.config?.tag==='string'&&rule.config.tag.length<=100?rule.config.tag:null;
   const contacts=await query(`SELECT c.id,c.owner_id FROM contacts c WHERE c.company_id=$1 AND c.owner_id IS NOT NULL
    AND ($3::text IS NULL OR $3=ANY(c.tags))
-   AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.contact_id=c.id AND v.company_id=c.company_id AND m.created_at > now()-($2::int * interval '1 day'))
+   AND ($6::text IS NOT NULL OR NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.contact_id=c.id AND v.company_id=c.company_id AND m.created_at > now()-($2::int * interval '1 day')))
    AND NOT EXISTS (SELECT 1 FROM crm_automation_executions x JOIN tasks t ON t.id=x.task_id WHERE x.rule_id=$4 AND x.contact_id=c.id AND t.completed=false)
    AND NOT EXISTS (SELECT 1 FROM crm_automation_executions x WHERE x.rule_id=$4 AND x.contact_id=c.id AND x.period_date=current_date)
-   AND c.created_at <= now()-($2::int * interval '1 day')
+   AND ($6::text IS NOT NULL OR c.created_at <= now()-($2::int * interval '1 day'))
    AND ($6::text IS NULL OR EXISTS (SELECT 1 FROM opportunities o WHERE o.contact_id=c.id AND o.company_id=c.company_id AND o.status=$6 AND o.updated_at<=now()-($2::int * interval '1 day')))
-   ORDER BY c.id LIMIT $5`,[rule.company_id,days,tag,rule.id,Math.min(100,Math.max(1,limit)),status]);
+   ORDER BY c.id LIMIT $5`,[rule.company_id,days,tag,rule.id,safeLimit,status]);
   for(const contact of contacts.rows){
    // Atomic claim: parallel cron executions cannot create duplicate tasks for same day.
    const claim=await query('INSERT INTO crm_automation_executions(rule_id,contact_id,period_date) VALUES($1,$2,current_date) ON CONFLICT DO NOTHING RETURNING rule_id',[rule.id,contact.id]);
