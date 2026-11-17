@@ -245,7 +245,11 @@ app.get('/api/platform/me',auth,asyncRoute(async(req,res)=>{
  const r=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.user.id]);
  res.json({platform_admin:!!r.rowCount});
 }));
-app.get('/api/auth/me',auth,(req,res)=>res.json({user:req.user}));
+app.get('/api/auth/me',auth,asyncRoute(async(req,res)=>{
+ const company=await pool.query('SELECT id,name FROM public.companies WHERE id=$1',[req.user.company_id]);
+ if(!company.rowCount)return res.status(403).json({error:'Empresa no disponible'});
+ res.json({user:{...req.user,company_name:company.rows[0].name}});
+}));
 app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  const u=req.user,scope=ownerSql(u),q=p(u),[a,b,c,d,e]=await Promise.all([
  query('SELECT count(*)::int AS n FROM contacts WHERE company_id=$1'+scope,q),

@@ -353,3 +353,15 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .global-danger{color:#b83232;border-color:rgba(184,50,50,.4)}
 .global-empty{text-align:center;padding:36px 12px;opacity:.7}
 @media(max-width:760px){.global-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.global-filters,.global-filters input,.global-filters select,.global-tabs{width:100%}.global-tabs button{flex:1}.global-instance-row .global-actions,.global-user-row .global-actions{margin-left:0;width:100%}.global-instance-row .global-actions select{flex:1}}
+
+
+/* Authenticated company identity — visible on every CRM page */
+.tenant-sidebar{margin:12px 10px 16px;padding:11px 13px;border-radius:12px;background:rgba(116,142,192,.12);border:1px solid rgba(116,142,192,.24);display:grid;gap:4px;min-width:0}
+.tenant-sidebar small,.tenant-header small{font-size:.64rem;letter-spacing:.09em;font-weight:700;opacity:.65}
+.tenant-sidebar strong{font-size:.95rem;overflow-wrap:anywhere;line-height:1.35}
+.tenant-header{display:flex;align-items:center;gap:9px;min-width:0;max-width:260px;padding:7px 12px;border-radius:12px;border:1px solid var(--border,#d9e0eb);background:rgba(116,142,192,.07)}
+.tenant-header>span:last-child{display:grid;gap:2px;min-width:0}
+.tenant-header strong{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tenant-indicator{width:9px;height:9px;border-radius:50%;background:#23a66c;flex-shrink:0}
+.sidebar-is-collapsed .tenant-sidebar{display:none}
+@media(max-width:680px){.tenant-header{max-width:135px;padding:6px 8px}.tenant-header strong{font-size:.74rem}.tenant-header small{font-size:.55rem}}
