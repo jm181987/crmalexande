@@ -193,16 +193,31 @@ app.post('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const par=p(req.user),contact=await query('SELECT id FROM contacts WHERE company_id=$1'+ownerSql(req.user)+' AND id=$'+(par.length+1),[...par,contact_id]);
  const stage=await query('SELECT s.status FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND p.company_id=$3',[stage_id,pipeline_id,req.user.company_id]);
  if(!contact.rowCount||!stage.rowCount)return res.status(400).json({error:'Invalid contact or pipeline stage'});
+ const existing=await query('SELECT id FROM opportunities WHERE company_id=$1 AND pipeline_id=$2 AND contact_id=$3 LIMIT 1',[req.user.company_id,pipeline_id,contact_id]);
+ if(existing.rowCount)return res.status(409).json({error:'Este contacto ya tiene una oportunidad en este embudo. Cambiá su etapa en el Kanban.'});
  const r=await query('INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[req.user.company_id,pipeline_id,stage_id,contact_id,req.user.id,title.trim(),value,stage.rows[0].status]);res.status(201).json(r.rows[0]);
+}));
+app.get('/api/opportunities/:id/history',auth,asyncRoute(async(req,res)=>{
+ const args=[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])];
+ const found=await query('SELECT id FROM opportunities WHERE id=$1 AND company_id=$2'+ownerSql(req.user,'owner_id',3),args);
+ if(!found.rowCount)return res.sendStatus(404);
+ const r=await query('SELECT h.id,h.created_at,h.from_stage_id,h.to_stage_id,fs.name AS from_stage,ts.name AS to_stage,u.name AS changed_by_name FROM opportunity_stage_history h LEFT JOIN stages fs ON fs.id=h.from_stage_id JOIN stages ts ON ts.id=h.to_stage_id LEFT JOIN users u ON u.id=h.changed_by WHERE h.opportunity_id=$1 AND h.company_id=$2 ORDER BY h.created_at DESC LIMIT 100',[req.params.id,req.user.company_id]);
+ res.json(r.rows);
 }));
 app.patch('/api/opportunities/:id/stage',auth,asyncRoute(async(req,res)=>{
  const {stage_id,lost_reason}=req.body;
- const stage=await query('SELECT s.status FROM stages s JOIN opportunities o ON o.pipeline_id=s.pipeline_id WHERE s.id=$1 AND o.id=$2 AND o.company_id=$3',[stage_id,req.params.id,req.user.company_id]);
+ const args=[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])];
+ const old=await query('SELECT id,stage_id,pipeline_id FROM opportunities WHERE id=$1 AND company_id=$2'+ownerSql(req.user,'owner_id',3),args);
+ if(!old.rowCount)return res.status(404).json({error:'Opportunity not found'});
+ const deal=old.rows[0];
+ const stage=await query('SELECT s.status FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND p.company_id=$3',[stage_id,deal.pipeline_id,req.user.company_id]);
  if(!stage.rowCount)return res.status(400).json({error:'Invalid stage'});
- const status=stage.rows[0].status;if(status==='lost'&&!valid(lost_reason))return res.status(400).json({error:'Loss reason required'});
- const args=[req.params.id,req.user.company_id,stage_id,status,status==='lost'?lost_reason:null,...(agent(req.user)?[req.user.id]:[])];
- const r=await query('UPDATE opportunities SET stage_id=$3,status=$4,lost_reason=$5,updated_at=now() WHERE id=$1 AND company_id=$2'+ownerSql(req.user,'owner_id',6)+' RETURNING *',args);
- if(!r.rowCount)return res.status(404).json({error:'Opportunity not found'});res.json(r.rows[0]);
+ if(deal.stage_id===stage_id)return res.json({unchanged:true});
+ const status=stage.rows[0].status;
+ if(status==='lost'&&!valid(lost_reason))return res.status(400).json({error:'Loss reason required'});
+ const r=await query('WITH changed AS (UPDATE opportunities SET stage_id=$3,status=$4,lost_reason=$5,updated_at=now() WHERE id=$1 AND company_id=$2 AND stage_id=$6 RETURNING id) INSERT INTO opportunity_stage_history(company_id,opportunity_id,from_stage_id,to_stage_id,changed_by) SELECT $2,id,$6,$3,$7 FROM changed RETURNING opportunity_id',[req.params.id,req.user.company_id,stage_id,status,status==='lost'?lost_reason:null,deal.stage_id,req.user.id]);
+ if(!r.rowCount)return res.status(409).json({error:'La etapa cambió. Actualizá el Kanban e intentá nuevamente.'});
+ res.json({id:deal.id,stage_id,status});
 }));
 app.get('/api/conversations',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT v.*,c.name AS contact_name,c.phone AS contact_phone,u.name AS assignee_name,(SELECT body FROM messages m WHERE m.conversation_id=v.id ORDER BY created_at DESC LIMIT 1) AS last_message FROM conversations v JOIN contacts c ON c.id=v.contact_id LEFT JOIN users u ON u.id=v.assignee_id WHERE v.company_id=$1'+ownerSql(req.user,'v.assignee_id')+' ORDER BY v.updated_at DESC LIMIT 200',p(req.user));res.json(r.rows);
