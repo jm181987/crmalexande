@@ -60,33 +60,27 @@ export function registerCampaignDelivery(app,auth){
   for(let i=0;i<eligible.length;i++)await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[req.user.company_id,req.params.id,eligible[i].id,new Date(when.getTime()+i*interval_seconds*1000).toISOString()]);
   res.json({prepared:eligible.length,channel,automatic_dispatch:false,notice:'Queued, not sent. Worker disabled until explicitly configured.'});
  })];
- // Prepare a 24h/3d/7d quote follow-up sequence for a single opted-in contact.
- // Queueing never sends immediately; the existing worker must be explicitly enabled.
  app.post('/api/quote-followups/prepare',auth,manager,safe(async(req,res)=>{
   const {contact_id,instance_name,messages,first_at}=req.body||{};
-  if(!/^[0-9a-f-]{36}$/i.test(String(contact_id||''))||!/^crm-[a-z0-9-]{3,50}$/.test(String(instance_name||''))||!Array.isArray(messages)||messages.length!==3||messages.some(m=>typeof m!=='string'||!m.trim()||m.length>1500))return res.status(400).json({error:'Invalid quote follow-up'});
-  const first=first_at?new Date(first_at):new Date();if(!Number.isFinite(first.getTime())||first.getTime()<Date.now()-60000)return res.status(400).json({error:'Invalid schedule'});
-  const eligible=await query("SELECT c.id FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true WHERE c.id=$1 AND c.company_id=$2 AND c.phone ~ '^\\+?[0-9]{8,15}
- app.post('/api/campaigns/:id/prepare-email',...prepare('email'));
- app.post('/api/campaigns/:id/pause',auth,manager,safe(async(req,res)=>{
-  const x=await query("UPDATE crm_campaigns SET status='paused' WHERE id=$1 AND company_id=$2 AND status='ready' RETURNING id,status",[req.params.id,req.user.company_id]);
-  if(!x.rowCount)return res.sendStatus(409);res.json(x.rows[0]);
- }));
-}
-",[contact_id,req.user.company_id]);if(!eligible.rowCount)return res.status(409).json({error:'Contact needs WhatsApp opt-in and valid phone'});
+  if(!/^[0-9a-f-]{36}$/i.test(String(contact_id||''))||!/^crm-[a-z0-9-]{3,50}$/.test(String(instance_name||''))||!Array.isArray(messages)||messages.length!==3||messages.some(m=>typeof m!=='string'||!m.trim()||m.length>1500))return res.sendStatus(400);
+  const first=first_at?new Date(first_at):new Date();
+  if(!Number.isFinite(first.getTime())||first.getTime()<Date.now()-60000)return res.sendStatus(400);
+  const eligible=await query("SELECT c.id FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true WHERE c.id=$1 AND c.company_id=$2 AND c.phone IS NOT NULL AND length(regexp_replace(c.phone, '[^0-9]', '', 'g')) BETWEEN 8 AND 15",[contact_id,req.user.company_id]);
+  if(!eligible.rowCount)return res.status(409).json({error:'WhatsApp opt-in and phone required'});
   const instance=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,instance_name]);if(!instance.rowCount)return res.sendStatus(404);
-  const existing=await query("SELECT 1 FROM crm_campaign_deliveries d JOIN crm_campaigns c ON c.id=d.campaign_id AND c.company_id=d.company_id WHERE d.company_id=$1 AND d.contact_id=$2 AND c.name LIKE 'Quote follow-up:%' AND d.status IN ('queued','sending') LIMIT 1",[req.user.company_id,contact_id]);if(existing.rowCount)return res.status(409).json({error:'Active follow-up already queued'});
-  const delays=[24,72,168],queued=[];
-  for(let i=0;i<3;i++){
-   const campaign=await query("INSERT INTO crm_campaigns(company_id,name,channel,content,instance_name,status,scheduled_at,interval_seconds,filters) VALUES($1,$2,'whatsapp',$3,$4,'ready',$5,180,$6) RETURNING id",[req.user.company_id,'Quote follow-up: '+contact_id+' step '+(i+1),messages[i].trim(),instance_name,new Date(first.getTime()+delays[i]*3600000).toISOString(),JSON.stringify({type:'quote_followup',step:i+1,contact_id})]);
-   await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4)',[req.user.company_id,campaign.rows[0].id,contact_id,new Date(first.getTime()+delays[i]*3600000).toISOString()]);queued.push({campaign_id:campaign.rows[0].id,step:i+1,due_at:new Date(first.getTime()+delays[i]*3600000).toISOString()});
+  const existing=await query("SELECT 1 FROM crm_campaign_deliveries d JOIN crm_campaigns c ON c.id=d.campaign_id AND c.company_id=d.company_id WHERE d.company_id=$1 AND d.contact_id=$2 AND c.name LIKE 'Quote follow-up:%' AND d.status IN ('queued','sending') LIMIT 1",[req.user.company_id,contact_id]);if(existing.rowCount)return res.sendStatus(409);
+  const queued=[];
+  for(const [i,hours] of [24,72,168].entries()){
+   const due=new Date(first.getTime()+hours*3600000).toISOString();
+   const campaign=await query("INSERT INTO crm_campaigns(company_id,name,channel,content,instance_name,status,scheduled_at,interval_seconds,filters) VALUES($1,$2,'whatsapp',$3,$4,'ready',$5,180,$6) RETURNING id",[req.user.company_id,'Quote follow-up: '+contact_id+' step '+(i+1),messages[i].trim(),instance_name,due,JSON.stringify({type:'quote_followup',step:i+1,contact_id})]);
+   await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4)',[req.user.company_id,campaign.rows[0].id,contact_id,due]);
+   queued.push({campaign_id:campaign.rows[0].id,step:i+1,due_at:due});
   }
-  res.status(201).json({queued,automatic_dispatch:false,notice:'Messages remain queued until the private campaign worker is enabled.'});
+  res.status(201).json({queued,automatic_dispatch:false});
  }));
  app.post('/api/campaigns/:id/prepare',...prepare('whatsapp'));
  app.post('/api/campaigns/:id/prepare-email',...prepare('email'));
  app.post('/api/campaigns/:id/pause',auth,manager,safe(async(req,res)=>{
-  const x=await query("UPDATE crm_campaigns SET status='paused' WHERE id=$1 AND company_id=$2 AND status='ready' RETURNING id,status",[req.params.id,req.user.company_id]);
-  if(!x.rowCount)return res.sendStatus(409);res.json(x.rows[0]);
+  const x=await query("UPDATE crm_campaigns SET status='paused' WHERE id=$1 AND company_id=$2 AND status='ready' RETURNING id,status",[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(409);res.json(x.rows[0]);
  }));
 }
