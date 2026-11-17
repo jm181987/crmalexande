@@ -169,7 +169,7 @@ app.patch('/api/pipelines/:pipelineId/stages/:stageId',auth,manager,asyncRoute(a
  res.json(r.rows[0]);
 }));
 app.get('/api/opportunities',auth,asyncRoute(async(req,res)=>{
- const r=await query('SELECT o.*,c.name AS contact_name FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
+ const r=await query('SELECT o.*,c.name AS contact_name,c.phone AS contact_phone,c.email AS contact_email,c.source AS contact_source,c.tags AS contact_tags,c.notes AS contact_notes FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
 }));
 // Bulk add existing contacts to a pipeline stage; never duplicate a contact or an existing deal in that pipeline.
 app.post('/api/opportunities/bulk-from-contacts',auth,asyncRoute(async(req,res)=>{
