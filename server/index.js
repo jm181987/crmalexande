@@ -171,6 +171,22 @@ app.patch('/api/pipelines/:pipelineId/stages/:stageId',auth,manager,asyncRoute(a
 app.get('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT o.*,c.name AS contact_name FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
 }));
+// Bulk add existing contacts to a pipeline stage; never duplicate a contact or an existing deal in that pipeline.
+app.post('/api/opportunities/bulk-from-contacts',auth,asyncRoute(async(req,res)=>{
+ const {contact_ids,pipeline_id,stage_id}=req.body||{};
+ if(!Array.isArray(contact_ids)||!contact_ids.length||contact_ids.length>100||contact_ids.some(id=>typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))||new Set(contact_ids).size!==contact_ids.length)return res.status(400).json({error:'Select between 1 and 100 unique contacts'});
+ const stage=await query('SELECT s.status FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND p.company_id=$3',[stage_id,pipeline_id,req.user.company_id]);
+ if(!stage.rowCount)return res.status(400).json({error:'Invalid pipeline stage'});
+ const args=[req.user.company_id,pipeline_id,stage_id,req.user.id,stage.rows[0].status,contact_ids];
+ const scope=agent(req.user)?' AND c.owner_id=$4':'';
+ const sql=`INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status)
+ SELECT $1,$2,$3,c.id,$4,c.name,0,$5 FROM contacts c
+ WHERE c.company_id=$1 AND c.id=ANY($6::uuid[])${scope}
+ AND NOT EXISTS(SELECT 1 FROM opportunities o WHERE o.company_id=$1 AND o.pipeline_id=$2 AND o.contact_id=c.id)
+ RETURNING id,contact_id`;
+ const result=await query(sql,args);
+ res.status(201).json({created:result.rowCount,skipped:contact_ids.length-result.rowCount,contact_ids:result.rows.map(x=>x.contact_id)});
+}));
 app.post('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const {contact_id,pipeline_id,stage_id,title,value=0}=req.body;
  if(!valid(title)||!Number.isFinite(Number(value))||Number(value)<0)return res.status(400).json({error:'Invalid opportunity'});
