@@ -23,10 +23,13 @@ const renderItem=(x,locale,contactUrl='')=>{
  if(contactUrl)lines.push('', '💬 *'+labels.contact+':*',contactUrl);
  return lines.join('\n').slice(0,3500);
 };
-const photosOf=x=>{const gallery=Array.isArray(x.attributes?._image_urls)?x.attributes._image_urls:[];return [...new Set([x.image_url,...gallery].filter(Boolean))].slice(0,12)};
-const imageList=b=>{const raw=b.image_urls===undefined?[b.image_url].filter(Boolean):b.image_urls;return Array.isArray(raw)&&raw.length<=12&&raw.every(x=>typeof x==='string'&&publicImage(x))&&new Set(raw).size===raw.length?raw:null};
+// Internal inventory photos are portable across public domain changes.
+const portableImageUrl=value=>{if(typeof value!=='string')return value;try{const u=new URL(value);const match=u.pathname.match(/^\/api\/public\/inventory-image\/([0-9a-f-]{36})$/i);if(u.protocol==='https:'&&match&&uuid(match[1]))return '/api/public/inventory-image/'+match[1]}catch{}return value};
+const photosOf=x=>{const gallery=Array.isArray(x.attributes?._image_urls)?x.attributes._image_urls:[];return [...new Set([x.image_url,...gallery].filter(Boolean).map(portableImageUrl))].slice(0,12)};
+
+const imageList=b=>{const raw=b.image_urls===undefined?[b.image_url].filter(Boolean):b.image_urls;return Array.isArray(raw)&&raw.length<=12&&raw.every(x=>typeof x==='string'&&(publicImage(x)||/^\/api\/public\/inventory-image\/[0-9a-f-]{36}$/i.test(x)))&&new Set(raw).size===raw.length?raw:null};
 const storeGallery=b=>{const images=imageList(b);if(!images)return null;const attrs={...(b.attributes||{})};delete attrs._image_urls;return {image_url:images[0]||null,attributes:JSON.stringify({...attrs,_image_urls:images})}};
-const itemView=x=>({...x,image_urls:photosOf(x)});
+const itemView=x=>({...x,image_url:portableImageUrl(x.image_url),image_urls:photosOf(x)});
 export function registerInventoryRoutes(app,auth){
  const r=Router();r.use(auth);
  r.post('/inventory-images/upload',editor,wrap(async(req,res)=>{
@@ -44,7 +47,7 @@ export function registerInventoryRoutes(app,auth){
    if(err.code==='42501')return res.status(503).json({error:'La base de datos no permite guardar fotografías. Revisá los permisos y las políticas RLS de crm_inventory_images.'});
    throw err;
   }
-  const url=origin+'/api/public/inventory-image/'+row.rows[0].id;
+  const url='/api/public/inventory-image/'+row.rows[0].id;
   res.status(201).json({url,id:row.rows[0].id,stored:true});
  }));
  r.get('/inventory/contact-settings',wrap(async(req,res)=>{const x=await query('SELECT whatsapp_url FROM crm_inventory_contact_settings WHERE company_id=$1',[req.user.company_id]);res.json({whatsapp_url:x.rows[0]?.whatsapp_url||''})}));
@@ -73,7 +76,7 @@ export function registerInventoryRoutes(app,auth){
  const byId=new Map(items.rows.map(x=>[x.id,x]));const sent=[];
  for(const id of ids){const item=byId.get(id);if(item.status==='inactive'){return res.status(409).json({error:'Inactive item cannot be sent',sent})}
  const body=renderItem(item,locale,contactUrl);const photos=photosOf(item);
- if(!photos.length||!photos.every(publicImage))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
+ if(!photos.length||!photos.every(x=>publicImage(x)||/^\/api\/public\/inventory-image\/[0-9a-f-]{36}$/i.test(x)))return res.status(422).json({error:'Este artículo no tiene una fotografía HTTPS válida guardada. Abrí Stock → Editar, subí la foto y guardá el artículo antes de enviarlo.',item_id:id,sent});
  let photoIndex=0;
  for(const photo of photos){
   let result;
