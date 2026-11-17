@@ -298,7 +298,7 @@ export function registerEvolutionInstances(app,auth){
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
   const safeName=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
   const origin=e.origin;if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL HTTPS requerido'});
-  const row=await query('INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id',[req.user.company_id,req.params.id,mime,safeName,bytes,bytes.length]);
+  const row=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[req.user.company_id,req.params.id,mime,safeName,bytes,bytes.length]);
   const url=origin+'/api/public/chat-media/'+row.rows[0].id;
   let sent;
   try{sent=mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:bytes.toString('base64')}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
