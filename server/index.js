@@ -68,8 +68,8 @@ app.get('/api/auth/me',auth,(req,res)=>res.json({user:req.user}));
 app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  const u=req.user,scope=ownerSql(u),q=p(u),[a,b,c,d,e]=await Promise.all([
  query('SELECT count(*)::int AS n FROM contacts WHERE company_id=$1'+scope,q),
- query("SELECT count(*)::int AS n,coalesce(sum(value),0)::float AS amount FROM opportunities WHERE company_id=$1 AND status='open'"+scope,q),
- query("SELECT coalesce(sum(value),0)::float AS amount FROM opportunities WHERE company_id=$1 AND status='won'"+scope,q),
+ query("SELECT count(*)::int AS n,coalesce(sum(value),0)::float AS amount FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND status='open'"+scope,q),
+ query("SELECT coalesce(sum(value),0)::float AS amount FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND status='won'"+scope,q),
  query('SELECT count(*)::int AS n FROM conversations WHERE company_id=$1'+ownerSql(u,'assignee_id'),q),
  query('SELECT count(*)::int AS n FROM tasks WHERE company_id=$1 AND completed=false'+scope,q)]);
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});

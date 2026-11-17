@@ -9,7 +9,7 @@ export function registerModuleRoutes(app,auth){
  const c=req.user.company_id,scope=req.user.role==='agent'?' AND owner_id=$2':'',args=req.user.role==='agent'?[c,req.user.id]:[c];
  const [contacts,deals,tasks,appointments,stages,agents]=await Promise.all([
  query('SELECT count(*)::int n,coalesce(source,\'Unknown\') source FROM contacts WHERE company_id=$1'+scope+' GROUP BY source ORDER BY n DESC',args),
- query('SELECT status,count(*)::int n,coalesce(sum(value),0)::float amount FROM opportunities WHERE company_id=$1'+scope+' GROUP BY status',args),
+ query('SELECT status,count(*)::int n,coalesce(sum(value),0)::float amount FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL'+scope+' GROUP BY status',args),
  query('SELECT completed,count(*)::int n FROM tasks WHERE company_id=$1'+scope+' GROUP BY completed',args),
  query('SELECT count(*)::int n FROM appointments WHERE company_id=$1'+scope+' AND start_at>=now() AND status=\'scheduled\'',args),
  query('SELECT s.name,count(o.id)::int n,coalesce(sum(o.value),0)::float amount FROM stages s JOIN pipelines p ON p.id=s.pipeline_id LEFT JOIN opportunities o ON o.stage_id=s.id AND o.company_id=$1'+(req.user.role==='agent'?' AND o.owner_id=$2':'')+' WHERE p.company_id=$1 GROUP BY s.id,s.name,s.position ORDER BY s.position',args),
