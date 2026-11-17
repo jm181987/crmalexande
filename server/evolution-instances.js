@@ -181,25 +181,40 @@ export function registerEvolutionInstances(app,auth){
   catch(err){console.error('Round Robin assignment failed',err.code||err.message)}
  }
  const m=item.message||{},unwrapped=m.ephemeralMessage?.message||m.viewOnceMessage?.message||m,body=unwrapped.conversation||unwrapped.extendedTextMessage?.text||unwrapped.imageMessage?.caption||unwrapped.videoMessage?.caption||('[WhatsApp '+String(item.messageType||'media')+']');
- // Download inbound voice notes and restrict replay to authorized CRM users.
- let audioMarker='';
- if(unwrapped.audioMessage){
+ // Persist incoming WhatsApp images, videos and voice notes for inline chat playback.
+ let mediaMarker='',mediaCaption='';
+ const inboundType=unwrapped.imageMessage?'image':unwrapped.videoMessage?'video':unwrapped.audioMessage?'audio':null;
+ if(inboundType){
   try{
+   const payload=unwrapped[inboundType+'Message'];
    const supplied=item.message?.base64||item.base64||null;
-   const mediaResult=supplied?{base64:supplied,mimetype:unwrapped.audioMessage.mimetype}:await remote(cfg(),'/chat/getBase64FromMediaMessage/'+encodeURIComponent(inst.name),'POST',{message:{key,message:unwrapped,messageType:'audioMessage'},convertToMp4:false});
-   const encoded=String(mediaResult.base64||mediaResult.data?.base64||'').replace(/^data:audio\/[\w.+-]+;base64,/,'');
-   const mime=String(mediaResult.mimetype||unwrapped.audioMessage.mimetype||'audio/ogg').split(';')[0];
+   const mediaResult=supplied?{base64:supplied,mimetype:payload.mimetype}:await remote(cfg(),'/chat/getBase64FromMediaMessage/'+encodeURIComponent(inst.name),'POST',{message:{key,message:unwrapped,messageType:inboundType+'Message'},convertToMp4:false});
+   const encoded=String(mediaResult.base64||mediaResult.data?.base64||'').replace(/^data:[^;]+;base64,/,'');
+   const mime=String(mediaResult.mimetype||unwrapped[inboundType+'Message'].mimetype||'').split(';')[0].toLowerCase();
    const bytes=Buffer.from(encoded,'base64');
-   const validHeader=mime==='audio/ogg'?bytes.subarray(0,4).toString()==='OggS':mime==='audio/webm'?bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])):mime==='audio/mp4'?bytes.toString('ascii',4,8)==='ftyp':mime==='audio/mpeg'?(bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255):false;
-   if(validHeader&&bytes.length<=8*1024*1024){
-    const name='audio-recibido.'+(mime==='audio/ogg'?'ogg':mime==='audio/mp4'?'m4a':mime==='audio/webm'?'webm':'mp3');
+   const signatures={
+    'image/jpeg':bytes[0]===255&&bytes[1]===216,
+    'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),
+    'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP',
+    'video/mp4':bytes.toString('ascii',4,8)==='ftyp',
+    'audio/ogg':bytes.subarray(0,4).toString()==='OggS',
+    'audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),
+    'audio/mp4':bytes.toString('ascii',4,8)==='ftyp',
+    'audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255
+   };
+   const allowed=inboundType==='image'?mime.startsWith('image/'):inboundType==='video'?mime.startsWith('video/'):mime.startsWith('audio/');
+   const max=inboundType==='video'?32*1024*1024:8*1024*1024;
+   if(allowed&&signatures[mime]&&bytes.length>0&&bytes.length<=max){
+    const extension={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','video/mp4':'mp4','audio/ogg':'ogg','audio/webm':'webm','audio/mp4':'m4a','audio/mpeg':'mp3'}[mime];
+    const name=inboundType+'-recibido.'+extension;
     const stored=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[inst.company_id,conv.rows[0].id,mime,name,bytes,bytes.length]);
-    audioMarker='[CRM_MEDIA:audio:/api/conversations/'+conv.rows[0].id+'/media/'+stored.rows[0].id+':'+name+']';
-   }
-  }catch(err){console.warn('Evolution inbound audio unavailable',{instance:inst.name,error:err?.message||'unknown'})}
+    mediaMarker='[CRM_MEDIA:'+inboundType+':/api/conversations/'+conv.rows[0].id+'/media/'+stored.rows[0].id+':'+name+']';
+    mediaCaption=inboundType==='audio'?'🎤 Mensaje de voz':String(payload.caption||'').slice(0,2000);
+   }else console.warn('Evolution inbound media rejected',{type:inboundType,mime,size:bytes.length});
+  }catch(err){console.warn('Evolution inbound media unavailable',{instance:inst.name,type:inboundType,error:err?.message||'unknown'})}
  }
  const direction=key.fromMe===true?'outbound':'inbound';
- const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,direction,audioMarker?('🎤 Mensaje de voz\n'+audioMarker):String(body).slice(0,10000),external]);
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conv.rows[0].id,direction,mediaMarker?((mediaCaption?mediaCaption+'\n':'')+mediaMarker):String(body).slice(0,10000),external]);
  if(saved.rowCount){await query('UPDATE conversations SET unread_count=unread_count+$2,updated_at=now() WHERE id=$1',[conv.rows[0].id,direction==='inbound'?1:0]);console.info('Evolution message stored',{instance:inst.name,direction})}
  }res.sendStatus(200);
  }));
