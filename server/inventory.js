@@ -5,7 +5,7 @@ import {isIP} from 'node:net';
 const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
 const editor=(req,res,next)=>['owner','manager'].includes(req.user.role)?next():res.status(403).json({error:'Only managers may modify inventory'});
 const kinds=['product','vehicle','property','service'],statuses=['available','reserved','sold','inactive'];
-const itemScope=(req,alias='',position=4)=>req.user.role==='owner'?'':` AND ${alias}created_by=${position}`;
+const itemScope=(req,alias='',position=4)=>req.user.role==='owner'?'':` AND ${alias}created_by=$${position}`;
 const itemArgs=(req,...values)=>req.user.role==='owner'?values:[...values,req.user.id];
 const uuid=x=>typeof x==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x);
 const decimal=x=>x!==''&&x!==null&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0&&Number(x)<=999999999999;
