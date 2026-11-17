@@ -261,7 +261,7 @@ export function registerEvolutionInstances(app,auth){
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
   const url=e.origin+'/api/public/chat-media/'+m.id;
   const caption=String(req.body?.caption||'').slice(0,1000);
-  const mediaBody=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':'+url+':'+m.filename+']';
+  const mediaBody=(caption?caption+'\n':'')+'[CRM_MEDIA:'+mediaTypes[m.mime]+':/api/conversations/'+req.params.id+'/media/'+m.id+':'+m.filename+']';
   // Store the attachment in the chat before contacting Evolution. An upstream timeout
   // does not prove delivery failed; do not silently hide a potentially delivered video.
   const pending=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,'⏳ Envío pendiente de confirmación\n'+mediaBody]);
@@ -298,12 +298,12 @@ export function registerEvolutionInstances(app,auth){
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
   const safeName=String(filename||'archivo').replace(/[^a-zA-Z0-9._-]/g,'_').slice(0,120)||'archivo';
   const origin=e.origin;if(!origin.startsWith('https://'))return res.status(503).json({error:'PUBLIC_APP_URL HTTPS requerido'});
-  const row=await query('INSERT INTO crm_chat_media(company_id,mime,filename,content) VALUES($1,$2,$3,$4) RETURNING id',[req.user.company_id,mime,safeName,bytes]);
+  const row=await query('INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id',[req.user.company_id,req.params.id,mime,safeName,bytes,bytes.length]);
   const url=origin+'/api/public/chat-media/'+row.rows[0].id;
   let sent;
   try{sent=mime.startsWith('audio/')?await remote(e,'/message/sendWhatsAppAudio/'+encodeURIComponent(match[1]),'POST',{number:match[2],audio:bytes.toString('base64')}):await remote(e,'/message/sendMedia/'+encodeURIComponent(match[1]),'POST',{number:match[2],mediatype:mediaTypes[mime],mimetype:mime,media:bytes.toString('base64'),fileName:safeName,caption:caption.trim()})}
   catch(err){return res.status(502).json({error:'Evolution rechazó el archivo: '+err.message})}
-  const body=(caption.trim()?caption.trim()+'\n':'')+'[CRM_MEDIA:'+mediaTypes[mime]+':'+url+':'+safeName+']';
+  const body=(caption.trim()?caption.trim()+'\n':'')+'[CRM_MEDIA:'+mediaTypes[mime]+':/api/conversations/'+req.params.id+'/media/'+row.rows[0].id+':'+safeName+']';
   const x=await query("INSERT INTO messages(conversation_id,sender_id,direction,body,external_id) VALUES($1,$2,'outbound',$3,$4) ON CONFLICT DO NOTHING RETURNING *",[req.params.id,req.user.id,body,sent.key?.id?match[1]+':'+sent.key.id:null]);
   await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);
   res.status(201).json(x.rows[0]||{sent:true});
