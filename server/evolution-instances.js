@@ -38,6 +38,7 @@ export function registerEvolutionInstances(app,auth){
    if(!user.rowCount)return res.sendStatus(404);
   }
   const changed=await query('UPDATE crm_evolution_instances SET owner_user_id=$3 WHERE id=$1 AND company_id=$2 RETURNING id,name,label,owner_user_id',[req.params.id,req.user.company_id,target]);
+  if(changed.rowCount){await query("UPDATE conversations SET assignee_id=$3,updated_at=now() WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE $2 || ':%'",[req.user.company_id,changed.rows[0].name,target]);}
   if(!changed.rowCount)return res.sendStatus(404);
   res.json(changed.rows[0]);
  }));
@@ -192,8 +193,10 @@ export function registerEvolutionInstances(app,auth){
  let conv=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id=$2 LIMIT 1",[inst.company_id,inst.name+':'+phone]);
  if(!conv.rowCount){
   conv=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[inst.company_id,c.rows[0].id,inst.name+':'+phone]);
-  // Assign only newly opened chats. Manual assignments are never overwritten.
-  try{await query('SELECT public.crm_assign_round_robin($1,$2)',[inst.company_id,conv.rows[0].id])}
+  // Route newly created chats to the assigned instance owner. Round Robin is only a fallback.
+  const assigned=await query('SELECT owner_user_id FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[inst.id,inst.company_id]);
+  if(assigned.rows[0]?.owner_user_id){await query('UPDATE conversations SET assignee_id=$2 WHERE id=$1 AND company_id=$3',[conv.rows[0].id,assigned.rows[0].owner_user_id,inst.company_id])}
+  else try{await query('SELECT public.crm_assign_round_robin($1,$2)',[inst.company_id,conv.rows[0].id])}
   catch(err){console.error('Round Robin assignment failed',err.code||err.message)}
  }
  const m=item.message||{},unwrapped=m.ephemeralMessage?.message||m.viewOnceMessage?.message||m,body=unwrapped.conversation||unwrapped.extendedTextMessage?.text||unwrapped.imageMessage?.caption||unwrapped.videoMessage?.caption||('[WhatsApp '+String(item.messageType||'media')+']');
