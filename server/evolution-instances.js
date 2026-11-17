@@ -45,7 +45,7 @@ export async function createEvolutionInstanceForCompany(details,companyId,ownerU
 
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
- app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at,owner_user_id FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='agent'?' AND owner_user_id=$2':'')+' ORDER BY created_at DESC',req.user.role==='agent'?[req.user.company_id,req.user.id]:[req.user.company_id]);res.json(x.rows)}));
+ app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at,owner_user_id FROM crm_evolution_instances WHERE company_id=$1 AND status <> 'deleted''+(req.user.role==='agent'?' AND owner_user_id=$2':'')+' ORDER BY created_at DESC',req.user.role==='agent'?[req.user.company_id,req.user.id]:[req.user.company_id]);res.json(x.rows)}));
  // Only a tenant owner may assign or unassign an instance to a user in the same company.
  app.put('/api/evolution/instances/:id/owner',auth,safe(async(req,res)=>{
   if(req.user.role==='agent')return res.sendStatus(403);
