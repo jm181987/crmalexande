@@ -40,8 +40,8 @@ export function registerCampaignDelivery(app,auth){
   res.json({campaign:campaign.rows[0],counts:stats.rows});
  }));
  const prepare=channel=>[auth,manager,safe(async(req,res)=>{
-  const {instance_name=null,scheduled_at,interval_seconds=180,tag=null,source=null}=req.body||{};
-  if(!Number.isInteger(interval_seconds)||interval_seconds<60||interval_seconds>86400||tag!==null&&(typeof tag!=='string'||tag.length>100)||source!==null&&(typeof source!=='string'||source.length>100))return res.status(400).json({error:'Invalid schedule or segment'});
+  const {instance_name=null,scheduled_at,interval_seconds=180,tag=null,source=null,inactive_days=null,interest_tag=null}=req.body||{};
+  if((inactive_days!==null&&(!Number.isInteger(inactive_days)||inactive_days<1||inactive_days>3650))||(interest_tag!==null&&(typeof interest_tag!=='string'||interest_tag.length>100))||!Number.isInteger(interval_seconds)||interval_seconds<60||interval_seconds>86400||tag!==null&&(typeof tag!=='string'||tag.length>100)||source!==null&&(typeof source!=='string'||source.length>100))return res.status(400).json({error:'Invalid schedule or segment'});
   const when=new Date(scheduled_at);if(!scheduled_at||!Number.isFinite(when.getTime())||when.getTime()<Date.now()-60000)return res.status(400).json({error:'Invalid start date'});
   const campaign=await query('SELECT id,content,status FROM crm_campaigns WHERE id=$1 AND company_id=$2 AND channel=$3 AND status=$4',[req.params.id,req.user.company_id,channel,'draft']);
   if(!campaign.rowCount)return res.status(409).json({error:'Campaign not found or not in draft'});
@@ -53,13 +53,36 @@ export function registerCampaignDelivery(app,auth){
   }
   const old=await query('SELECT count(*)::int AS count FROM crm_campaign_deliveries WHERE campaign_id=$1',[req.params.id]);
   if(old.rows[0].count)return res.status(409).json({error:'Campaign already prepared'});
-  const contacts=await query('SELECT c.id,c.phone,c.email FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel=$2 AND co.opted_in=true WHERE c.company_id=$1 AND ($3::text IS NULL OR $3=ANY(c.tags)) AND ($4::text IS NULL OR c.source=$4) ORDER BY c.id LIMIT 5000',[req.user.company_id,channel,tag,source]);
+  const contacts=await query('SELECT c.id,c.phone,c.email FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel=$2 AND co.opted_in=true WHERE c.company_id=$1 AND ($3::text IS NULL OR $3=ANY(c.tags)) AND ($4::text IS NULL OR c.source=$4) AND ($5::int IS NULL OR (c.created_at <= now()-($5::int * interval '1 day') AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.company_id=c.company_id AND v.contact_id=c.id AND m.created_at > now()-($5::int * interval '1 day')))) AND ($6::text IS NULL OR $6=ANY(c.tags)) ORDER BY c.id LIMIT 5000',[req.user.company_id,channel,tag,source,inactive_days,interest_tag]);
   const eligible=contacts.rows.filter(c=>channel==='whatsapp'?/^\\+?\\d{8,15}$/.test(String(c.phone||'')):/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(c.email||'')));
   if(!eligible.length)return res.status(409).json({error:'No opted-in eligible contacts'});
-  await query("UPDATE crm_campaigns SET instance_name=$3,scheduled_at=$4,interval_seconds=$5,filters=$6,status='ready' WHERE id=$1 AND company_id=$2",[req.params.id,req.user.company_id,instance_name,when.toISOString(),interval_seconds,JSON.stringify({tag,source})]);
+  await query("UPDATE crm_campaigns SET instance_name=$3,scheduled_at=$4,interval_seconds=$5,filters=$6,status='ready' WHERE id=$1 AND company_id=$2",[req.params.id,req.user.company_id,instance_name,when.toISOString(),interval_seconds,JSON.stringify({tag,source,inactive_days,interest_tag})]);
   for(let i=0;i<eligible.length;i++)await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[req.user.company_id,req.params.id,eligible[i].id,new Date(when.getTime()+i*interval_seconds*1000).toISOString()]);
   res.json({prepared:eligible.length,channel,automatic_dispatch:false,notice:'Queued, not sent. Worker disabled until explicitly configured.'});
  })];
+ // Prepare a 24h/3d/7d quote follow-up sequence for a single opted-in contact.
+ // Queueing never sends immediately; the existing worker must be explicitly enabled.
+ app.post('/api/quote-followups/prepare',auth,manager,safe(async(req,res)=>{
+  const {contact_id,instance_name,messages,first_at}=req.body||{};
+  if(!/^[0-9a-f-]{36}$/i.test(String(contact_id||''))||!/^crm-[a-z0-9-]{3,50}$/.test(String(instance_name||''))||!Array.isArray(messages)||messages.length!==3||messages.some(m=>typeof m!=='string'||!m.trim()||m.length>1500))return res.status(400).json({error:'Invalid quote follow-up'});
+  const first=first_at?new Date(first_at):new Date();if(!Number.isFinite(first.getTime())||first.getTime()<Date.now()-60000)return res.status(400).json({error:'Invalid schedule'});
+  const eligible=await query("SELECT c.id FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true WHERE c.id=$1 AND c.company_id=$2 AND c.phone ~ '^\\+?[0-9]{8,15}
+ app.post('/api/campaigns/:id/prepare-email',...prepare('email'));
+ app.post('/api/campaigns/:id/pause',auth,manager,safe(async(req,res)=>{
+  const x=await query("UPDATE crm_campaigns SET status='paused' WHERE id=$1 AND company_id=$2 AND status='ready' RETURNING id,status",[req.params.id,req.user.company_id]);
+  if(!x.rowCount)return res.sendStatus(409);res.json(x.rows[0]);
+ }));
+}
+",[contact_id,req.user.company_id]);if(!eligible.rowCount)return res.status(409).json({error:'Contact needs WhatsApp opt-in and valid phone'});
+  const instance=await query('SELECT id FROM crm_evolution_instances WHERE company_id=$1 AND name=$2',[req.user.company_id,instance_name]);if(!instance.rowCount)return res.sendStatus(404);
+  const existing=await query("SELECT 1 FROM crm_campaign_deliveries d JOIN crm_campaigns c ON c.id=d.campaign_id AND c.company_id=d.company_id WHERE d.company_id=$1 AND d.contact_id=$2 AND c.name LIKE 'Quote follow-up:%' AND d.status IN ('queued','sending') LIMIT 1",[req.user.company_id,contact_id]);if(existing.rowCount)return res.status(409).json({error:'Active follow-up already queued'});
+  const delays=[24,72,168],queued=[];
+  for(let i=0;i<3;i++){
+   const campaign=await query("INSERT INTO crm_campaigns(company_id,name,channel,content,instance_name,status,scheduled_at,interval_seconds,filters) VALUES($1,$2,'whatsapp',$3,$4,'ready',$5,180,$6) RETURNING id",[req.user.company_id,'Quote follow-up: '+contact_id+' step '+(i+1),messages[i].trim(),instance_name,new Date(first.getTime()+delays[i]*3600000).toISOString(),JSON.stringify({type:'quote_followup',step:i+1,contact_id})]);
+   await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4)',[req.user.company_id,campaign.rows[0].id,contact_id,new Date(first.getTime()+delays[i]*3600000).toISOString()]);queued.push({campaign_id:campaign.rows[0].id,step:i+1,due_at:new Date(first.getTime()+delays[i]*3600000).toISOString()});
+  }
+  res.status(201).json({queued,automatic_dispatch:false,notice:'Messages remain queued until the private campaign worker is enabled.'});
+ }));
  app.post('/api/campaigns/:id/prepare',...prepare('whatsapp'));
  app.post('/api/campaigns/:id/prepare-email',...prepare('email'));
  app.post('/api/campaigns/:id/pause',auth,manager,safe(async(req,res)=>{
