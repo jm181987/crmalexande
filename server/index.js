@@ -20,6 +20,7 @@ import {registerSendgridEvents} from './sendgrid-events.js';
 import {runFollowupAutomations} from './followup-automation.js';
 import {startAutomationScheduler} from './automation-scheduler.js';
 import {timingSafeEqual} from 'node:crypto';
+import {isValidUserEmail} from './user-validation.js';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));registerSendgridEvents(app);app.use('/api/inventory-images/upload',express.json({limit:'4mb'}));app.use(/^\/api\/conversations\/[^/]+\/evolution-media$/,express.json({limit:'12mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
 if(process.env.APP_ORIGIN)app.use(cors({origin:process.env.APP_ORIGIN,credentials:true}));
@@ -89,7 +90,7 @@ app.get('/api/users',auth,asyncRoute(async(req,res)=>{const r=await query('SELEC
 app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
  const {name,email,password,role='agent'}=req.body||{};
  if(!valid(name)||name.trim().length>120)return res.status(400).json({error:'Ingresá un nombre válido (máximo 120 caracteres)'});
- if(!valid(email)||email.trim().length>254||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()))return res.status(400).json({error:'Ingresá un correo electrónico válido'});
+ if(!valid(email)||email.trim().length>254||!isValidUserEmail(email))return res.status(400).json({error:'Ingresá un correo electrónico válido'});
  if(typeof password!=='string'||password.length<12)return res.status(400).json({error:'La contraseña debe tener al menos 12 caracteres'});
  if(!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Seleccioná un rol válido: usuario, manager u owner'});
  const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
