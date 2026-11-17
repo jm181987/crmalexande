@@ -7,6 +7,8 @@ const ready=e=>(e.url.startsWith('https://')||(process.env.EVOLUTION_ALLOW_INSEC
 const webhookReady=e=>ready(e)&&e.origin.startsWith('https://');
 const digest=s=>crypto.createHash('sha256').update(s).digest('hex');
 const admin=(req,res,next)=>req.user.role==='agent'?res.sendStatus(403):next();
+const instanceScope=req=>req.user.role==='owner'?'':' AND owner_user_id=$3';
+const instanceArgs=(req,...args)=>req.user.role==='owner'?args:[...args,req.user.id];
 async function remote(e,path,method='GET',body,timeoutMs=12000){
  let response;
  try{response=await fetch(e.url+path,{method,headers:{apikey:e.key,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(timeoutMs)})}
@@ -25,17 +27,17 @@ async function recordConnection(instanceId,companyId,state,source){
 }
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
- app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1 ORDER BY created_at DESC',[req.user.company_id]);res.json(x.rows)}));
+ app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='owner'?'':' AND owner_user_id=$2')+' ORDER BY created_at DESC',req.user.role==='owner'?[req.user.company_id]:[req.user.company_id,req.user.id]);res.json(x.rows)}));
  // Remove only obsolete CRM registrations. Never disconnect or delete a live Evolution instance.
  app.delete('/api/evolution/instances/:id',auth,admin,safe(async(req,res)=>{
-  const found=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const found=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!found.rowCount)return res.sendStatus(404);
   const e=cfg();if(!webhookReady(e))return res.status(503).json({error:'Evolution configuration incomplete'});
   try{
    await remote(e,'/instance/connectionState/'+encodeURIComponent(found.rows[0].name));
    return res.status(409).json({error:'La instancia todavía existe en Evolution. Solo se pueden quitar registros de instancias antiguas no encontradas (404).'});
   }catch(err){if(err.upstreamStatus!==404)throw err}
-  await query('DELETE FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  await query('DELETE FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   res.json({removed:true,name:found.rows[0].name,history_preserved:true});
  }));
  app.post('/api/evolution/instances',auth,admin,safe(async(req,res)=>{
@@ -46,11 +48,11 @@ export function registerEvolutionInstances(app,auth){
  let created;try{created=await remote(e,'/instance/create','POST',{instanceName:name,integration:'WHATSAPP-BAILEYS',qrcode:true})}catch(err){return res.status(502).json({error:err.message,phase:'instance_create',upstreamStatus:err.upstreamStatus||null})}
  try{await remote(e,'/webhook/set/'+encodeURIComponent(name),'POST',{webhook:{enabled:true,url,webhookByEvents:false,events:['MESSAGES_UPSERT','CONNECTION_UPDATE']}})}
  catch(err){return res.status(502).json({error:'Instance created remotely but webhook setup failed',phase:'webhook_setup',upstreamStatus:err.upstreamStatus||null,instance:name})}
- const row=await query('INSERT INTO crm_evolution_instances(company_id,name,label,webhook_secret_hash,status) VALUES($1,$2,$3,$4,$5) RETURNING id,name,label,status,created_at',[req.user.company_id,name,label.trim(),digest(secret),'created']);
+ const row=await query('INSERT INTO crm_evolution_instances(company_id,name,label,webhook_secret_hash,status,owner_user_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,label,status,created_at',[req.user.company_id,name,label.trim(),digest(secret),'created',req.user.id]);
  res.status(201).json({...row.rows[0],qrcode:created.qrcode||null});
  }));
  app.get('/api/evolution/instances/:id/status',auth,safe(async(req,res)=>{
- const x=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
+ const x=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete',code:'configuration'});
  let d;
  try{d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name))}
@@ -61,14 +63,14 @@ export function registerEvolutionInstances(app,auth){
  res.json({state,source:'evolution',checked_at:new Date().toISOString()});
  }));
  app.get('/api/evolution/instances/:id/history',auth,admin,safe(async(req,res)=>{
-  const instance=await query('SELECT id FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const instance=await query('SELECT id FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!instance.rowCount)return res.sendStatus(404);
   const rows=await query('SELECT state,source,recorded_at FROM crm_evolution_connection_events WHERE instance_id=$1 AND company_id=$2 ORDER BY id DESC LIMIT 30',[req.params.id,req.user.company_id]);
   res.json(rows.rows);
  }));
  // Read-only diagnostics: never expose webhook URL or secret.
  app.get('/api/evolution/instances/:id/diagnostics',auth,admin,safe(async(req,res)=>{
-  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!row.rowCount)return res.sendStatus(404);
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete'});
   const name=row.rows[0].name;
@@ -86,12 +88,12 @@ export function registerEvolutionInstances(app,auth){
   res.json({instance:name,state:connection.instance?.state||connection.state||'unknown',webhook,webhook_error:webhookError,stored:counts.rows[0]});
  }));
  app.get('/api/evolution/instances/:id/connect',auth,admin,safe(async(req,res)=>{
- const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(404);
+ const x=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));if(!x.rowCount)return res.sendStatus(404);
  const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});const d=await remote(e,'/instance/connectionState/'+encodeURIComponent(x.rows[0].name));const state=String(d.instance?.state||d.state||'unknown').toLowerCase();if(['open','connected'].includes(state))return res.json({state,base64:null,code:null});const qr=await remote(e,'/instance/connect/'+encodeURIComponent(x.rows[0].name));res.json({state,base64:qr.base64||qr.qrcode?.base64||qr.qrcode?.base64Qr||null,code:qr.code||qr.qrcode?.code||null});
  }));
  // Reapply the existing webhook configuration without rotating its secret or reconnecting WhatsApp.
  app.post('/api/evolution/instances/:id/repair-webhook',auth,admin,safe(async(req,res)=>{
-  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!row.rowCount)return res.sendStatus(404);
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution configuration incomplete'});
   const name=row.rows[0].name;
@@ -112,7 +114,7 @@ export function registerEvolutionInstances(app,auth){
  }));
  // Read-only diagnostic: checks whether Evolution itself exposes messages for this instance.
  app.get('/api/evolution/instances/:id/message-source-check',auth,admin,safe(async(req,res)=>{
-  const found=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const found=await query('SELECT name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!found.rowCount)return res.sendStatus(404);
   const e=cfg();if(!ready(e))return res.status(503).json({error:'Evolution API no está configurada'});
   const name=found.rows[0].name;
@@ -128,7 +130,7 @@ export function registerEvolutionInstances(app,auth){
  }));
  // Synthetic delivery test: validates the public route and stored secret without creating chats.
  app.post('/api/evolution/instances/:id/test-webhook',auth,admin,safe(async(req,res)=>{
-  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const row=await query('SELECT name,webhook_secret_hash FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   if(!row.rowCount)return res.sendStatus(404);
   const e=cfg();if(!ready(e))return res.sendStatus(503);
   const response=await remote(e,'/webhook/find/'+encodeURIComponent(row.rows[0].name));
@@ -257,7 +259,7 @@ export function registerEvolutionInstances(app,auth){
   const m=x.rows[0],bytes=m.content;
   const signatures={'application/pdf':bytes.subarray(0,5).toString()==='%PDF-','image/jpeg':bytes[0]===255&&bytes[1]===216,'image/png':bytes.subarray(0,4).equals(Buffer.from([137,80,78,71])),'image/webp':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP','audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255&&[0xfb,0xf3,0xf2].includes(bytes[1]),'audio/ogg':bytes.subarray(0,4).toString()==='OggS','audio/mp4':bytes.toString('ascii',4,8)==='ftyp','audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),'video/mp4':bytes.toString('ascii',4,8)==='ftyp'};
   if(!bytes.length||!signatures[m.mime])return res.status(400).json({error:'Archivo vacío o inválido'});
-  const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  const c=await query('SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));
   const match=/^(crm-[a-z0-9-]{3,50}):(\d{8,15}|lid:\d{5,25})$/.exec(c.rows[0]?.external_id||'');
   if(!match||match[2].startsWith('lid:'))return res.status(409).json({error:'WhatsApp sin número verificado'});
   const e=cfg();if(!ready(e)||!e.origin.startsWith('https://'))return res.status(503).json({error:'Evolution API o URL pública HTTPS no configurada'});
