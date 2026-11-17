@@ -122,8 +122,14 @@ app.post('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async
  if(!validUuid(companyId))return res.status(400).json({error:'Seleccioná una empresa válida'});
  const company=await pool.query('SELECT id FROM public.companies WHERE id=$1',[companyId]);
  if(!company.rowCount)return res.status(404).json({error:'Empresa no encontrada'});
+ const ownerUserId=req.body?.owner_user_id||null;
+ if(ownerUserId!==null){
+  if(!validUuid(ownerUserId))return res.status(400).json({error:'Agente inválido'});
+  const agent=await pool.query("SELECT id FROM public.users WHERE id=$1 AND company_id=$2 AND role='agent' AND is_active=true",[ownerUserId,companyId]);
+  if(!agent.rowCount)return res.status(400).json({error:'El agente debe estar activo y pertenecer a la empresa seleccionada'});
+ }
  // No source company, existing contacts, or previous conversations are touched.
- return createEvolutionInstanceForCompany(req.body,companyId,null,pool,res);
+ return createEvolutionInstanceForCompany(req.body,companyId,ownerUserId,pool,res);
 }));
 app.get('/api/platform/evolution/instances',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const r=await pool.query('SELECT i.id,i.name,i.label,i.status,i.company_id,c.name AS company_name FROM public.crm_evolution_instances i JOIN public.companies c ON c.id=i.company_id ORDER BY c.name,i.name');
