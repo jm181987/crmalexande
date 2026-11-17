@@ -240,3 +240,35 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-compose-row .wa-ai-draft:hover:not(:disabled){background:#deebff}
 .wa-compose-row .wa-ai-draft:disabled{opacity:.55;cursor:wait}
 .wa-compose-row .wa-ai-draft:focus-visible{outline:3px solid #279a7b;outline-offset:2px}
+
+
+/* Contact and Kanban usability improvements */
+.crm-section-intro{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;margin:0 0 18px}
+.crm-section-intro h2{font-size:22px;margin:0 0 4px;color:var(--text,#243449)}
+.crm-section-intro p{margin:0;color:#667892;font-size:13px}
+.crm-stats{display:flex;gap:9px;flex-wrap:wrap}
+.crm-stats span{display:flex;flex-direction:column;gap:3px;background:var(--card,#fff);border:1px solid var(--border,#e3eaf2);padding:10px 15px;border-radius:12px;color:#667892;font-size:11px;min-width:100px}
+.crm-stats strong{font-size:17px;color:var(--text,#243449)}
+.crm-filter-toolbar{flex-wrap:wrap;gap:9px}
+.crm-filter-toolbar input[aria-label="Buscar contactos"]{min-width:min(270px,100%)}
+.crm-contact-table tbody tr:hover{background:rgba(52,125,183,.05)}
+.crm-contact-table td{vertical-align:middle}
+.crm-contact-identity{display:inline-flex!important;align-items:center;gap:10px;text-align:left}
+.crm-contact-avatar{width:34px;height:34px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#dbeafe;color:#1e40af;font-weight:700}
+.crm-contact-table td a{color:#176a9d;overflow-wrap:anywhere}
+.crm-kanban-stage{--stage-color:#3b82f6;--stage-tint:#eff6ff;border-top:4px solid var(--stage-color);background:var(--stage-tint)!important}
+.crm-stage-won{--stage-color:#16a34a;--stage-tint:#f0fdf4}
+.crm-stage-lost{--stage-color:#dc2626;--stage-tint:#fef2f2}
+.crm-stage-abandoned{--stage-color:#d97706;--stage-tint:#fffbeb}
+.crm-kanban-stage .kanban-head b{display:inline-flex;align-items:center;gap:7px;color:#26374a}
+.crm-stage-dot{width:9px;height:9px;border-radius:50%;background:var(--stage-color)}
+.crm-kanban-stage .kanban-head span{background:#fff;border:1px solid #e2e8f0}
+.crm-stage-empty{padding:22px 12px;border:1px dashed #bdc9d8;border-radius:10px;color:#65748b;text-align:center;font-size:12px}
+.crm-deal{position:relative;border-left:3px solid var(--stage-color);box-shadow:0 2px 8px rgba(24,47,76,.06);transition:box-shadow .15s,transform .15s}
+.crm-deal:hover{box-shadow:0 6px 18px rgba(24,47,76,.13);transform:translateY(-1px)}
+.crm-deal-status{display:table;margin-bottom:9px;padding:3px 8px;border-radius:99px;font-size:10px;font-weight:700;background:#dbeafe;color:#1d4ed8}
+.crm-status-won{background:#dcfce7;color:#166534}
+.crm-status-lost{background:#fee2e2;color:#991b1b}
+.crm-status-abandoned{background:#fef3c7;color:#92400e}
+.crm-deal-value{display:block;font-size:17px!important;color:#1f5a92!important;margin-top:8px}
+@media(max-width:700px){.crm-section-intro{align-items:stretch}.crm-stats{width:100%}.crm-stats span{flex:1;min-width:90px}.crm-filter-toolbar>*{max-width:100%}.crm-kanban-stage{min-width:260px}}
