@@ -25,6 +25,18 @@ async function recordConnection(instanceId,companyId,state,source){
  await query('INSERT INTO crm_evolution_connection_events(instance_id,company_id,state,source) VALUES($1,$2,$3,$4)',[instanceId,companyId,value,source]);
  await query('UPDATE crm_evolution_instances SET status=$2 WHERE id=$1',[instanceId,value]);
 }
+export async function createEvolutionInstanceForCompany(details,companyId,ownerUserId,database,response){
+ const e=cfg(),label=details.label,name=details.name;if(!webhookReady(e))return response.status(503).json({error:'Evolution configuration incomplete',details:{evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://')},hint:'PUBLIC_APP_URL can be set to the HTTPS CRM origin; VERCEL_PROJECT_PRODUCTION_URL is also supported.'});
+ if(typeof label!=='string'||!label.trim()||label.length>100||typeof name!=='string'||!/^crm-[a-z0-9-]{3,50}$/.test(name))return response.status(400).json({error:'Use a unique instance name starting crm-'});
+ const existing=await database.query('SELECT id FROM public.crm_evolution_instances WHERE name=$1',[name]);if(existing.rowCount)return response.status(409).json({error:'Instance name already exists'});
+ const secret=crypto.randomBytes(32).toString('hex'),url=e.origin+'/api/webhooks/evolution/'+secret;
+ let created;try{created=await remote(e,'/instance/create','POST',{instanceName:name,integration:'WHATSAPP-BAILEYS',qrcode:true})}catch(err){return response.status(502).json({error:err.message,phase:'instance_create',upstreamStatus:err.upstreamStatus||null})}
+ try{await remote(e,'/webhook/set/'+encodeURIComponent(name),'POST',{webhook:{enabled:true,url,webhookByEvents:false,events:['MESSAGES_UPSERT','CONNECTION_UPDATE']}})}
+ catch(err){return response.status(502).json({error:'Instance created remotely but webhook setup failed',phase:'webhook_setup',upstreamStatus:err.upstreamStatus||null,instance:name})}
+ const row=await database.query('INSERT INTO public.crm_evolution_instances(company_id,name,label,webhook_secret_hash,status,owner_user_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,label,status,created_at',[companyId,name,label.trim(),digest(secret),'created',ownerUserId]);
+ return response.status(201).json({...row.rows[0],qrcode:created.qrcode||null});
+}
+
 export function registerEvolutionInstances(app,auth){
  app.get('/api/evolution/config-check',auth,admin,(req,res)=>{const e=cfg();res.json({evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://'),ready:Boolean(webhookReady(e)),api_ready:Boolean(ready(e)),hint:'Check Production environment and redeploy after changing variables. Values and secrets are never returned.'})});
  app.get('/api/evolution/instances',auth,safe(async(req,res)=>{const x=await query('SELECT id,name,label,status,created_at,owner_user_id FROM crm_evolution_instances WHERE company_id=$1'+(req.user.role==='agent'?' AND owner_user_id=$2':'')+' ORDER BY created_at DESC',req.user.role==='agent'?[req.user.company_id,req.user.id]:[req.user.company_id]);res.json(x.rows)}));
@@ -55,15 +67,7 @@ export function registerEvolutionInstances(app,auth){
   res.json({removed:true,name:found.rows[0].name,history_preserved:true});
  }));
  app.post('/api/evolution/instances',auth,admin,safe(async(req,res)=>{
- const e=cfg(),label=req.body?.label,name=req.body?.name;if(!webhookReady(e))return res.status(503).json({error:'Evolution configuration incomplete',details:{evolution_url_set:Boolean(e.url),evolution_https:e.url.startsWith('https://'),insecure_http_opt_in:process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true',api_key_set:Boolean(e.key),public_app_url_set:Boolean(e.origin),public_app_https:e.origin.startsWith('https://')},hint:'PUBLIC_APP_URL can be set to the HTTPS CRM origin; VERCEL_PROJECT_PRODUCTION_URL is also supported.'});
- if(typeof label!=='string'||!label.trim()||label.length>100||typeof name!=='string'||!/^crm-[a-z0-9-]{3,50}$/.test(name))return res.status(400).json({error:'Use a unique instance name starting crm-'});
- const existing=await query('SELECT id FROM crm_evolution_instances WHERE name=$1',[name]);if(existing.rowCount)return res.status(409).json({error:'Instance name already exists'});
- const secret=crypto.randomBytes(32).toString('hex'),url=e.origin+'/api/webhooks/evolution/'+secret;
- let created;try{created=await remote(e,'/instance/create','POST',{instanceName:name,integration:'WHATSAPP-BAILEYS',qrcode:true})}catch(err){return res.status(502).json({error:err.message,phase:'instance_create',upstreamStatus:err.upstreamStatus||null})}
- try{await remote(e,'/webhook/set/'+encodeURIComponent(name),'POST',{webhook:{enabled:true,url,webhookByEvents:false,events:['MESSAGES_UPSERT','CONNECTION_UPDATE']}})}
- catch(err){return res.status(502).json({error:'Instance created remotely but webhook setup failed',phase:'webhook_setup',upstreamStatus:err.upstreamStatus||null,instance:name})}
- const row=await query('INSERT INTO crm_evolution_instances(company_id,name,label,webhook_secret_hash,status,owner_user_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,name,label,status,created_at',[req.user.company_id,name,label.trim(),digest(secret),'created',req.user.id]);
- res.status(201).json({...row.rows[0],qrcode:created.qrcode||null});
+ return createEvolutionInstanceForCompany(req.body,req.user.company_id,req.user.id,{query},res);
  }));
  app.get('/api/evolution/instances/:id/status',auth,safe(async(req,res)=>{
  const x=await query('SELECT id,name FROM crm_evolution_instances WHERE id=$1 AND company_id=$2'+instanceScope(req),instanceArgs(req,req.params.id,req.user.company_id));if(!x.rowCount)return res.sendStatus(404);
