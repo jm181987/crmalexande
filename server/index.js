@@ -99,7 +99,7 @@ const transferPlan=async(db,id,destination,lock=false)=>{
  const source=inst.rows[0].company_id;
  if(source===destination)return {error:'Destination must differ from source',status:400};
  const co=await db.query('SELECT id FROM public.companies WHERE id=$1',[destination]);if(!co.rowCount)return {error:'Destination company not found',status:404};
- const conv=await db.query("SELECT id,contact_id FROM public.conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id LIKE replace(replace(replace($2,'\\','\\\\'),'%','\\%'),'_','\\_') || ':%' ESCAPE '\\'",[source,inst.rows[0].name]);
+ const conv=await db.query("SELECT id,contact_id FROM public.conversations WHERE company_id=$1 AND channel='whatsapp' AND left(external_id,length($2)+1)=$2 || ':'",[source,inst.rows[0].name]);
  const convIds=conv.rows.map(x=>x.id),contactIds=[...new Set(conv.rows.map(x=>x.contact_id))];
  const blockers=[];
  if(contactIds.length){
@@ -130,21 +130,29 @@ app.post('/api/platform/evolution/instances/:id/transfer-preview',auth,platformA
 app.post('/api/platform/evolution/instances/:id/transfer',auth,platformAdmin,asyncRoute(async(req,res)=>{
  if(!validUuid(req.params.id)||!validUuid(req.body?.destination_company_id)||req.body?.confirm!==true)return res.sendStatus(400);
  const db=await pool.connect();
+ let transferStage='begin';
  try{
   await db.query('BEGIN');
+  transferStage='preflight';
   const plan=await transferPlan(db,req.params.id,req.body.destination_company_id,true);
   if(plan.error||plan.blockers?.length){await db.query('ROLLBACK');return res.status(plan.status||409).json({error:plan.error||'Unsafe transfer blocked',blockers:plan.blockers});}
   const {source_company_id:source,destination_company_id:dest,convIds,contactIds}=plan;
   // Reject unknown media associations and move all identifiable data together.
+  transferStage='contacts';
   await db.query('UPDATE public.contacts SET company_id=$2,owner_id=NULL WHERE id=ANY($1::uuid[]) AND company_id=$3',[contactIds,dest,source]);
+  transferStage='conversations';
   await db.query('UPDATE public.conversations SET company_id=$2,assignee_id=NULL,updated_at=now() WHERE id=ANY($1::uuid[]) AND company_id=$3',[convIds,dest,source]);
+  transferStage='media';
   await db.query('UPDATE public.crm_chat_media SET company_id=$2,uploaded_by=NULL WHERE conversation_id=ANY($1::uuid[]) AND company_id=$3',[convIds,dest,source]);
+  transferStage='connection_events';
   await db.query('UPDATE public.crm_evolution_connection_events SET company_id=$2 WHERE instance_id=$1 AND company_id=$3',[req.params.id,dest,source]);
+  transferStage='instance';
   await db.query('UPDATE public.crm_evolution_instances SET company_id=$2,owner_user_id=NULL WHERE id=$1 AND company_id=$3',[req.params.id,dest,source]);
+  transferStage='audit';
   await db.query('INSERT INTO public.crm_platform_instance_transfers(instance_id,source_company_id,destination_company_id,admin_user_id,conversation_count,contact_count,message_count,media_count) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[req.params.id,source,dest,req.user.id,plan.conversations,plan.contacts,plan.messages,plan.media]);
   await db.query('COMMIT');
   res.json({ok:true,conversations:plan.conversations,contacts:plan.contacts,messages:plan.messages,media:plan.media});
- }catch(err){await db.query('ROLLBACK');throw err}finally{db.release()}
+ }catch(err){await db.query('ROLLBACK');console.error('Platform instance transfer failed',{stage:transferStage,code:err.code,constraint:err.constraint,detail:err.detail});if(['22P02','23503','23502','23514'].includes(err.code))return res.status(409).json({error:'No se pudo transferir por una restricción de datos ('+transferStage+'). No se modificó ninguna empresa.',stage:transferStage,code:err.code});throw err}finally{db.release()}
 }));
 app.get('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const companies=await pool.query('SELECT id,name,created_at FROM public.companies ORDER BY name');
