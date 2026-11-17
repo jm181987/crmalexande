@@ -18,6 +18,7 @@ import {dispatchCampaignBatch} from './campaign-worker.js';
 import {registerUnsubscribe} from './campaign-unsubscribe.js';
 import {registerSendgridEvents} from './sendgrid-events.js';
 import {runFollowupAutomations} from './followup-automation.js';
+import {startAutomationScheduler} from './automation-scheduler.js';
 import {timingSafeEqual} from 'node:crypto';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));registerSendgridEvents(app);app.use('/api/inventory-images/upload',express.json({limit:'4mb'}));app.use(/^\/api\/conversations\/[^/]+\/evolution-media$/,express.json({limit:'12mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
@@ -296,5 +297,5 @@ if(process.env.NODE_ENV==='production'){
 }
 app.use((e,req,res,next)=>{console.error('API error',e.code||e.message);if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error'});});
 if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
-if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>console.log('Alexandre CRM server started'));
+if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler()});
 export default app;
