@@ -1,3 +1,4 @@
+import './email-campaign-editor.css';
 import React,{useMemo,useState} from 'react';
 
 const templates={
@@ -17,19 +18,19 @@ export default function EmailCampaignEditor({onCreate}){
  const finalHtml=editor==='html'?html:generated;
  const choose=(key)=>{const t=templates[key];setFields({...t});setSubject(t.subject);setHtml(renderEmail(t));setEditor('visual');setError('')};
  const change=(key,value)=>setFields(f=>({...f,[key]:value}));
- return <section style={{display:'grid',gap:16}}>
-  <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+ return <section className="email-studio">
+  <div className="email-studio-intro"><div><span className="email-studio-eyebrow">CAMPAIGN STUDIO</span><h2>Diseñá tu próximo email</h2><p>Elegí una plantilla, personalizá cada detalle y revisá el resultado antes de guardar.</p></div><span className="email-studio-draft">● Borrador seguro</span></div>
+  <div className="email-studio-meta">
    <label style={{flex:'1 1 210px'}}>Nombre de campaña<input value={name} onChange={e=>setName(e.target.value)} maxLength={150} placeholder="Campaña de noviembre" required/></label>
    <label style={{flex:'1 1 210px'}}>Asunto del correo<input value={subject} onChange={e=>setSubject(e.target.value)} maxLength={150} required/></label>
   </div>
-  <div><strong>Plantillas editables</strong><div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>{Object.entries(templates).map(([key,t])=><button key={key} type="button" onClick={()=>choose(key)}>{t.label}</button>)}</div></div>
-  <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+  <div className="email-studio-templates"><div className="email-studio-section-title"><strong>Elegí un punto de partida</strong><span>4 diseños listos para personalizar</span></div><div className="email-studio-template-list">{Object.entries(templates).map(([key,t])=><button className={'email-studio-template '+(fields.label===t.label?'is-selected':'')} key={key} type="button" onClick={()=>choose(key)}><span className="email-studio-template-art" style={{'--template-accent':t.accent}}><span/><span/><i/></span><strong>{t.label}</strong><small>{key==='welcome'?'Primer contacto':key==='news'?'Novedades':key==='offer'?'Ofertas':'Conversaciones'}</small></button>)}</div></div>
+  <div className="email-studio-toolbar"><div className="email-studio-segments">
    <button type="button" aria-pressed={editor==='visual'} onClick={()=>{if(editor==='html'){setError('');setEditor('visual')}else setEditor('visual')}}>Editor visual</button>
    <button type="button" aria-pressed={editor==='html'} onClick={()=>{if(editor==='visual')setHtml(generated);setEditor('html')}}>Editar código HTML</button>
-   <span style={{fontSize:12,opacity:.75}}>Cambiar de HTML a visual restaura el diseño generado por los campos visuales.</span>
-  </div>
-  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:18}}>
-   <div style={{display:'grid',gap:12,alignContent:'start'}}>
+   </div><span className="email-studio-toolbar-hint">Los cambios se reflejan en la vista previa</span></div>
+  <div className="email-studio-workspace">
+   <div className="email-studio-fields"><div className="email-studio-panel-heading"><strong>{editor==='visual'?'Personalizar contenido':'Código HTML'}</strong><span>{editor==='visual'?'Editá textos, botón y colores':'Modo avanzado'}</span></div>
     {editor==='visual'?<>
      <label>Título<input value={fields.title} maxLength={180} onChange={e=>change('title',e.target.value)}/></label>
      <label>Mensaje<textarea rows={7} value={fields.body} maxLength={4000} onChange={e=>change('body',e.target.value)}/></label>
@@ -39,13 +40,12 @@ export default function EmailCampaignEditor({onCreate}){
      <label>Pie de página<textarea rows={3} value={fields.footer} maxLength={500} onChange={e=>change('footer',e.target.value)}/></label>
     </>:<label style={{display:'grid',gap:6}}>Código HTML<textarea value={html} onChange={e=>setHtml(e.target.value)} rows={22} maxLength={10000} spellCheck={false} style={{width:'100%',boxSizing:'border-box',fontFamily:'monospace'}}/></label>}
    </div>
-   <div style={{minWidth:0}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:8,flexWrap:'wrap'}}><strong>Vista previa</strong><div><button type="button" onClick={()=>setDevice('desktop')} aria-pressed={device==='desktop'}>Escritorio</button> <button type="button" onClick={()=>setDevice('mobile')} aria-pressed={device==='mobile'}>Móvil</button></div></div>
-    <iframe title="Vista previa aislada del email" sandbox="" referrerPolicy="no-referrer" srcDoc={cleanPreview(finalHtml)} style={{display:'block',width:device==='mobile'?'min(100%,375px)':'100%',height:520,border:'1px solid #d0d5dd',borderRadius:8,background:'#fff',margin:'auto',boxSizing:'border-box'}}/>
+   <div className="email-studio-preview"><div className="email-studio-preview-head"><div><strong>Vista previa</strong><span>Así lo recibirán tus contactos</span></div><div className="email-studio-device"><button type="button" onClick={()=>setDevice('desktop')} aria-pressed={device==='desktop'}>Escritorio</button> <button type="button" onClick={()=>setDevice('mobile')} aria-pressed={device==='mobile'}>Móvil</button></div></div>
+    <div className="email-studio-preview-stage"><iframe title="Vista previa aislada del email" sandbox="" referrerPolicy="no-referrer" srcDoc={cleanPreview(finalHtml)} style={{width:device==='mobile'?'min(100%,375px)':'100%'}}/></div>
    </div>
   </div>
-  <p style={{fontSize:13,opacity:.8}}>Podés usar {'{{nombre}}'} para personalizar el saludo. Guardar crea un borrador; no envía correos.</p>
+  <p className="email-studio-note">Podés usar {'{{nombre}}'} para personalizar el saludo. Guardar crea un borrador; no envía correos.</p>
   {error&&<p role="alert" style={{color:'#b42318'}}>{error}</p>}
-  <button type="button" disabled={busy||!name.trim()||!subject.trim()||!finalHtml.trim()||finalHtml.length>10000||(editor==='visual'&&!validUrl(fields.url))} onClick={async()=>{setBusy(true);setError('');try{await onCreate({name:name.trim(),channel:'email',template_name:subject.trim(),content:finalHtml});setName('')}catch(e){setError(e.message||'No se pudo guardar')}finally{setBusy(false)}}}>{busy?'Guardando…':'Guardar campaña como borrador'}</button>
+  <div className="email-studio-actions"><span>Sin envíos automáticos. Solo se guardará el borrador.</span><button type="button" disabled={busy||!name.trim()||!subject.trim()||!finalHtml.trim()||finalHtml.length>10000||(editor==='visual'&&!validUrl(fields.url))} onClick={async()=>{setBusy(true);setError('');try{await onCreate({name:name.trim(),channel:'email',template_name:subject.trim(),content:finalHtml});setName('')}catch(e){setError(e.message||'No se pudo guardar')}finally{setBusy(false)}}}>{busy?'Guardando…':'Guardar borrador'}</button></div>
  </section>;
 }
