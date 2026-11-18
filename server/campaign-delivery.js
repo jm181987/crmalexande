@@ -37,13 +37,13 @@ export function registerCampaignDelivery(app,auth){
   const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
   if(tag.length>100||source.length>100)return res.status(400).json({error:'Filtro demasiado largo'});
   const result=await query(`SELECT c.id,c.name,c.email,c.source,
-    EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=true) AS consented,
+    EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false) AS opted_out,
     EXISTS(SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email)) AS suppressed
     FROM contacts c WHERE c.company_id=$1 AND c.email IS NOT NULL AND trim(c.email)<>'' 
     AND ($2::text='' OR $2=ANY(c.tags)) AND ($3::text='' OR c.source=$3)
     ORDER BY c.name,c.id LIMIT 5000`,[req.user.company_id,tag,source]);
   const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||''));
-  const rows=result.rows.map(c=>({...c,eligible:validEmail(c.email)&&c.consented&&!c.suppressed}));
+  const rows=result.rows.map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rowCount===5000});
  }));
  app.get('/api/campaigns/:id/deliveries',auth,manager,safe(async(req,res)=>{
@@ -67,9 +67,9 @@ export function registerCampaignDelivery(app,auth){
   }
   const old=await query('SELECT count(*)::int AS count FROM crm_campaign_deliveries WHERE campaign_id=$1',[req.params.id]);
   if(old.rows[0].count)return res.status(409).json({error:'Campaign already prepared'});
-  const contacts=await query(`SELECT c.id,c.phone,c.email FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel=$2 AND co.opted_in=true WHERE c.company_id=$1 AND ($3::text IS NULL OR $3=ANY(c.tags)) AND ($4::text IS NULL OR c.source=$4) AND ($5::int IS NULL OR (c.created_at <= now()-($5::int * interval '1 day') AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.company_id=c.company_id AND v.contact_id=c.id AND m.created_at > now()-($5::int * interval '1 day')))) AND ($6::text IS NULL OR $6=ANY(c.tags)) AND ($7::uuid[] IS NULL OR c.id=ANY($7::uuid[])) AND ($8::boolean=false OR NOT EXISTS (SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email))) ORDER BY c.id LIMIT 5000`,[req.user.company_id,channel,tag,source,inactive_days,interest_tag,contact_ids,channel==='email']);
+  const contacts=await query(`SELECT c.id,c.phone,c.email FROM contacts c WHERE c.company_id=$1 AND ( $2 <> 'whatsapp' OR EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true)) AND ($2 <> 'email' OR NOT EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false)) AND ($3::text IS NULL OR $3=ANY(c.tags)) AND ($4::text IS NULL OR c.source=$4) AND ($5::int IS NULL OR (c.created_at <= now()-($5::int * interval '1 day') AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.company_id=c.company_id AND v.contact_id=c.id AND m.created_at > now()-($5::int * interval '1 day')))) AND ($6::text IS NULL OR $6=ANY(c.tags)) AND ($7::uuid[] IS NULL OR c.id=ANY($7::uuid[])) AND ($8::boolean=false OR NOT EXISTS (SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email))) ORDER BY c.id LIMIT 5000`,[req.user.company_id,channel,tag,source,inactive_days,interest_tag,contact_ids,channel==='email']);
   const eligible=contacts.rows.filter(c=>channel==='whatsapp'?/^\\+?\\d{8,15}$/.test(String(c.phone||'')):/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(c.email||'')));
-  if(!eligible.length)return res.status(409).json({error:'No opted-in eligible contacts'});
+  if(!eligible.length)return res.status(409).json({error:'No eligible contacts (check opt-outs, suppressions and email validity)'});
   await query("UPDATE crm_campaigns SET instance_name=$3,scheduled_at=$4,interval_seconds=$5,filters=$6,status='ready' WHERE id=$1 AND company_id=$2",[req.params.id,req.user.company_id,instance_name,when.toISOString(),interval_seconds,JSON.stringify({tag,source,inactive_days,interest_tag,contact_ids})]);
   for(let i=0;i<eligible.length;i++)await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[req.user.company_id,req.params.id,eligible[i].id,new Date(when.getTime()+i*interval_seconds*1000).toISOString()]);
   res.json({prepared:eligible.length,channel,automatic_dispatch:false,notice:'Queued, not sent. Worker disabled until explicitly configured.'});
