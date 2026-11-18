@@ -21,7 +21,7 @@ export default function BuilderBotPanel({user,contacts=[]}){
  <button disabled={busy||!cfg?.configured} onClick={()=>run(async()=>{await api('/test','POST');setStatus('Conexión con BuilderBot correcta')})}>Probar conexión</button>
  {webhookToken&&<div><p><strong>Token de webhook (mostrar una sola vez)</strong></p><code style={{overflowWrap:'anywhere'}}>{webhookToken}</code><p>URL: {location.origin}/api/webhooks/builderbot/{botId}</p><p>Header personalizado: X-Zarco-Webhook-Token</p></div>}
  </div>}
- <h3>Enviar a un contacto</h3><label style={field}>Cliente<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Seleccionar</option>{contacts.filter(c=>c.phone).map(c=><option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}</select></label>
+ <h3>Enviar a un contacto</h3><label style={field}>Cliente<select value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Seleccionar</option>{(Array.isArray(contacts)?contacts:[]).filter(c=>c.phone).map(c=><option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}</select></label>
  <label style={field}>Mensaje<textarea rows={3} value={content} onChange={e=>setContent(e.target.value)}/></label>
  <button disabled={busy||!selected||!content.trim()} onClick={()=>run(async()=>{if(!window.confirm('¿Enviar mensaje por BuilderBot a este contacto?'))return;await api('/messages','POST',{contact_id:selected,content});setStatus('Mensaje enviado a BuilderBot')})}>Enviar mensaje</button>
  <h3>Plantillas oficiales</h3><button disabled={busy} onClick={()=>run(async()=>{const d=await api('/templates');setTemplates(Array.isArray(d)?d:Array.isArray(d.templates)?d.templates:[]);setStatus('Plantillas consultadas')})}>Consultar plantillas</button>
