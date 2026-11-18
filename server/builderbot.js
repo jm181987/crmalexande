@@ -111,50 +111,70 @@ export function registerBuilderbot(app,auth){
  app.delete('/api/builderbot/assistant/files/:fileId',auth,owner,wrap(async(req,res)=>{if(!/^[\w-]{1,120}$/.test(req.params.fileId))return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files?fileId='+encodeURIComponent(req.params.fileId),'DELETE'))}catch(e){err(res,e)}}));
  app.get('/api/builderbot/webhook-events',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT id,received_at,payload FROM public.crm_builderbot_webhook_events WHERE company_id=$1 ORDER BY id DESC LIMIT 50',[req.user.company_id]);res.json(r.rows)}));
 
-// Normalize only identifiable inbound text events. Unknown provider payloads stay in the event log
-// for inspection rather than being assigned to the wrong contact or company.
-function inboundEvent(payload){
- const item=payload?.data?.message||payload?.data||payload?.message||payload;
+// Accept both documented message.incoming/message.outgoing events and the
+// CUSTOMER/AGENT payloads emitted by the provider. Never infer a contact from
+// an unrecognized payload; raw events remain available for diagnostics.
+function normalizeWebhookMessage(payload,eventHash){
+ const data=payload?.data;
+ const item=(data?.message&&typeof data.message==='object'?data.message:null)||
+   (data&&typeof data==='object'&&!Array.isArray(data)?data:null)||
+   (payload?.message&&typeof payload.message==='object'?payload.message:null)||payload;
  if(!item||typeof item!=='object'||Array.isArray(item))return null;
+ const eventType=String(payload.event||payload.type||payload.eventType||'').toLowerCase();
+ const sender=String(item.sender?.type||item.sender||payload.sender||'').toUpperCase();
+ const origin=String(item.origin||payload.origin||'').toUpperCase();
  const fromMe=item.fromMe??item.from_me??item.key?.fromMe??payload.fromMe;
- if(fromMe===true||fromMe==='true'||item.direction==='outbound'||item.type==='outgoing')return null;
- const rawPhone=item.key?.remoteJid||item.from||item.phone||item.number||item.sender?.phone||item.sender?.id||item.contact?.phone;
- if(typeof rawPhone!=='string')return null;
- const phone=rawPhone.replace(/@s\.whatsapp\.net$/,'').replace(/[^0-9]/g,'');
+ const outgoing=eventType==='message.outgoing'||eventType==='outgoing'||
+   sender==='AGENT'||origin==='BOT'||origin==='CRM_AGENT'||fromMe===true||fromMe==='true'||
+   item.direction==='outbound'||item.type==='outgoing';
+ const incoming=eventType==='message.incoming'||eventType==='incoming'||sender==='CUSTOMER'||
+   fromMe===false||fromMe==='false'||item.direction==='inbound';
+ if(!outgoing&&!incoming)return null;
+ const rawPhone=item.key?.remoteJid||item.phone||item.from||item.number||
+   item.sender?.phone||item.sender?.id||item.contact?.phone||payload.phone;
+ if(typeof rawPhone!=='string'&&typeof rawPhone!=='number')return null;
+ const phone=String(rawPhone).replace(/@s\.whatsapp\.net$/,'').replace(/[^0-9]/g,'');
  if(!/^\d{8,15}$/.test(phone))return null;
- const rawBody=item.body??item.text??item.content??item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
+ const rawBody=item.body??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
+   item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
  const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
  if(!body||body.length>10000)return null;
- const id=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
- if(typeof id!=='string'||id.length<3||id.length>250)return null;
- return {phone,body,id,name:String(item.pushName||item.sender?.name||phone).slice(0,200)};
+ const rawId=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
+ const id=typeof rawId==='string'&&rawId.length>=3&&rawId.length<=250?rawId:eventHash;
+ const direction=outgoing?'outbound':'inbound';
+ const name=String(item.pushName||item.name||item.contact?.name||item.sender?.name||phone).slice(0,200);
+ return {phone,body,id,direction,name};
 }
-async function syncInbound(companyId,botId,payload){
- const event=inboundEvent(payload);
+async function syncWebhookMessage(companyId,botId,payload,eventHash){
+ const event=normalizeWebhookMessage(payload,eventHash);
  if(!event)return false;
  const external='sistema-ia2:'+botId+':'+event.id;
  const existing=await query('SELECT id FROM messages WHERE external_id=$1',[external]);
  if(existing.rowCount)return false;
  let contact=await query('SELECT id FROM contacts WHERE company_id=$1 AND phone=$2 LIMIT 1',[companyId,event.phone]);
  if(!contact.rowCount)contact=await query("INSERT INTO contacts(company_id,name,phone,source) VALUES($1,$2,$3,'whatsapp') RETURNING id",[companyId,event.name,event.phone]);
- let conversation=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id=$2 LIMIT 1",[companyId,event.phone]);
+ let conversation=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND (external_id=$2 OR contact_id=$3) LIMIT 1",[companyId,event.phone,contact.rows[0].id]);
  if(!conversation.rowCount)conversation=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[companyId,contact.rows[0].id,event.phone]);
- const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,'inbound',$2,$3) ON CONFLICT DO NOTHING RETURNING id",[conversation.rows[0].id,event.body,external]);
- if(saved.rowCount)await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conversation.rows[0].id,event.direction,event.body,external]);
+ if(saved.rowCount){
+  if(event.direction==='inbound')await query('UPDATE conversations SET unread_count=COALESCE(unread_count,0)+1,updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
+  else await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
+ }
  return Boolean(saved.rowCount);
 }
  // BuilderBot custom webhook header must be configured to X-Zarco-Webhook-Token.
  app.post('/api/webhooks/builderbot/:botId',wrap(async(req,res)=>{
-  if(!uuid(req.params.botId))return res.sendStatus(404);
-  const token=req.headers['x-zarco-webhook-token'];if(typeof token!=='string'||token.length!==64)return res.sendStatus(401);
+  if(!uuid(req.params.botId)){console.warn('[Sistema IA 2 webhook] invalid bot ID');return res.sendStatus(404);}
+  const token=req.headers['x-zarco-webhook-token'];if(typeof token!=='string'||token.length!==64){console.warn('[Sistema IA 2 webhook] missing or invalid token format');return res.sendStatus(401);}
   const rows=await query('SELECT company_id,webhook_token_hash FROM public.crm_builderbot_settings WHERE bot_id=$1',[req.params.botId]);
-  const digest=hash(token);const cfg=rows.rows.find(c=>timingSafeEqual(Buffer.from(c.webhook_token_hash),Buffer.from(digest)));
-  if(!cfg)return res.sendStatus(401);
+  const digest=hash(token);const cfg=rows.rows.find(c=>typeof c.webhook_token_hash==='string'&&c.webhook_token_hash.length===64&&timingSafeEqual(Buffer.from(c.webhook_token_hash),Buffer.from(digest)));
+  if(!cfg){console.warn('[Sistema IA 2 webhook] token mismatch or unknown bot');return res.sendStatus(401);}
   const payload=req.body;if(!payload||typeof payload!=='object'||Array.isArray(payload))return res.sendStatus(400);
   const serialized=JSON.stringify(payload);if(serialized.length>900000)return res.sendStatus(413);
   const eventHash=hash(serialized);
   await query('INSERT INTO public.crm_builderbot_webhook_events(company_id,bot_id,event_hash,payload) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,event_hash) DO NOTHING',[cfg.company_id,req.params.botId,eventHash,serialized]);
-  const synced=await syncInbound(cfg.company_id,req.params.botId,payload);
+  const synced=await syncWebhookMessage(cfg.company_id,req.params.botId,payload,eventHash);
+  console.info('[Sistema IA 2 webhook] accepted', {synced, event:String(payload.event||payload.type||'unknown').slice(0,60)});
   res.status(202).json({received:true,synced});
  }));
 }
