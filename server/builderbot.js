@@ -19,6 +19,45 @@ async function remote(cfg,path,method='GET',body){
 }
 function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación de Sistema IA 2. Revisá la configuración y el registro del servidor.'})}
 export function registerBuilderbot(app,auth){
+ app.get('/api/whatsapp-provider',auth,wrap(async(req,res)=>{
+  const row=await query('SELECT provider,updated_at FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);
+  const bot=await query('SELECT bot_id FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);
+  const instances=await query("SELECT count(*)::int AS total FROM public.crm_evolution_instances WHERE company_id=$1 AND status <> 'deleted'",[req.user.company_id]);
+  res.json({provider:row.rows[0]?.provider||'evolution',updated_at:row.rows[0]?.updated_at||null,evolution_configured:instances.rows[0].total>0,builderbot_configured:bot.rowCount>0});
+ }));
+ app.put('/api/whatsapp-provider',auth,owner,wrap(async(req,res)=>{
+  const provider=req.body?.provider;
+  if(!['evolution','builderbot'].includes(provider))return res.status(400).json({error:'Proveedor inválido'});
+  if(provider==='builderbot'){
+   const cfg=await settings(req.user.company_id);
+   try{await remote(cfg,'/settings')}catch(e){return err(res,e)}
+  }else{
+   const e=await query("SELECT name FROM public.crm_evolution_instances WHERE company_id=$1 AND status <> 'deleted' ORDER BY created_at DESC LIMIT 1",[req.user.company_id]);
+   if(!e.rowCount||!process.env.EVOLUTION_API_URL||!process.env.EVOLUTION_API_KEY)return res.status(409).json({error:'Configurá Evolution API antes de activarla'});
+   const base=process.env.EVOLUTION_API_URL.replace(/\\/$/,'');
+   if(!base.startsWith('https://')&&process.env.EVOLUTION_ALLOW_INSECURE_HTTP!=='true')return res.status(409).json({error:'Evolution API requiere HTTPS'});
+   try{const response=await fetch(base+'/instance/connectionState/'+encodeURIComponent(e.rows[0].name),{headers:{apikey:process.env.EVOLUTION_API_KEY},signal:AbortSignal.timeout(12000)});const data=await response.json().catch(()=>({}));if(!response.ok||!['open','connected'].includes(String(data.instance?.state||data.state||'').toLowerCase()))return res.status(409).json({error:'Evolution API no tiene una instancia conectada'})}catch{return res.status(502).json({error:'No se pudo verificar Evolution API'})}
+  }
+  await query('INSERT INTO public.crm_whatsapp_provider_settings(company_id,provider) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET provider=EXCLUDED.provider,updated_at=now()',[req.user.company_id,provider]);
+  res.json({provider,ok:true});
+ }));
+ app.post('/api/conversations/:id/builderbot-send',auth,operator,wrap(async(req,res)=>{
+  const selected=await query('SELECT provider FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);
+  if(selected.rows[0]?.provider!=='builderbot')return res.status(409).json({error:'Sistema IA 2 no es el proveedor activo'});
+  const body=req.body?.body;
+  if(typeof body!=='string'||!body.trim()||body.length>4000)return res.status(400).json({error:'Mensaje inválido'});
+  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
+  const c=await query("SELECT c.id,co.phone FROM conversations c JOIN contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'"+(req.user.role==='agent'?' AND c.assignee_id=$3':''),args);
+  if(!c.rowCount)return res.sendStatus(404);
+  const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
+  if(!/^\\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
+  const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=(SELECT contact_id FROM conversations WHERE id=$2 AND company_id=$1) AND channel='whatsapp'",[req.user.company_id,req.params.id]);
+  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'El contacto no tiene consentimiento activo para WhatsApp'});
+  try{const cfg=await settings(req.user.company_id);await remote(cfg,'/messages','POST',{number,messages:{content:body.trim()},checkIfExists:true});
+   const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,body.trim()]);
+   await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json(saved.rows[0]);
+  }catch(e){err(res,e)}
+ }));
  app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);res.json({configured:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]})}));
  app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
   if(!uuid(bot_id)||typeof api_key!=='string'||api_key.length<20||api_key.length>500||(assistant_answer_id!==null&&!uuid(assistant_answer_id)))return res.sendStatus(400);
