@@ -28,3 +28,15 @@ ALTER TABLE crm_chat_media ADD COLUMN IF NOT EXISTS conversation_id uuid REFEREN
 ALTER TABLE crm_chat_media ADD COLUMN IF NOT EXISTS uploaded_by uuid REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE crm_chat_media ADD COLUMN IF NOT EXISTS size_bytes bigint NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_crm_chat_media_company_created ON crm_chat_media(company_id,created_at DESC);
+
+-- One outbound WhatsApp provider per tenant. Existing tenants default to Evolution.
+CREATE TABLE IF NOT EXISTS public.crm_whatsapp_provider_settings (
+ company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+ provider text NOT NULL DEFAULT 'evolution' CHECK (provider IN ('evolution','builderbot')),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.crm_whatsapp_provider_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS crm_whatsapp_provider_tenant ON public.crm_whatsapp_provider_settings;
+CREATE POLICY crm_whatsapp_provider_tenant ON public.crm_whatsapp_provider_settings FOR ALL
+ USING (company_id=NULLIF(current_setting('app.company_id',true),'')::uuid)
+ WITH CHECK (company_id=NULLIF(current_setting('app.company_id',true),'')::uuid);
