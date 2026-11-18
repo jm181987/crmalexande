@@ -10,14 +10,14 @@ const key=()=>{if(secret().length<32)throw Object.assign(new Error('BUILDERBOT_E
 const hash=s=>createHash('sha256').update(s).digest('hex');
 function encrypt(s){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',key(),iv),v=Buffer.concat([c.update(s,'utf8'),c.final()]);return [iv.toString('hex'),c.getAuthTag().toString('hex'),v.toString('hex')].join(':')}
 function decrypt(s){const [iv,tag,data]=s.split(':'),c=createDecipheriv('aes-256-gcm',key(),Buffer.from(iv,'hex'));c.setAuthTag(Buffer.from(tag,'hex'));return Buffer.concat([c.update(Buffer.from(data,'hex')),c.final()]).toString('utf8')}
-async function settings(companyId){const r=await query('SELECT * FROM public.crm_builderbot_settings WHERE company_id=$1',[companyId]);if(!r.rowCount)throw Object.assign(new Error('BuilderBot not configured'),{status:409});return r.rows[0]}
+async function settings(companyId){const r=await query('SELECT * FROM public.crm_builderbot_settings WHERE company_id=$1',[companyId]);if(!r.rowCount)throw Object.assign(new Error('Sistema IA 2 no está configurado. Guardá primero el ID del bot y la API Key.'),{status:409});return r.rows[0]}
 async function remote(cfg,path,method='GET',body){
  const r=await fetch(base+encodeURIComponent(cfg.bot_id)+path,{method,headers:{'x-api-builderbot':decrypt(cfg.api_key_encrypted),'Content-Type':'application/json'},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});
  const data=await r.json().catch(()=>({}));
- if(!r.ok)throw Object.assign(new Error('BuilderBot upstream HTTP '+r.status),{status:502});
+ if(!r.ok){const reason=r.status===401||r.status===403?'API Key rechazada o sin permisos':r.status===404?'ID del bot no encontrado o endpoint no disponible':r.status===429?'Límite de solicitudes de la API alcanzado':r.status>=500?'Servicio externo temporalmente no disponible':'Solicitud rechazada por la API';throw Object.assign(new Error('Sistema IA 2: '+reason+' (HTTP '+r.status+')'),{status:502});}
  return data;
 }
-function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'BuilderBot operation failed'})}
+function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación de Sistema IA 2. Revisá la configuración y el registro del servidor.'})}
 export function registerBuilderbot(app,auth){
  app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);res.json({configured:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]})}));
  app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
