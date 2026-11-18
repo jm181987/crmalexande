@@ -139,7 +139,7 @@ export function registerBuilderbot(app,auth){
   const c=await query("SELECT co.phone,c.external_id FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
   if(!c.rowCount)return res.sendStatus(404);
   const number=contactPhone(c.rows[0]);
-  if(!/^\\d{8,15}$/.test(number))return res.status(409).json({error:'Este contacto no tiene un número telefónico válido para BuilderBot'});
+  if(!number)return res.status(409).json({error:'No se pudo identificar un número WhatsApp válido para BuilderBot. Revisá el teléfono del contacto.'});
   try{
    const cfg=await settings(req.user.company_id);
    await remote(cfg,'/blacklist','POST',{number,intent:req.body.paused?'add':'remove'});
