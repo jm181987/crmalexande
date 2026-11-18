@@ -67,7 +67,7 @@ export function registerBuilderbot(app,auth){
   const updated=await query('UPDATE public.crm_builderbot_settings SET webhook_token_hash=$1,updated_at=now() WHERE company_id=$2 RETURNING bot_id',[hash(token),req.user.company_id]);
   if(!updated.rowCount)return res.status(409).json({error:'Configurá primero Sistema IA 2'});
   res.set('Cache-Control','no-store');
-  res.json({ok:true,bot_id:updated.rows[0].bot_id,webhook_token:token,notice:'El token anterior quedó invalidado. Actualizá el encabezado del webhook antes de enviar nuevos eventos.'});
+  res.json({ok:true,bot_id:updated.rows[0].bot_id,webhook_token:token,webhook_url:'/api/webhooks/builderbot/'+updated.rows[0].bot_id+'?token='+token,notice:'El token anterior quedó invalidado. Configurá el header o la URL secreta del webhook. No compartas la URL.'});
  }));
  app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);res.json({configured:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]})}));
  app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
@@ -75,7 +75,7 @@ export function registerBuilderbot(app,auth){
   if(secret().length<32)return res.status(503).json({error:'Configure BUILDERBOT_ENCRYPTION_KEY'});
   const token=randomBytes(32).toString('hex');
   await query('INSERT INTO public.crm_builderbot_settings(company_id,bot_id,api_key_encrypted,webhook_token_hash,assistant_answer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id) DO UPDATE SET bot_id=EXCLUDED.bot_id,api_key_encrypted=EXCLUDED.api_key_encrypted,webhook_token_hash=EXCLUDED.webhook_token_hash,assistant_answer_id=EXCLUDED.assistant_answer_id,updated_at=now()',[req.user.company_id,bot_id,encrypt(api_key),hash(token),assistant_answer_id]);
-  res.json({ok:true,webhook_token:token,notice:'Store webhook token now; it will not be shown again'});
+  res.json({ok:true,webhook_token:token,webhook_url:'/api/webhooks/builderbot/'+bot_id+'?token='+token,notice:'Guardá el token o la URL secreta: no se volverán a mostrar'});
  }));
  app.post('/api/builderbot/test',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);const data=await remote(c,'/settings');res.json({ok:true,settings:data})}catch(e){err(res,e)}}));
  app.get('/api/builderbot/templates',auth,operator,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);res.json(await remote(c,'/whatsapp-template?limit=100'))}catch(e){err(res,e)}}));
@@ -170,7 +170,12 @@ export function registerBuilderbotWebhook(app){
  // BuilderBot custom webhook header must be configured to X-Zarco-Webhook-Token.
  app.post('/api/webhooks/builderbot/:botId',wrap(async(req,res)=>{
   if(!uuid(req.params.botId)){console.warn('[Sistema IA 2 webhook] invalid bot ID');return res.sendStatus(404);}
-  const token=req.headers['x-zarco-webhook-token'];if(typeof token!=='string'||token.length!==64){console.warn('[Sistema IA 2 webhook] missing or invalid token format');return res.sendStatus(401);}
+  const headerToken=req.headers['x-zarco-webhook-token'];
+  const urlToken=req.query?.token;
+  // Providers without custom-header support may send the same secret in the HTTPS URL.
+  // Never log either credential or the complete request URL.
+  const token=typeof headerToken==='string'&&headerToken.length===64?headerToken:urlToken;
+  if(typeof token!=='string'||!/^[a-f0-9]{64}$/i.test(token)){console.warn('[Sistema IA 2 webhook] missing or invalid token format');return res.sendStatus(401);}
   const rows=await query('SELECT company_id,webhook_token_hash FROM public.crm_builderbot_settings WHERE bot_id=$1',[req.params.botId]);
   const digest=hash(token);const cfg=rows.rows.find(c=>typeof c.webhook_token_hash==='string'&&c.webhook_token_hash.length===64&&timingSafeEqual(Buffer.from(c.webhook_token_hash),Buffer.from(digest)));
   if(!cfg){console.warn('[Sistema IA 2 webhook] token mismatch or unknown bot');return res.sendStatus(401);}
