@@ -365,3 +365,27 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .tenant-indicator{width:9px;height:9px;border-radius:50%;background:#23a66c;flex-shrink:0}
 .sidebar-is-collapsed .tenant-sidebar{display:none}
 @media(max-width:680px){.tenant-header{max-width:135px;padding:6px 8px}.tenant-header strong{font-size:.74rem}.tenant-header small{font-size:.55rem}}
+
+/* Settings information architecture */
+.settings-page{display:grid;gap:24px;max-width:1220px;margin:0 auto;padding-bottom:36px}
+.settings-page-header{padding:8px 2px 0}
+.settings-page-header h2{font-size:clamp(1.5rem,2.5vw,2rem);margin:6px 0 10px}
+.settings-eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--primary,#4b82e9);margin:0}
+.settings-description{color:var(--muted,#8893a4);line-height:1.6;margin:0;max-width:680px}
+.settings-tabs{display:flex;flex-wrap:wrap;gap:10px;padding:12px;background:var(--card,#151c2a);border:1px solid var(--border,#d9e0eb);border-radius:16px}
+.settings-tab{border:1px solid var(--border,#d9e0eb);border-radius:10px;padding:12px 18px;min-height:44px;font-weight:650;flex:0 1 auto}
+.settings-tab.active{background:var(--primary,#3b82f6);color:white;border-color:transparent}
+.settings-content{display:grid;gap:26px;min-width:0}
+.settings-section{display:grid;gap:24px;min-width:0}
+.settings-section>header{padding:2px 4px 0}
+.settings-section>header h3{margin:0 0 8px;font-size:1.2rem}
+.settings-section>header p{margin:0;color:var(--muted,#8893a4);line-height:1.55}
+.settings-section>.panel,.settings-section>section{margin-bottom:0}
+.settings-section .panel{border-radius:15px;margin-bottom:22px!important;padding:24px!important}
+.settings-section .panel h2{margin-top:0;margin-bottom:15px}
+.settings-section input:not([type=checkbox]),.settings-section select,.settings-section textarea{max-width:100%;min-height:40px}
+.settings-section textarea{min-height:100px}
+.settings-section label{line-height:1.45}
+.settings-section button{min-height:38px}
+.settings-section table{width:100%}
+@media(max-width:680px){.settings-page{gap:18px}.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.settings-tab{padding:11px 8px;font-size:.84rem}.settings-section{gap:16px}.settings-section .panel{padding:16px!important;margin-bottom:16px!important}}
