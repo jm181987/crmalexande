@@ -32,12 +32,16 @@ export function registerBuilderbot(app,auth){
  app.post('/api/builderbot/messages',auth,operator,wrap(async(req,res)=>{const {contact_id,content,media_url}=req.body||{};if(!uuid(contact_id)||typeof content!=='string'||!content.trim()||content.length>4000||(media_url!==undefined&&(!/^https:\/\//.test(media_url)||media_url.length>2000)))return res.sendStatus(400);
   const r=await query('SELECT phone FROM contacts WHERE company_id=$1 AND id=$2',[req.user.company_id,contact_id]);if(!r.rowCount)return res.sendStatus(404);
   const number=String(r.rows[0].phone||'').replace(/\D/g,'');if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Invalid contact phone'});
+  const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=$2 AND channel='whatsapp'",[req.user.company_id,contact_id]);
+  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'WhatsApp contact has no active opt-in'});
   try{const c=await settings(req.user.company_id);res.json(await remote(c,'/messages','POST',{number,messages:{content:content.trim(),...(media_url?{mediaUrl:media_url}:{})},checkIfExists:true}))}catch(e){err(res,e)}
  }));
  app.post('/api/builderbot/templates/send',auth,operator,wrap(async(req,res)=>{const {contact_id,template_name,language_code,components=[]}=req.body||{};
   if(!uuid(contact_id)||typeof template_name!=='string'||!/^[\w.-]{1,100}$/.test(template_name)||typeof language_code!=='string'||!/^[a-z]{2}(?:_[A-Z]{2})?$/.test(language_code)||!Array.isArray(components)||JSON.stringify(components).length>8000)return res.sendStatus(400);
   const r=await query('SELECT phone FROM contacts WHERE company_id=$1 AND id=$2',[req.user.company_id,contact_id]);if(!r.rowCount)return res.sendStatus(404);
   const to=String(r.rows[0].phone||'').replace(/\D/g,'');if(!/^\d{8,15}$/.test(to))return res.sendStatus(400);
+  const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=$2 AND channel='whatsapp'",[req.user.company_id,contact_id]);
+  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'WhatsApp contact has no active opt-in'});
   try{const c=await settings(req.user.company_id);res.json(await remote(c,'/whatsapp-template','POST',{to,templateName:template_name,languageCode:language_code,components}))}catch(e){err(res,e)}
  }));
  app.get('/api/builderbot/blacklist',auth,owner,wrap(async(req,res)=>{try{res.json(await remote(await settings(req.user.company_id),'/blacklist'))}catch(e){err(res,e)}}));
