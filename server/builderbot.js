@@ -56,7 +56,7 @@ export function registerBuilderbot(app,auth){
   const number=String(c.rows[0].phone||'').replace(/\D/g,'');
   if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=(SELECT contact_id FROM conversations WHERE id=$2 AND company_id=$1) AND channel='whatsapp'",[req.user.company_id,req.params.id]);
-  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'El contacto no tiene consentimiento activo para WhatsApp'});
+  if(consent.rows[0]?.opted_in===false)return res.status(409).json({error:'El contacto rechazó recibir mensajes de WhatsApp'});
   try{const cfg=await settings(req.user.company_id);await remote(cfg,'/messages','POST',{number,messages:{content:body.trim()},checkIfExists:true});
    const saved=await query("INSERT INTO messages(conversation_id,sender_id,direction,body) VALUES($1,$2,'outbound',$3) RETURNING *",[req.params.id,req.user.id,body.trim()]);
    await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json(saved.rows[0]);
@@ -76,7 +76,7 @@ export function registerBuilderbot(app,auth){
   const r=await query('SELECT phone FROM contacts WHERE company_id=$1 AND id=$2',[req.user.company_id,contact_id]);if(!r.rowCount)return res.sendStatus(404);
   const number=String(r.rows[0].phone||'').replace(/\D/g,'');if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Invalid contact phone'});
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=$2 AND channel='whatsapp'",[req.user.company_id,contact_id]);
-  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'WhatsApp contact has no active opt-in'});
+  if(consent.rows[0]?.opted_in===false)return res.status(409).json({error:'El contacto rechazó recibir mensajes de WhatsApp'});
   try{const c=await settings(req.user.company_id);res.json(await remote(c,'/messages','POST',{number,messages:{content:content.trim(),...(media_url?{mediaUrl:media_url}:{})},checkIfExists:true}))}catch(e){err(res,e)}
  }));
  app.post('/api/builderbot/templates/send',auth,operator,wrap(async(req,res)=>{const {contact_id,template_name,language_code,components=[]}=req.body||{};
@@ -84,7 +84,7 @@ export function registerBuilderbot(app,auth){
   const r=await query('SELECT phone FROM contacts WHERE company_id=$1 AND id=$2',[req.user.company_id,contact_id]);if(!r.rowCount)return res.sendStatus(404);
   const to=String(r.rows[0].phone||'').replace(/\D/g,'');if(!/^\d{8,15}$/.test(to))return res.sendStatus(400);
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=$2 AND channel='whatsapp'",[req.user.company_id,contact_id]);
-  if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'WhatsApp contact has no active opt-in'});
+  if(consent.rows[0]?.opted_in===false)return res.status(409).json({error:'El contacto rechazó recibir mensajes de WhatsApp'});
   try{const c=await settings(req.user.company_id);res.json(await remote(c,'/whatsapp-template','POST',{to,templateName:template_name,languageCode:language_code,components}))}catch(e){err(res,e)}
  }));
  app.get('/api/builderbot/blacklist',auth,owner,wrap(async(req,res)=>{try{res.json(await remote(await settings(req.user.company_id),'/blacklist'))}catch(e){err(res,e)}}));
