@@ -162,6 +162,11 @@ async function syncWebhookMessage(companyId,botId,payload,eventHash){
  }
  return Boolean(saved.rowCount);
 }
+}
+
+// Register this unauthenticated, token-protected endpoint before session routes.
+export function registerBuilderbotWebhook(app){
+ app.get('/api/webhooks/builderbot/:botId',(req,res)=>res.status(405).set('Allow','POST').json({error:'Webhook accepts POST only',code:'WEBHOOK_POST_ONLY'}));
  // BuilderBot custom webhook header must be configured to X-Zarco-Webhook-Token.
  app.post('/api/webhooks/builderbot/:botId',wrap(async(req,res)=>{
   if(!uuid(req.params.botId)){console.warn('[Sistema IA 2 webhook] invalid bot ID');return res.sendStatus(404);}
@@ -177,4 +182,5 @@ async function syncWebhookMessage(companyId,botId,payload,eventHash){
   console.info('[Sistema IA 2 webhook] accepted', {synced, event:String(payload.event||payload.type||'unknown').slice(0,60)});
   res.status(202).json({received:true,synced});
  }));
+
 }
