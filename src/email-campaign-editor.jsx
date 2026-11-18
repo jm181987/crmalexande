@@ -44,7 +44,7 @@ export default function EmailCampaignEditor({onCreate}){
     <iframe title="Vista previa aislada del email" sandbox="" referrerPolicy="no-referrer" srcDoc={cleanPreview(finalHtml)} style={{display:'block',width:device==='mobile'?'min(100%,375px)':'100%',height:520,border:'1px solid #d0d5dd',borderRadius:8,background:'#fff',margin:'auto',boxSizing:'border-box'}}/>
    </div>
   </div>
-  <p style={{fontSize:13,opacity:.8}}>Podés usar {{'{{nombre}'}} para personalizar el saludo. Guardar crea un borrador; no envía correos.</p>
+  <p style={{fontSize:13,opacity:.8}}>Podés usar {'{{nombre}}'} para personalizar el saludo. Guardar crea un borrador; no envía correos.</p>
   {error&&<p role="alert" style={{color:'#b42318'}}>{error}</p>}
   <button type="button" disabled={busy||!name.trim()||!subject.trim()||!finalHtml.trim()||finalHtml.length>10000||(editor==='visual'&&!validUrl(fields.url))} onClick={async()=>{setBusy(true);setError('');try{await onCreate({name:name.trim(),channel:'email',template_name:subject.trim(),content:finalHtml});setName('')}catch(e){setError(e.message||'No se pudo guardar')}finally{setBusy(false)}}}>{busy?'Guardando…':'Guardar campaña como borrador'}</button>
  </section>;
