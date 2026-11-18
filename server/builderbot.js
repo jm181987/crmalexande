@@ -122,7 +122,7 @@ function normalizeWebhookMessage(payload,eventHash){
    (data&&typeof data==='object'&&!Array.isArray(data)?data:null)||
    (payload?.message&&typeof payload.message==='object'?payload.message:null)||payload;
  if(!item||typeof item!=='object'||Array.isArray(item))return null;
- const eventType=String(payload.event||payload.type||payload.eventType||'').toLowerCase();
+ const eventType=String(payload.eventName||payload.event||payload.type||payload.eventType||'').toLowerCase();
  const sender=String(item.sender?.type||item.sender||payload.sender||'').toUpperCase();
  const origin=String(item.origin||payload.origin||'').toUpperCase();
  const fromMe=item.fromMe??item.from_me??item.key?.fromMe??payload.fromMe;
@@ -137,7 +137,7 @@ function normalizeWebhookMessage(payload,eventHash){
  if(typeof rawPhone!=='string'&&typeof rawPhone!=='number')return null;
  const phone=String(rawPhone).replace(/@s\.whatsapp\.net$/,'').replace(/[^0-9]/g,'');
  if(!/^\d{8,15}$/.test(phone))return null;
- const rawBody=item.body??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
+ const rawBody=item.body??item.answer??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
    item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
  const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
  if(!body||body.length>10000)return null;
@@ -185,7 +185,7 @@ export function registerBuilderbotWebhook(app){
   const eventHash=hash(serialized);
   await query('INSERT INTO public.crm_builderbot_webhook_events(company_id,bot_id,event_hash,payload) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,event_hash) DO NOTHING',[cfg.company_id,req.params.botId,eventHash,serialized]);
   const synced=await syncWebhookMessage(cfg.company_id,req.params.botId,payload,eventHash);
-  console.info('[Sistema IA 2 webhook] accepted', {synced, event:String(payload.event||payload.type||'unknown').slice(0,60)});
+  console.info('[Sistema IA 2 webhook] accepted', {synced, event:String(payload.eventName||payload.event||payload.type||'unknown').slice(0,60)});
   res.status(202).json({received:true,synced});
  }));
 
