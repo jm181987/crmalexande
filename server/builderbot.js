@@ -34,7 +34,7 @@ export function registerBuilderbot(app,auth){
   }else{
    const e=await query("SELECT name FROM public.crm_evolution_instances WHERE company_id=$1 AND status <> 'deleted' ORDER BY created_at DESC LIMIT 1",[req.user.company_id]);
    if(!e.rowCount||!process.env.EVOLUTION_API_URL||!process.env.EVOLUTION_API_KEY)return res.status(409).json({error:'Configurá Evolution API antes de activarla'});
-   const base=process.env.EVOLUTION_API_URL.replace(/\\/$/,'');
+   const base=process.env.EVOLUTION_API_URL.replace(/\/$/,'');
    if(!base.startsWith('https://')&&process.env.EVOLUTION_ALLOW_INSECURE_HTTP!=='true')return res.status(409).json({error:'Evolution API requiere HTTPS'});
    try{const response=await fetch(base+'/instance/connectionState/'+encodeURIComponent(e.rows[0].name),{headers:{apikey:process.env.EVOLUTION_API_KEY},signal:AbortSignal.timeout(12000)});const data=await response.json().catch(()=>({}));if(!response.ok||!['open','connected'].includes(String(data.instance?.state||data.state||'').toLowerCase()))return res.status(409).json({error:'Evolution API no tiene una instancia conectada'})}catch{return res.status(502).json({error:'No se pudo verificar Evolution API'})}
   }
@@ -49,8 +49,8 @@ export function registerBuilderbot(app,auth){
   const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
   const c=await query("SELECT c.id,co.phone FROM conversations c JOIN contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'"+(req.user.role==='agent'?' AND c.assignee_id=$3':''),args);
   if(!c.rowCount)return res.sendStatus(404);
-  const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
-  if(!/^\\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
+  const number=String(c.rows[0].phone||'').replace(/\D/g,'');
+  if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=(SELECT contact_id FROM conversations WHERE id=$2 AND company_id=$1) AND channel='whatsapp'",[req.user.company_id,req.params.id]);
   if(!consent.rows[0]?.opted_in)return res.status(409).json({error:'El contacto no tiene consentimiento activo para WhatsApp'});
   try{const cfg=await settings(req.user.company_id);await remote(cfg,'/messages','POST',{number,messages:{content:body.trim()},checkIfExists:true});
