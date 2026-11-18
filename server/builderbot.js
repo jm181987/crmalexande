@@ -19,13 +19,23 @@ async function remote(cfg,path,method='GET',body){
 }
 function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'BuilderBot operation failed'})}
 export function registerBuilderbot(app,auth){
- app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);res.json({configured:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]})}));
- app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
-  if(!uuid(bot_id)||typeof api_key!=='string'||api_key.length<20||api_key.length>500||(assistant_answer_id!==null&&!uuid(assistant_answer_id)))return res.sendStatus(400);
+ app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{
+  const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);
+  res.json({configured:!!r.rowCount,key_stored:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]});
+ }));
+ app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{
+  const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
+  if(!uuid(bot_id)||(assistant_answer_id!==null&&!uuid(assistant_answer_id))||(api_key!==undefined&&(typeof api_key!=='string'||(api_key.length>0&&(api_key.length<20||api_key.length>500)))))return res.sendStatus(400);
   if(secret().length<32)return res.status(503).json({error:'Configure BUILDERBOT_ENCRYPTION_KEY'});
-  const token=randomBytes(32).toString('hex');
-  await query('INSERT INTO public.crm_builderbot_settings(company_id,bot_id,api_key_encrypted,webhook_token_hash,assistant_answer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id) DO UPDATE SET bot_id=EXCLUDED.bot_id,api_key_encrypted=EXCLUDED.api_key_encrypted,webhook_token_hash=EXCLUDED.webhook_token_hash,assistant_answer_id=EXCLUDED.assistant_answer_id,updated_at=now()',[req.user.company_id,bot_id,encrypt(api_key),hash(token),assistant_answer_id]);
-  res.json({ok:true,webhook_token:token,notice:'Store webhook token now; it will not be shown again'});
+  const existing=await query('SELECT bot_id,api_key_encrypted,webhook_token_hash FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);
+  const previous=existing.rows[0];
+  const newKey=typeof api_key==='string'&&api_key.length>0;
+  if(!newKey&&!previous)return res.status(400).json({error:'An API key is required for the first configuration'});
+  const changedBot=previous&&previous.bot_id!==bot_id;
+  const token=(!previous||changedBot)?randomBytes(32).toString('hex'):null;
+  await query('INSERT INTO public.crm_builderbot_settings(company_id,bot_id,api_key_encrypted,webhook_token_hash,assistant_answer_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id) DO UPDATE SET bot_id=EXCLUDED.bot_id,api_key_encrypted=EXCLUDED.api_key_encrypted,webhook_token_hash=EXCLUDED.webhook_token_hash,assistant_answer_id=EXCLUDED.assistant_answer_id,updated_at=now()',
+   [req.user.company_id,bot_id,newKey?encrypt(api_key):previous.api_key_encrypted,token?hash(token):previous.webhook_token_hash,assistant_answer_id]);
+  res.json({ok:true,...(token?{webhook_token:token,notice:'Save this webhook token now; it is only displayed once'}:{notice:'Settings updated; existing webhook token preserved'})});
  }));
  app.post('/api/builderbot/test',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);const data=await remote(c,'/settings');res.json({ok:true,settings:data})}catch(e){err(res,e)}}));
  app.get('/api/builderbot/templates',auth,operator,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);res.json(await remote(c,'/whatsapp-template?limit=100'))}catch(e){err(res,e)}}));
