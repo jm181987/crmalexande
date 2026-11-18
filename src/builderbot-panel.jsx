@@ -39,6 +39,17 @@ export default function BuilderBotPanel({user,contacts=[]}){
  <button type="button" disabled={!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrProjectId)} onClick={()=>window.open('https://app.builderbot.cloud/project/'+encodeURIComponent(qrProjectId)+'/deploy/qr/','_blank','noopener,noreferrer')}>Abrir QR de vinculación</button>
  <small>El enlace requiere iniciar sesión en el servicio externo. La conexión de la API y el estado real del teléfono son verificaciones distintas. ZARCO no puede mostrar el QR internamente hasta disponer de un endpoint oficial documentado.</small>
  </div>
+ <div style={{border:'1px solid #dce5f1',borderRadius:12,padding:16,display:'grid',gap:10}}>
+ <h3>Seguridad del webhook</h3>
+ <p>Regenerá el token si se perdió o quedó expuesto. El token anterior dejará de funcionar inmediatamente. La API Key y la conexión de WhatsApp no cambian.</p>
+ <button type="button" disabled={busy||!cfg?.configured} onClick={()=>run(async()=>{if(!window.confirm('¿Regenerar el token del webhook? El token anterior dejará de funcionar y deberás actualizarlo en la configuración del proveedor.'))return;const d=await api('/webhook-token/rotate','POST');setWebhookToken(d.webhook_token);setStatus('Token regenerado. Copialo ahora y actualizá X-Zarco-Webhook-Token en el proveedor. El anterior ya no funciona.')})}>Regenerar token de webhook</button>
+ {webhookToken&&<div role="status" style={{display:'grid',gap:8}}>
+ <strong>Token nuevo (visible solo en esta sesión)</strong>
+ <code style={{overflowWrap:'anywhere',userSelect:'all'}}>{webhookToken}</code>
+ <button type="button" onClick={()=>navigator.clipboard.writeText(webhookToken).then(()=>setStatus('Token copiado al portapapeles')).catch(()=>setStatus('Seleccioná y copiá el token manualmente.'))}>Copiar token</button>
+ <small>Encabezado: X-Zarco-Webhook-Token. No compartas el token en capturas ni mensajes.</small>
+ </div>}
+ </div>
  <h3>Paso 3 · Verificar conexión</h3>
  <p>Después de guardar, probá la conexión. Se comprobará el acceso real a la API; guardar por sí solo no confirma que los datos sean válidos.</p>
  <button disabled={busy||!cfg?.configured} onClick={verify}>{busy?'Verificando…':'Probar conexión ahora'}</button>
