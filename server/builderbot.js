@@ -111,6 +111,8 @@ export function registerBuilderbot(app,auth){
  app.delete('/api/builderbot/assistant/files/:fileId',auth,owner,wrap(async(req,res)=>{if(!/^[\w-]{1,120}$/.test(req.params.fileId))return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files?fileId='+encodeURIComponent(req.params.fileId),'DELETE'))}catch(e){err(res,e)}}));
  app.get('/api/builderbot/webhook-events',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT id,received_at,payload FROM public.crm_builderbot_webhook_events WHERE company_id=$1 ORDER BY id DESC LIMIT 50',[req.user.company_id]);res.json(r.rows)}));
 
+}
+
 // Accept both documented message.incoming/message.outgoing events and the
 // CUSTOMER/AGENT payloads emitted by the provider. Never infer a contact from
 // an unrecognized payload; raw events remain available for diagnostics.
@@ -161,7 +163,6 @@ async function syncWebhookMessage(companyId,botId,payload,eventHash){
   else await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
  }
  return Boolean(saved.rowCount);
-}
 }
 
 // Register this unauthenticated, token-protected endpoint before session routes.
