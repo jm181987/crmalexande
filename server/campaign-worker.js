@@ -1,3 +1,4 @@
+import {sendgridForCompany} from './sendgrid-settings.js';
 import {unsubscribeUrl} from './campaign-unsubscribe.js';
 import {query} from './db.js';
 const json=async r=>{const text=await r.text();if(!r.ok)throw Error('upstream_http_'+r.status);try{return JSON.parse(text)}catch{return {}}};
@@ -12,7 +13,8 @@ export async function dispatchCampaignBatch({limit=10}={}){
   try{
    let external=null;
    if(item.channel==='email'){
-    if(!process.env.SENDGRID_API_KEY||!process.env.SENDGRID_FROM_EMAIL)throw Error('sendgrid_not_configured');
+    const sendgrid=await sendgridForCompany(item.company_id);
+    if(!sendgrid.apiKey||!sendgrid.from)throw Error('sendgrid_not_configured');
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(item.email||''))throw Error('invalid_email');
     const blocked=await query('SELECT 1 FROM crm_email_suppressions WHERE company_id=$1 AND email=lower($2) LIMIT 1',[item.company_id,item.email]);
     if(blocked.rowCount)throw Error('email_suppressed');
@@ -20,8 +22,8 @@ export async function dispatchCampaignBatch({limit=10}={}){
     const escapedName=String(item.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const personalized=String(item.content||'').replace(/\{\{nombre\}\}/gi, /^\s*</.test(item.content)?escapedName:String(item.name||''));
     const unsubscribe=unsubscribeUrl(item.company_id,item.contact_id);
-    const body={headers:{'List-Unsubscribe':'<'+unsubscribe+'>'},personalizations:[{to:[{email:item.email}],custom_args:{campaign_delivery_id:item.id}}],from:{email:process.env.SENDGRID_FROM_EMAIL},subject,content:(/^\\s*</.test(item.content)?[{type:'text/plain',value:'Ver este mensaje en formato HTML. Para cancelar suscripción: '+unsubscribe},{type:'text/html',value:personalized+'<p style="font-size:12px"><a href="'+unsubscribe+'">Cancelar suscripción</a></p>'}]:[{type:'text/plain',value:personalized.replace(/^\[text\]/,'')+'\n\nPara cancelar suscripción: '+unsubscribe}]),...(process.env.SENDGRID_REPLY_TO?{reply_to:{email:process.env.SENDGRID_REPLY_TO}}:{})};
-    const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{Authorization:'Bearer '+process.env.SENDGRID_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
+    const body={headers:{'List-Unsubscribe':'<'+unsubscribe+'>'},personalizations:[{to:[{email:item.email}],custom_args:{campaign_delivery_id:item.id}}],from:{email:sendgrid.from},subject,content:(/^\\s*</.test(item.content)?[{type:'text/plain',value:'Ver este mensaje en formato HTML. Para cancelar suscripción: '+unsubscribe},{type:'text/html',value:personalized+'<p style="font-size:12px"><a href="'+unsubscribe+'">Cancelar suscripción</a></p>'}]:[{type:'text/plain',value:personalized.replace(/^\[text\]/,'')+'\n\nPara cancelar suscripción: '+unsubscribe}]),...(sendgrid.replyTo?{reply_to:{email:sendgrid.replyTo}}:{})};
+    const r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{Authorization:'Bearer '+sendgrid.apiKey,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000)});
     if(r.status!==202)throw Error('sendgrid_http_'+r.status);
     external=r.headers.get('x-message-id');
    }else if(item.channel==='whatsapp'){
