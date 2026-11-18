@@ -115,11 +115,11 @@ export function registerBuilderbot(app,auth){
   const candidates=[row.phone,row.external_id].filter(v=>typeof v==='string');
   for(const raw of candidates){
    const value=raw.trim();
-   if(/@lid(?:$|\\b)/i.test(value))continue;
-   const local=value.replace(/@(?:s\\.whatsapp\\.net|c\\.us)$/i,'');
-   if(!/^\\+?[\\d\\s().-]+$/.test(local))continue;
-   const digits=local.replace(/\\D/g,'');
-   if(/^\\d{8,15}$/.test(digits))return digits;
+   if(/@lid(?:$|\b)/i.test(value))continue;
+   const local=value.replace(/@(?:s\.whatsapp\.net|c\.us)$/i,'');
+   if(!/^\+?[\d\s().-]+$/.test(local))continue;
+   const digits=local.replace(/\D/g,'');
+   if(/^\d{8,15}$/.test(digits))return digits;
   }
   return null;
  };
