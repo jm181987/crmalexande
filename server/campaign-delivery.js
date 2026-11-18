@@ -33,6 +33,19 @@ export function registerCampaignDelivery(app,auth){
   const from=String(process.env.SENDGRID_FROM_EMAIL||'');
   res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:from.includes('@')&&from.includes('.'),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false});
  });
+ app.get('/api/campaigns/email/recipients-preview',auth,manager,safe(async(req,res)=>{
+  const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
+  if(tag.length>100||source.length>100)return res.status(400).json({error:'Filtro demasiado largo'});
+  const result=await query(`SELECT c.id,c.name,c.email,c.source,
+    EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=true) AS consented,
+    EXISTS(SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email)) AS suppressed
+    FROM contacts c WHERE c.company_id=$1 AND c.email IS NOT NULL AND trim(c.email)<>'' 
+    AND ($2::text='' OR $2=ANY(c.tags)) AND ($3::text='' OR c.source=$3)
+    ORDER BY c.name,c.id LIMIT 5000`,[req.user.company_id,tag,source]);
+  const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||''));
+  const rows=result.rows.map(c=>({...c,eligible:validEmail(c.email)&&c.consented&&!c.suppressed}));
+  res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rowCount===5000});
+ }));
  app.get('/api/campaigns/:id/deliveries',auth,manager,safe(async(req,res)=>{
   const campaign=await query('SELECT id,name,status FROM crm_campaigns WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   if(!campaign.rowCount)return res.sendStatus(404);
