@@ -62,6 +62,13 @@ export function registerBuilderbot(app,auth){
    await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[req.params.id]);res.status(201).json(saved.rows[0]);
   }catch(e){err(res,e)}
  }));
+ app.post('/api/builderbot/webhook-token/rotate',auth,owner,wrap(async(req,res)=>{
+  const token=randomBytes(32).toString('hex');
+  const updated=await query('UPDATE public.crm_builderbot_settings SET webhook_token_hash=$1,updated_at=now() WHERE company_id=$2 RETURNING bot_id',[hash(token),req.user.company_id]);
+  if(!updated.rowCount)return res.status(409).json({error:'Configurá primero Sistema IA 2'});
+  res.set('Cache-Control','no-store');
+  res.json({ok:true,bot_id:updated.rows[0].bot_id,webhook_token:token,notice:'El token anterior quedó invalidado. Actualizá el encabezado del webhook antes de enviar nuevos eventos.'});
+ }));
  app.get('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT bot_id,assistant_answer_id,updated_at FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);res.json({configured:!!r.rowCount,secret_ready:secret().length>=32,...r.rows[0]})}));
  app.put('/api/builderbot/settings',auth,owner,wrap(async(req,res)=>{const {bot_id,api_key,assistant_answer_id=null}=req.body||{};
   if(!uuid(bot_id)||typeof api_key!=='string'||api_key.length<20||api_key.length>500||(assistant_answer_id!==null&&!uuid(assistant_answer_id)))return res.sendStatus(400);
