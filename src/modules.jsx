@@ -86,11 +86,11 @@ function IntegrationsOverview({data,error,user}){
  };load();const timer=setInterval(load,30000);return()=>{active=false;clearInterval(timer)}},[user?.role]);
  const evolution=whatsapp.loading?'Consultando…':whatsapp.error?'No se pudo verificar':whatsapp.total===0?'Sin instancias registradas':whatsapp.connected+' conectada(s) de '+whatsapp.total+' · '+(whatsapp.details||[]).map(x=>x.name+': '+x.state).join(' | ');
  const builderbot=provider?.error?'No se pudo verificar':!provider?'Consultando…':!provider.builderbot_configured?'Sin configurar':botHealth||'Credenciales registradas (conexión no verificada)';
- const active=provider?.provider==='builderbot'?'Sistema IA 2 · BuilderBot':provider?.provider==='evolution'?'Evolution API':'No disponible';
+ const active=provider?.provider==='builderbot'?'Sistema IA 2':provider?.provider==='evolution'?'Evolution API':'No disponible';
  const others=[['instagram','Instagram'],['messenger','Messenger'],['email','Correo electrónico'],['sms','SMS'],['google_calendar','Google Calendar'],['outlook_calendar','Outlook Calendar'],['meta_ads','Meta Ads'],['google_ads','Google Ads'],['google_reviews','Google Reviews']];
  const rows=[
  {label:'WhatsApp · Evolution API',status:evolution+(provider?.provider==='evolution'?' · Proveedor seleccionado':'')},
- {label:'WhatsApp · Sistema IA 2 (BuilderBot)',status:builderbot+(provider?.provider==='builderbot'?' · Proveedor seleccionado':'')},
+ {label:'WhatsApp · Sistema IA 2',status:builderbot+(provider?.provider==='builderbot'?' · Proveedor seleccionado':'')},
  {label:'SendGrid · Correo de campañas',status:operations?operations.sendgrid_key_configured&&operations.sendgrid_sender_configured?'Credenciales y remitente configurados (entrega no verificada)':'Configuración pendiente':'No verificado'},
  ...others.map(([key,label])=>({label,status:data?.find(x=>x.provider===key)?.status||'Sin configurar'}))
  ];
