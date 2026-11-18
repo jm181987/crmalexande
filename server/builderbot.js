@@ -53,7 +53,7 @@ export function registerBuilderbot(app,auth){
   const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
   const c=await query("SELECT c.id,co.phone FROM conversations c JOIN contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'"+(req.user.role==='agent'?' AND c.assignee_id=$3':''),args);
   if(!c.rowCount)return res.sendStatus(404);
-  const number=String(c.rows[0].phone||'').replace(/\D/g,'');
+  const number=contactPhone(c.rows[0]);
   if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=(SELECT contact_id FROM conversations WHERE id=$2 AND company_id=$1) AND channel='whatsapp'",[req.user.company_id,req.params.id]);
   if(consent.rows[0]?.opted_in===false)return res.status(409).json({error:'El contacto rechazó recibir mensajes de WhatsApp'});
@@ -109,19 +109,34 @@ export function registerBuilderbot(app,auth){
  }));
  app.get('/api/builderbot/assistant/files',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files'))}catch(e){err(res,e)}}));
  app.delete('/api/builderbot/assistant/files/:fileId',auth,owner,wrap(async(req,res)=>{if(!/^[\w-]{1,120}$/.test(req.params.fileId))return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files?fileId='+encodeURIComponent(req.params.fileId),'DELETE'))}catch(e){err(res,e)}}));
+ // Resolve the WhatsApp number from the contact or conversation JID.
+ // Never use @lid identifiers or arbitrary long digit strings as phone numbers.
+ const contactPhone=(row)=>{
+  const candidates=[row.phone,row.external_id].filter(v=>typeof v==='string');
+  for(const raw of candidates){
+   const value=raw.trim();
+   if(/@lid(?:$|\\b)/i.test(value))continue;
+   const local=value.replace(/@(?:s\\.whatsapp\\.net|c\\.us)$/i,'');
+   if(!/^\\+?[\\d\\s().-]+$/.test(local))continue;
+   const digits=local.replace(/\\D/g,'');
+   if(/^\\d{8,15}$/.test(digits))return digits;
+  }
+  return null;
+ };
  // Human takeover: BuilderBot's per-number blacklist stops bot replies,
  // while Evolution continues to receive and send WhatsApp messages.
  app.get('/api/conversations/:id/builderbot-ai',auth,operator,wrap(async(req,res)=>{
   if(!uuid(req.params.id))return res.sendStatus(400);
-  const c=await query("SELECT co.phone FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
+  const c=await query("SELECT co.phone,c.external_id FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
   if(!c.rowCount)return res.sendStatus(404);
   const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
+  if(!number)return res.json({paused:null,updated_at:null,remote_control_enabled:false,error:'No se identificó un número WhatsApp válido para este contacto',provider:'builderbot',chat_provider:'evolution'});
   const state=await query('SELECT paused,updated_at FROM public.crm_builderbot_contact_ai WHERE company_id=$1 AND phone=$2',[req.user.company_id,number]);
   res.json({paused:state.rows[0]?.paused??null,updated_at:state.rows[0]?.updated_at??null,remote_control_enabled:true,method:'blacklist',provider:'builderbot',chat_provider:'evolution'});
  }));
  app.put('/api/conversations/:id/builderbot-ai',auth,operator,wrap(async(req,res)=>{
   if(!uuid(req.params.id)||typeof req.body?.paused!=='boolean')return res.sendStatus(400);
-  const c=await query("SELECT co.phone FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
+  const c=await query("SELECT co.phone,c.external_id FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
   if(!c.rowCount)return res.sendStatus(404);
   const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
   if(!/^\\d{8,15}$/.test(number))return res.status(409).json({error:'Este contacto no tiene un número telefónico válido para BuilderBot'});
