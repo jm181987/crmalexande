@@ -5,6 +5,9 @@ const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const uuid=s=>typeof s==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 const owner=(req,res,next)=>req.user.role==='owner'?next():res.sendStatus(403);
 const operator=(req,res,next)=>['owner','manager'].includes(req.user.role)?next():res.sendStatus(403);
+const missingProviderTable=e=>e?.code==='42P01'&&/crm_whatsapp_provider_settings/.test(String(e.message||''));
+async function selectedProvider(companyId){try{const r=await query('SELECT provider FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[companyId]);return r.rows[0]?.provider||'evolution'}catch(e){if(missingProviderTable(e))return 'evolution';throw e}}
+
 const secret=()=>process.env.BUILDERBOT_ENCRYPTION_KEY||'';
 const key=()=>{if(secret().length<32)throw Object.assign(new Error('BUILDERBOT_ENCRYPTION_KEY missing'),{status:503});return createHash('sha256').update(secret()).digest()};
 const hash=s=>createHash('sha256').update(s).digest('hex');
@@ -20,10 +23,11 @@ async function remote(cfg,path,method='GET',body){
 function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación de Sistema IA 2. Revisá la configuración y el registro del servidor.'})}
 export function registerBuilderbot(app,auth){
  app.get('/api/whatsapp-provider',auth,wrap(async(req,res)=>{
-  const row=await query('SELECT provider,updated_at FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);
+  let row={rows:[]},migration_required=false;
+  try{row=await query('SELECT provider,updated_at FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id])}catch(e){if(!missingProviderTable(e))throw e;migration_required=true}
   const bot=await query('SELECT bot_id FROM public.crm_builderbot_settings WHERE company_id=$1',[req.user.company_id]);
   const instances=await query("SELECT count(*)::int AS total FROM public.crm_evolution_instances WHERE company_id=$1 AND status <> 'deleted'",[req.user.company_id]);
-  res.json({provider:row.rows[0]?.provider||'evolution',updated_at:row.rows[0]?.updated_at||null,evolution_configured:instances.rows[0].total>0,builderbot_configured:bot.rowCount>0});
+  res.json({provider:row.rows[0]?.provider||'evolution',updated_at:row.rows[0]?.updated_at||null,evolution_configured:instances.rows[0].total>0,builderbot_configured:bot.rowCount>0,migration_required});
  }));
  app.put('/api/whatsapp-provider',auth,owner,wrap(async(req,res)=>{
   const provider=req.body?.provider;
@@ -38,12 +42,12 @@ export function registerBuilderbot(app,auth){
    if(!base.startsWith('https://')&&process.env.EVOLUTION_ALLOW_INSECURE_HTTP!=='true')return res.status(409).json({error:'Evolution API requiere HTTPS'});
    try{const response=await fetch(base+'/instance/connectionState/'+encodeURIComponent(e.rows[0].name),{headers:{apikey:process.env.EVOLUTION_API_KEY},signal:AbortSignal.timeout(12000)});const data=await response.json().catch(()=>({}));if(!response.ok||!['open','connected'].includes(String(data.instance?.state||data.state||'').toLowerCase()))return res.status(409).json({error:'Evolution API no tiene una instancia conectada'})}catch{return res.status(502).json({error:'No se pudo verificar Evolution API'})}
   }
-  await query('INSERT INTO public.crm_whatsapp_provider_settings(company_id,provider) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET provider=EXCLUDED.provider,updated_at=now()',[req.user.company_id,provider]);
+  try{await query('INSERT INTO public.crm_whatsapp_provider_settings(company_id,provider) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET provider=EXCLUDED.provider,updated_at=now()',[req.user.company_id,provider])}catch(e){if(missingProviderTable(e))return res.status(503).json({error:'Falta aplicar la migración de WhatsApp. Ejecutá npm run db:migrate en el servidor.'});throw e}
   res.json({provider,ok:true});
  }));
  app.post('/api/conversations/:id/builderbot-send',auth,operator,wrap(async(req,res)=>{
-  const selected=await query('SELECT provider FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);
-  if(selected.rows[0]?.provider!=='builderbot')return res.status(409).json({error:'Sistema IA 2 no es el proveedor activo'});
+  const selected=await selectedProvider(req.user.company_id);
+  if(selected!=='builderbot')return res.status(409).json({error:'Sistema IA 2 no es el proveedor activo'});
   const body=req.body?.body;
   if(typeof body!=='string'||!body.trim()||body.length>4000)return res.status(400).json({error:'Mensaje inválido'});
   const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
