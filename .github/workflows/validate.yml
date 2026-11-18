@@ -19,3 +19,5 @@ jobs:
             node --check "$file"
           done
       - run: npm run build
+      - name: Validate production Docker build (Coolify parity)
+        run: docker build --progress=plain -t crm-build-check .
