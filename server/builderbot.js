@@ -109,6 +109,30 @@ export function registerBuilderbot(app,auth){
  }));
  app.get('/api/builderbot/assistant/files',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files'))}catch(e){err(res,e)}}));
  app.delete('/api/builderbot/assistant/files/:fileId',auth,owner,wrap(async(req,res)=>{if(!/^[\w-]{1,120}$/.test(req.params.fileId))return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files?fileId='+encodeURIComponent(req.params.fileId),'DELETE'))}catch(e){err(res,e)}}));
+ // Contact-specific AI controls are isolated from Evolution's chat transport.
+ // Do not enable remote writes until BuilderBot confirms that /mute targets one number.
+ app.get('/api/conversations/:id/builderbot-ai',auth,operator,wrap(async(req,res)=>{
+  if(!uuid(req.params.id))return res.sendStatus(400);
+  const c=await query("SELECT co.phone FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
+  if(!c.rowCount)return res.sendStatus(404);
+  const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
+  const state=await query('SELECT paused,updated_at FROM public.crm_builderbot_contact_ai WHERE company_id=$1 AND phone=$2',[req.user.company_id,number]);
+  res.json({paused:state.rows[0]?.paused??null,updated_at:state.rows[0]?.updated_at??null,remote_control_enabled:process.env.BUILDERBOT_CONTACT_MUTE_VERIFIED==='true',provider:'builderbot',chat_provider:'evolution'});
+ }));
+ app.put('/api/conversations/:id/builderbot-ai',auth,operator,wrap(async(req,res)=>{
+  if(!uuid(req.params.id)||typeof req.body?.paused!=='boolean')return res.sendStatus(400);
+  if(process.env.BUILDERBOT_CONTACT_MUTE_VERIFIED!=='true')return res.status(409).json({error:'Control individual de BuilderBot pendiente de validación. No se modificó la IA ni Evolution.'});
+  const c=await query("SELECT co.phone FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
+  if(!c.rowCount)return res.sendStatus(404);
+  const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
+  if(!/^\\d{8,15}$/.test(number))return res.status(409).json({error:'Este contacto no tiene un número telefónico válido para BuilderBot'});
+  const cfg=await settings(req.user.company_id);
+  // Request format MUST be verified with the provider before enabling this feature.
+  try{await remote(cfg,'/mute','POST',{number,flag:req.body.paused});}
+  catch(e){return err(res,e)}
+  const result=await query('INSERT INTO public.crm_builderbot_contact_ai(company_id,phone,paused,updated_by) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,phone) DO UPDATE SET paused=EXCLUDED.paused,updated_by=EXCLUDED.updated_by,updated_at=now() RETURNING paused,updated_at',[req.user.company_id,number,req.body.paused,req.user.id]);
+  res.json({ok:true,...result.rows[0],provider:'builderbot',chat_provider:'evolution'});
+ }));
  app.get('/api/builderbot/webhook-events',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT id,received_at,payload FROM public.crm_builderbot_webhook_events WHERE company_id=$1 ORDER BY id DESC LIMIT 50',[req.user.company_id]);res.json(r.rows)}));
 
 }
