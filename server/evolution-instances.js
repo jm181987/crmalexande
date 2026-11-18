@@ -339,8 +339,9 @@ export function registerEvolutionInstances(app,auth){
   res.status(201).json(x.rows[0]||{sent:true});
  }));
  app.post('/api/conversations/:id/evolution-send',auth,safe(async(req,res)=>{
-  const activeProvider=await query('SELECT provider FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);
-  if(activeProvider.rows[0]?.provider==='builderbot')return res.status(409).json({error:'Evolution API no es el proveedor activo. Usá Sistema IA 2.'});
+  let activeProvider='evolution';
+  try{const r=await query('SELECT provider FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id]);activeProvider=r.rows[0]?.provider||'evolution'}catch(e){if(e.code!=='42P01'||!/crm_whatsapp_provider_settings/.test(String(e.message||'')))throw e}
+  if(activeProvider==='builderbot')return res.status(409).json({error:'Evolution API no es el proveedor activo. Usá Sistema IA 2.'});
  const body=req.body?.body;if(typeof body!=='string'||!body.trim()||body.length>4096)return res.status(400).json({error:'Invalid message'});
  const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
  const c=await query("SELECT external_id FROM conversations WHERE id=$1 AND company_id=$2 AND channel='whatsapp'"+(req.user.role==='agent'?' AND assignee_id=$3':''),args);if(!c.rowCount)return res.sendStatus(404);
