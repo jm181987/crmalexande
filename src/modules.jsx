@@ -24,10 +24,12 @@ function OpportunityRuleForm({refresh,error}){
  <button disabled={busy||!name||days<1||days>365} onClick={async()=>{setBusy(true);try{await api('/automation-rules','POST',{name,trigger_event:'opportunity_status',action_type:'create_task',config:{days,status}});refresh()}catch(e){error(e.message)}finally{setBusy(false)}}}>Crear regla desactivada</button></Panel>;
 }
 function CampaignManager({campaigns,contacts,refresh,error,user}){
+ const [recipientPreview,setRecipientPreview]=useState(null),[previewLoading,setPreviewLoading]=useState(false);
  const [instances,setInstances]=useState([]),[operations,setOperations]=useState(null),[config,setConfig]=useState(null),[selected,setSelected]=useState(''),[channel,setChannel]=useState('whatsapp'),[start,setStart]=useState(''),[interval,setIntervalSeconds]=useState(180),[tag,setTag]=useState(''),[source,setSource]=useState(''),[busy,setBusy]=useState(false),[stats,setStats]=useState(null),[consent,setConsent]=useState({});
  useEffect(()=>{api('/evolution/instances').then(setInstances).catch(()=>{});api('/sendgrid/config-check').then(setConfig).catch(()=>{});api('/campaigns/operations/status').then(setOperations).catch(()=>{})},[]);
  const run=async(fn)=>{setBusy(true);try{await fn();refresh()}catch(e){error(e.message)}finally{setBusy(false)}};
  const chosen=campaigns?.find(x=>x.id===selected);
+ const previewRecipients=async()=>{setPreviewLoading(true);try{const q=new URLSearchParams();if(tag.trim())q.set('tag',tag.trim());if(source.trim())q.set('source',source.trim());setRecipientPreview(await api('/campaigns/email/recipients-preview?'+q.toString()))}catch(e){error(e.message)}finally{setPreviewLoading(false)}};
  return <><Panel><h2>Preparar campaña</h2><p>Solo se incluyen contactos con consentimiento explícito para el canal. Preparar no envía mensajes.</p><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
  <label>Campaña<select value={selected} onChange={e=>{setSelected(e.target.value);setStats(null);setChannel(campaigns?.find(x=>x.id===e.target.value)?.channel||'whatsapp')}}><option value="">Elegir</option>{campaigns?.filter(x=>['whatsapp','email'].includes(x.channel)).map(x=><option key={x.id} value={x.id}>{x.name} ({x.channel})</option>)}</select></label>
  {chosen?.channel==='whatsapp'&&<label>Instancia<select value={instances.find(x=>x.name===consent.instance)?.name||''} onChange={e=>setConsent(v=>({...v,instance:e.target.value}))}><option value="">Elegir</option>{instances.map(x=><option key={x.id} value={x.name}>{x.name}</option>)}</select></label>}
@@ -35,6 +37,14 @@ function CampaignManager({campaigns,contacts,refresh,error,user}){
  <label>Intervalo (segundos)<input type="number" min="60" max="86400" value={interval} onChange={e=>setIntervalSeconds(Number(e.target.value))}/></label>
  <label>Etiqueta (opcional)<input value={tag} onChange={e=>setTag(e.target.value)}/></label>
  <label>Origen (opcional)<input value={source} onChange={e=>setSource(e.target.value)}/></label></div>
+ {chosen?.channel==='email'&&<div style={{border:'1px solid #dce5f1',borderRadius:12,padding:16,margin:'16px 0'}}>
+  <h3>Destinatarios desde Contactos del CRM</h3>
+  <p>Los emails se toman automáticamente de los clientes registrados. Solo se preparan contactos con email válido, consentimiento de email y sin supresión. Los filtros de etiqueta y origen se aplican a esta consulta.</p>
+  <button type="button" disabled={previewLoading} onClick={previewRecipients}>{previewLoading?'Consultando…':'Consultar destinatarios'}</button>
+  {recipientPreview&&<><p><strong>{recipientPreview.eligible} elegibles</strong> de {recipientPreview.total} contactos con email encontrados{recipientPreview.limited?' (consulta limitada a 5000)':''}.</p>
+  <div className="table-scroll" style={{maxHeight:280,overflow:'auto'}}><table><thead><tr><th>Cliente</th><th>Email registrado</th><th>Estado</th></tr></thead><tbody>{recipientPreview.contacts.map(c=><tr key={c.id}><td>{c.name}</td><td>{c.email}</td><td>{c.eligible?'Apto':c.suppressed?'Excluido (baja o rebote)':!c.consented?'Sin consentimiento':'Email inválido'}</td></tr>)}</tbody></table></div>
+  <small>Vista previa de hasta 150 contactos. Volvé a consultar si cambian los filtros o consentimientos. Preparar campaña no envía inmediatamente.</small></>}
+ </div>}
  <p>{chosen?.channel==='email'?'SendGrid: '+(config?.api_key_configured&&config?.sender_configured?'Configuración presente':'Credenciales o remitente pendientes'):'WhatsApp: seleccioná una instancia Evolution'}</p>
  <button disabled={busy||!chosen||chosen.status!=='draft'||!start||(chosen.channel==='whatsapp'&&!consent.instance)} onClick={()=>run(async()=>{const d=await api('/campaigns/'+selected+(chosen.channel==='email'?'/prepare-email':'/prepare'),'POST',{scheduled_at:new Date(start).toISOString(),interval_seconds:interval,tag:tag||null,source:source||null,...(chosen.channel==='whatsapp'?{instance_name:consent.instance}:{})});window.alert('Destinatarios preparados: '+d.prepared+' — sin envío inmediato')})}>Preparar destinatarios</button>
  {chosen&&<><button disabled={busy} onClick={()=>run(async()=>setStats(await api('/campaigns/'+selected+'/deliveries')))}>Ver estadísticas</button><button disabled={busy||chosen.status!=='ready'} onClick={()=>run(async()=>{await api('/campaigns/'+selected+'/pause','POST')})}>Pausar</button></>}
