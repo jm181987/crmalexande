@@ -1,3 +1,4 @@
+import {registerSendgridSettings} from './sendgrid-settings.js';
 import {registerEmailImageRoutes} from './email-images.js';
 import 'dotenv/config';
 import express from 'express';
@@ -478,6 +479,7 @@ registerUnsubscribe(app);
 registerCampaignDelivery(app,auth);
 registerModuleRoutes(app,auth);
 registerEmailImageRoutes(app,auth);
+registerSendgridSettings(app,auth);
 registerAiReceptionRoutes(app,auth);
 registerInventoryRoutes(app,auth);
 app.use('/api',(req,res)=>res.status(404).json({error:'API route not found'}));
