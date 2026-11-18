@@ -129,7 +129,7 @@ export function registerBuilderbot(app,auth){
   if(!uuid(req.params.id))return res.sendStatus(400);
   const c=await query("SELECT co.phone,c.external_id FROM public.conversations c JOIN public.contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'",[req.params.id,req.user.company_id]);
   if(!c.rowCount)return res.sendStatus(404);
-  const number=String(c.rows[0].phone||'').replace(/\\D/g,'');
+  const number=contactPhone(c.rows[0]);
   if(!number)return res.json({paused:null,updated_at:null,remote_control_enabled:false,error:'No se identificó un número WhatsApp válido para este contacto',provider:'builderbot',chat_provider:'evolution'});
   const state=await query('SELECT paused,updated_at FROM public.crm_builderbot_contact_ai WHERE company_id=$1 AND phone=$2',[req.user.company_id,number]);
   res.json({paused:state.rows[0]?.paused??null,updated_at:state.rows[0]?.updated_at??null,remote_control_enabled:true,method:'blacklist',provider:'builderbot',chat_provider:'evolution'});
