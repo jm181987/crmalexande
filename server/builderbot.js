@@ -103,6 +103,39 @@ export function registerBuilderbot(app,auth){
  app.get('/api/builderbot/assistant/files',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files'))}catch(e){err(res,e)}}));
  app.delete('/api/builderbot/assistant/files/:fileId',auth,owner,wrap(async(req,res)=>{if(!/^[\w-]{1,120}$/.test(req.params.fileId))return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant/files?fileId='+encodeURIComponent(req.params.fileId),'DELETE'))}catch(e){err(res,e)}}));
  app.get('/api/builderbot/webhook-events',auth,owner,wrap(async(req,res)=>{const r=await query('SELECT id,received_at,payload FROM public.crm_builderbot_webhook_events WHERE company_id=$1 ORDER BY id DESC LIMIT 50',[req.user.company_id]);res.json(r.rows)}));
+
+// Normalize only identifiable inbound text events. Unknown provider payloads stay in the event log
+// for inspection rather than being assigned to the wrong contact or company.
+function inboundEvent(payload){
+ const item=payload?.data?.message||payload?.data||payload?.message||payload;
+ if(!item||typeof item!=='object'||Array.isArray(item))return null;
+ const fromMe=item.fromMe??item.from_me??item.key?.fromMe??payload.fromMe;
+ if(fromMe===true||fromMe==='true'||item.direction==='outbound'||item.type==='outgoing')return null;
+ const rawPhone=item.key?.remoteJid||item.from||item.phone||item.number||item.sender?.phone||item.sender?.id||item.contact?.phone;
+ if(typeof rawPhone!=='string')return null;
+ const phone=rawPhone.replace(/@s\\.whatsapp\\.net$/,'').replace(/[^0-9]/g,'');
+ if(!/^\\d{8,15}$/.test(phone))return null;
+ const rawBody=item.body??item.text??item.content??item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
+ const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ if(!body||body.length>10000)return null;
+ const id=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
+ if(typeof id!=='string'||id.length<3||id.length>250)return null;
+ return {phone,body,id,name:String(item.pushName||item.sender?.name||phone).slice(0,200)};
+}
+async function syncInbound(companyId,botId,payload){
+ const event=inboundEvent(payload);
+ if(!event)return false;
+ const external='sistema-ia2:'+botId+':'+event.id;
+ const existing=await query('SELECT id FROM messages WHERE external_id=$1',[external]);
+ if(existing.rowCount)return false;
+ let contact=await query('SELECT id FROM contacts WHERE company_id=$1 AND phone=$2 LIMIT 1',[companyId,event.phone]);
+ if(!contact.rowCount)contact=await query("INSERT INTO contacts(company_id,name,phone,source) VALUES($1,$2,$3,'whatsapp') RETURNING id",[companyId,event.name,event.phone]);
+ let conversation=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND external_id=$2 LIMIT 1",[companyId,event.phone]);
+ if(!conversation.rowCount)conversation=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[companyId,contact.rows[0].id,event.phone]);
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,'inbound',$2,$3) ON CONFLICT DO NOTHING RETURNING id",[conversation.rows[0].id,event.body,external]);
+ if(saved.rowCount)await query('UPDATE conversations SET unread_count=unread_count+1,updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
+ return Boolean(saved.rowCount);
+}
  // BuilderBot custom webhook header must be configured to X-Zarco-Webhook-Token.
  app.post('/api/webhooks/builderbot/:botId',wrap(async(req,res)=>{
   if(!uuid(req.params.botId))return res.sendStatus(404);
@@ -114,6 +147,7 @@ export function registerBuilderbot(app,auth){
   const serialized=JSON.stringify(payload);if(serialized.length>900000)return res.sendStatus(413);
   const eventHash=hash(serialized);
   await query('INSERT INTO public.crm_builderbot_webhook_events(company_id,bot_id,event_hash,payload) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,event_hash) DO NOTHING',[cfg.company_id,req.params.botId,eventHash,serialized]);
-  res.status(202).json({received:true});
+  const synced=await syncInbound(cfg.company_id,req.params.botId,payload);
+  res.status(202).json({received:true,synced});
  }));
 }
