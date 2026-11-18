@@ -49,7 +49,7 @@ export function registerBuilderbot(app,auth){
  app.get('/api/builderbot/assistant',auth,owner,wrap(async(req,res)=>{try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.status(409).json({error:'Set assistant answer ID first'});res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant'))}catch(e){err(res,e)}}));
  app.post('/api/builderbot/assistant',auth,owner,wrap(async(req,res)=>{if(typeof req.body?.instructions!=='string'||req.body.instructions.length>20000)return res.sendStatus(400);try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);res.json(await remote(c,'/answer/'+c.assistant_answer_id+'/plugin/assistant','POST',{instructions:req.body.instructions}))}catch(e){err(res,e)}}));
  app.post('/api/builderbot/assistant/files',auth,owner,wrap(async(req,res)=>{const {filename,mime_type,base64}=req.body||{};
-  if(typeof filename!=='string'||!/^[\\w .()-]{1,100}\\.(pdf|txt|md|docx)$/i.test(filename)||typeof base64!=='string'||base64.length>4000000)return res.sendStatus(400);
+  if(typeof filename!=='string'||!/^[\w .()-]{1,100}\.(pdf|txt|md|docx)$/i.test(filename)||typeof base64!=='string'||base64.length>4000000)return res.sendStatus(400);
   const buffer=Buffer.from(base64,'base64');if(!buffer.length||buffer.length>2500000)return res.sendStatus(413);
   try{const c=await settings(req.user.company_id);if(!c.assistant_answer_id)return res.sendStatus(409);
    const form=new FormData();form.append('file',new Blob([buffer],{type:typeof mime_type==='string'?mime_type:'application/octet-stream'}),filename);
