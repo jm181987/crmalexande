@@ -53,8 +53,8 @@ export function registerBuilderbot(app,auth){
   const args=[req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
   const c=await query("SELECT c.id,co.phone FROM conversations c JOIN contacts co ON co.id=c.contact_id AND co.company_id=c.company_id WHERE c.id=$1 AND c.company_id=$2 AND c.channel='whatsapp'"+(req.user.role==='agent'?' AND c.assignee_id=$3':''),args);
   if(!c.rowCount)return res.sendStatus(404);
-  const number=contactPhone(c.rows[0]);
-
+  const number=String(c.rows[0].phone||'').replace(/\D/g,'');
+  if(!/^\d{8,15}$/.test(number))return res.status(400).json({error:'Número de contacto inválido'});
   const consent=await query("SELECT opted_in FROM crm_contact_consents WHERE company_id=$1 AND contact_id=(SELECT contact_id FROM conversations WHERE id=$2 AND company_id=$1) AND channel='whatsapp'",[req.user.company_id,req.params.id]);
   if(consent.rows[0]?.opted_in===false)return res.status(409).json({error:'El contacto rechazó recibir mensajes de WhatsApp'});
   try{const cfg=await settings(req.user.company_id);await remote(cfg,'/messages','POST',{number,messages:{content:body.trim()},checkIfExists:true});
