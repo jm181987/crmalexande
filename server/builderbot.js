@@ -113,8 +113,8 @@ function inboundEvent(payload){
  if(fromMe===true||fromMe==='true'||item.direction==='outbound'||item.type==='outgoing')return null;
  const rawPhone=item.key?.remoteJid||item.from||item.phone||item.number||item.sender?.phone||item.sender?.id||item.contact?.phone;
  if(typeof rawPhone!=='string')return null;
- const phone=rawPhone.replace(/@s\\.whatsapp\\.net$/,'').replace(/[^0-9]/g,'');
- if(!/^\\d{8,15}$/.test(phone))return null;
+ const phone=rawPhone.replace(/@s\.whatsapp\.net$/,'').replace(/[^0-9]/g,'');
+ if(!/^\d{8,15}$/.test(phone))return null;
  const rawBody=item.body??item.text??item.content??item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
  const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
  if(!body||body.length>10000)return null;
