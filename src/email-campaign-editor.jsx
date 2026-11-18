@@ -19,8 +19,7 @@ export default function EmailCampaignEditor({onCreate}){
  const finalHtml=editor==='html'?html:generated;
  const choose=(key)=>{const t=templates[key];setFields({...t});setSubject(t.subject);setHtml(renderEmail(t));setEditor('visual');setError('')};
  const change=(key,value)=>setFields(f=>({...f,[key]:value}));
- const [imageMessage,setImageMessage]=useState('');
- const onImageFile=e=>{const file=e.target.files?.[0];if(!file)return;setImageMessage('Para enviar imágenes por email necesitás una URL pública HTTPS. Subí la imagen a tu alojamiento de imágenes y pegá su enlace aquí; los archivos locales no se incrustan porque muchos clientes de correo los bloquean.');e.target.value=''};
+
  return <section className="email-studio">
   <div className="email-studio-intro"><div><span className="email-studio-eyebrow">CAMPAIGN STUDIO</span><h2>Diseñá tu próximo email</h2><p>Elegí una plantilla, personalizá cada detalle y revisá el resultado antes de guardar.</p></div><span className="email-studio-draft">● Borrador seguro</span></div>
   <div className="email-studio-meta">
@@ -38,7 +37,7 @@ export default function EmailCampaignEditor({onCreate}){
      <label>Etiqueta superior<input value={fields.eyebrow||''} maxLength={90} onChange={e=>change('eyebrow',e.target.value)}/></label>
      <label>Título<input value={fields.title} maxLength={180} onChange={e=>change('title',e.target.value)}/></label>
      <label>Subtítulo<input value={fields.subtitle||''} maxLength={160} onChange={e=>change('subtitle',e.target.value)}/></label>
-     <div className="email-studio-image-controls"><strong>Imagen principal</strong><label>URL pública de imagen (HTTPS)<input type="url" value={fields.image||''} onChange={e=>{change('image',e.target.value);setImageMessage('')}} placeholder="https://.../imagen.jpg"/></label><label>Descripción accesible<input value={fields.imageAlt||''} maxLength={160} onChange={e=>change('imageAlt',e.target.value)}/></label><label className="email-studio-upload">Elegir imagen desde mi equipo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={onImageFile}/></label>{imageMessage&&<p className="email-studio-note" role="status">{imageMessage}</p>}<button type="button" onClick={()=>change('image','')}>Quitar imagen</button></div>
+     <div className="email-studio-image-controls"><strong>Imagen principal</strong><label>URL pública de imagen (HTTPS)<input type="url" value={fields.image||''} onChange={e=>change('image',e.target.value)} placeholder="https://.../imagen.jpg"/></label><label>Descripción accesible<input value={fields.imageAlt||''} maxLength={160} onChange={e=>change('imageAlt',e.target.value)}/></label><p className="email-studio-note">Usá una URL pública de imagen alojada en HTTPS. La carga de archivos locales requiere integrar almacenamiento de imágenes.</p><button type="button" onClick={()=>change('image','')}>Quitar imagen</button></div>
      <label>Mensaje<textarea rows={7} value={fields.body} maxLength={4000} onChange={e=>change('body',e.target.value)}/></label>
      <label>Texto del botón<input value={fields.button} maxLength={80} onChange={e=>change('button',e.target.value)}/></label>
      <label>Enlace del botón<input value={fields.url} onChange={e=>change('url',e.target.value)} type="url"/></label>
