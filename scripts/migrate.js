@@ -8,8 +8,8 @@ async function migrate(){
   await db.query(await fs.readFile(new URL('./schema.sql',import.meta.url),'utf8'));
   await db.query(await fs.readFile(new URL('./modules.sql',import.meta.url),'utf8'));
   await db.query(await fs.readFile(new URL('./inventory.sql',import.meta.url),'utf8'));
-  await db.query(await fs.readFile(new URL('./inventory-waitlist.sql',import.meta.url),'utf8'));
   await db.query(await fs.readFile(new URL('./whatsapp.sql',import.meta.url),'utf8'));
+  await db.query(await fs.readFile(new URL('./inventory-waitlist.sql',import.meta.url),'utf8'));
   const r=await db.query('SELECT count(*)::int AS total FROM users');
   if(r.rows[0].total){console.log('Schema ready, existing users preserved');return;}
   const email=process.env.ADMIN_EMAIL?.trim().toLowerCase(),password=process.env.ADMIN_PASSWORD;
