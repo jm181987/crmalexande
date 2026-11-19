@@ -306,7 +306,7 @@ app.get('/api/dashboard/whatsapp-activity',auth,asyncRoute(async(req,res)=>{
  if(hasCampaigns.rows[0].available&&u.role!=='agent'){
   const campaigns=await query("SELECT d.id,d.status,d.sent_at,d.due_at,d.external_id,c.name AS contact_name,c.phone AS contact_phone,cam.name AS campaign_name,cam.content,cam.instance_name FROM public.crm_campaign_deliveries d JOIN public.crm_campaigns cam ON cam.id=d.campaign_id AND cam.company_id=d.company_id JOIN public.contacts c ON c.id=d.contact_id AND c.company_id=d.company_id WHERE d.company_id=$1 AND cam.channel='whatsapp' AND d.status IN ('sent','failed','sending') AND ($2::date IS NULL OR d.due_at >= $2::date) ORDER BY COALESCE(d.sent_at,d.due_at) DESC LIMIT 200",[u.company_id,date]);
   for(const c of campaigns.rows){
-   if(c.external_id&&activity.some(m=>m.external_id&&(m.external_id===c.external_id||m.external_id.endsWith(':'+c.external_id))))continue;
+   const matching=c.external_id&&activity.find(m=>m.external_id&&(m.external_id===c.external_id||m.external_id.endsWith(':'+c.external_id)));if(matching){matching.source='automation';matching.sender='CRM campaign: '+c.campaign_name;matching.status=c.status;continue;}
    activity.push({id:'campaign:'+c.id,created_at:c.sent_at||c.due_at,direction:'outbound',source:'automation',sender:'CRM campaign: '+c.campaign_name,recipient:c.contact_name||c.contact_phone||'Contact',contact_name:c.contact_name,contact_phone:c.contact_phone,instance:c.instance_name,body:String(c.content||'').slice(0,500),external_id:c.external_id,conversation_id:null,status:c.status});
   }
  }
