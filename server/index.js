@@ -319,8 +319,27 @@ app.get('/api/dashboard/whatsapp-activity',auth,asyncRoute(async(req,res)=>{
    activity.push({id:'campaign:'+c.id,created_at:c.sent_at||c.due_at,direction:'outbound',source:'automation',sender:'CRM campaign: '+c.campaign_name,recipient:c.contact_name||c.contact_phone||'Contact',contact_name:c.contact_name,contact_phone:c.contact_phone,instance:c.instance_name,body:String(c.content||'').slice(0,500),external_id:c.external_id,conversation_id:null,status:c.status});
   }
  }
+ // A provider webhook can save the same delivered message more than once with
+ // different database IDs. Deduplicate the audit view only: never delete messages,
+ // suppress outgoing delivery, or change the conversation history.
+ // Prefer provider IDs; for webhook copies without a stable ID, require the same
+ // conversation/contact, direction and exact text within a narrow 2-second window.
  activity.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
- res.json({items:activity.slice(0,200),limit:200,partial:activity.length>200,counts:{inbound:activity.filter(x=>x.direction==='inbound').length,outbound:activity.filter(x=>x.direction==='outbound').length,automation:activity.filter(x=>x.source==='automation').length,manual:activity.filter(x=>x.source==='manual').length,unknown:activity.filter(x=>x.source==='unknown').length}});
+ const visible=[],seenProviderIds=new Set(),recentByContent=new Map();
+ for(const item of activity){
+  const providerId=String(item.external_id||'').trim();
+  const scope=String(item.conversation_id||item.contact_phone||item.recipient||'')+'|'+item.direction;
+  const providerKey=providerId?scope+'|'+providerId.replace(/^.*:/,''):null;
+  const time=new Date(item.created_at).getTime();
+  const contentKey=scope+'|'+String(item.body||'');
+  const prior=recentByContent.get(contentKey);
+  if(providerKey&&seenProviderIds.has(providerKey))continue;
+  if(Number.isFinite(time)&&prior!==undefined&&Math.abs(prior-time)<=2000)continue;
+  visible.push(item);
+  if(providerKey)seenProviderIds.add(providerKey);
+  if(Number.isFinite(time))recentByContent.set(contentKey,time);
+ }
+ res.json({items:visible.slice(0,200),limit:200,partial:visible.length>200,counts:{inbound:visible.filter(x=>x.direction==='inbound').length,outbound:visible.filter(x=>x.direction==='outbound').length,automation:visible.filter(x=>x.source==='automation').length,manual:visible.filter(x=>x.source==='manual').length,unknown:visible.filter(x=>x.source==='unknown').length}});
 }));
 app.get('/api/company',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT id,name,created_at FROM companies WHERE id=$1',[req.user.company_id]);
