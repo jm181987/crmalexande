@@ -250,17 +250,18 @@ function SendgridOwnerPanel(){
  const save=async()=>{setBusy(true);try{await call('/settings/sendgrid','PUT',{api_key:apiKey,from_email:from,reply_to:reply});setApiKey('');const updated=await load();if(updated)notify('success','Configuración SendGrid guardada correctamente.');}catch(e){notify('error','No se pudo guardar: '+e.message)}finally{setBusy(false)}};
  const test=async()=>{setBusy(true);try{const r=await call('/settings/sendgrid/test','POST',{to});notify('success',r.message||'SendGrid aceptó el correo de prueba. Revisá la bandeja de entrada.')}catch(e){notify('error','Prueba fallida: '+e.message)}finally{setBusy(false)}};
  const ready=!!data?.configured&&!!from;
+ const encryptionMessage=!data?'Consultando estado del servidor…':data.secret_ready?'Cifrado disponible':data.secret_present?'Clave detectada en el servidor, pero tiene menos de 32 caracteres':'Clave no detectada en el proceso del servidor. Revisá las variables Runtime de Coolify y redesplegá.';
  return <section className="settings-section"><header><h3>SendGrid · Configuración y prueba</h3><p>Solo owners. Las credenciales se guardan cifradas en el servidor y nunca se muestran después de guardarlas.</p></header><div className="panel" style={{padding:20,display:'grid',gap:14,maxWidth:720}}>
  <div role="status" aria-live="polite" style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'center'}}>
  <span style={{padding:'6px 12px',borderRadius:20,border:'1px solid currentColor',fontWeight:600}}>{loading?'Consultando…':ready?'● SendGrid configurado':'○ SendGrid pendiente'}</span>
- <span style={{padding:'6px 12px',borderRadius:20,border:'1px solid currentColor'}}>{data?.secret_ready?'✓ Cifrado disponible':'⚠ Cifrado no configurado'}</span>
+ <span style={{padding:'6px 12px',borderRadius:20,border:'1px solid currentColor'}}>{data?.secret_ready?'✓ Cifrado disponible':'⚠ '+encryptionMessage}</span>
  </div>
- {!loading&&!data?.secret_ready&&<p role="alert">Configurá SENDGRID_SETTINGS_ENCRYPTION_KEY en las variables privadas del servidor y redesplegá.</p>}
+ {!loading&&!data?.secret_ready&&<p role="alert">{encryptionMessage} La clave no se muestra por seguridad. Debe existir en el contenedor que ejecuta la API, no solamente en la configuración de build.</p>}
  <label>API Key de SendGrid (para reemplazar la existente)<input type="password" autoComplete="new-password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder={data?.key_stored?'Clave almacenada; introducir una nueva para reemplazarla':'SG.…'}/></label>
  <label>Remitente verificado<input type="email" value={from} onChange={e=>setFrom(e.target.value)} placeholder="correo@dominio.com"/></label>
  <label>Reply-To (opcional)<input type="email" value={reply} onChange={e=>setReply(e.target.value)} placeholder="respuesta@dominio.com"/></label>
- <button type="button" className="primary" disabled={busy||!data?.secret_ready||!apiKey||!from} onClick={save}>{busy?'Guardando…':'Guardar configuración'}</button>
- <hr/><h4>Enviar correo de prueba</h4><label>Destinatario de prueba<input type="email" value={to} onChange={e=>setTo(e.target.value)} placeholder="prueba@dominio.com"/></label>
+ <button type="button" className="primary" disabled={busy||loading||!data?.secret_ready||!apiKey||!from} onClick={save}>{busy?'Guardando…':'Guardar configuración'}</button>
+ <p role="status" style={{fontWeight:600}}>{data?.key_stored?'✓ Credenciales guardadas en la base de datos':data?.configured?'Configuración disponible mediante variables del servidor':'No hay credenciales guardadas todavía'}</p><hr/><h4>Enviar correo de prueba</h4><label>Destinatario de prueba<input type="email" value={to} onChange={e=>setTo(e.target.value)} placeholder="prueba@dominio.com"/></label>
  <button type="button" className="primary" disabled={busy||!ready||!to} onClick={test}>{busy?'Procesando…':'Enviar prueba con SendGrid'}</button>
  <small>HTTP 202 indica aceptación por SendGrid, no entrega final. Revisá la bandeja de entrada, spam y eventos del proveedor.</small>
  <small>Guía: verificá tu dominio o remitente en SendGrid, configurá los DNS de autenticación, creá una API Key con permiso Mail Send y guardala aquí. Nunca compartas la clave con otros usuarios.</small>
