@@ -478,3 +478,35 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .campaign-content td b,.campaign-content td strong{color:#213149}
 .campaign-content tbody tr:hover td{background:#f5f8fd}
 .campaign-content .tag{color:#174d9b;background:#e8f1ff}
+
+/* Fix: global .workspace header 73px rule was clipping campaign summary. */
+.workspace .campaign-workspace > .campaign-workspace-header{
+  height:auto;
+  min-height:0;
+  padding:clamp(18px,2.5vw,28px);
+  align-items:center;
+  overflow:visible;
+  flex-wrap:wrap;
+  gap:18px;
+}
+.campaign-workspace-header > div:first-child{flex:1 1 360px;min-width:0}
+.campaign-workspace-header .campaign-summary{
+  flex:0 0 auto;
+  width:auto;
+  min-width:158px;
+  max-width:100%;
+  padding:13px 17px;
+  align-self:center;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:5px;
+  overflow:visible;
+}
+.campaign-workspace-header .campaign-summary strong{display:block;margin:0;font-size:1.8rem;line-height:1.15}
+.campaign-workspace-header .campaign-summary span{display:block;white-space:normal;overflow-wrap:anywhere;font-size:.8rem;line-height:1.4}
+@media(max-width:600px){
+  .workspace .campaign-workspace > .campaign-workspace-header{padding:18px;gap:14px}
+  .campaign-workspace-header > div:first-child{flex-basis:100%}
+  .campaign-workspace-header .campaign-summary{width:100%;min-width:0;align-self:stretch}
+}
