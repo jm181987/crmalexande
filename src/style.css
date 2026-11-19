@@ -414,7 +414,7 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 @media(max-width:720px){.campaign-guide{grid-template-columns:1fr}.campaign-tabs .campaign-tab{flex:1 1 45%}.campaign-workspace-header{padding:18px}}
 
 /* Campaigns visual refinement — scoped to avoid changing other CRM modules */
-.campaign-workspace{--campaign-line:var(--border,rgba(148,163,184,.22));--campaign-surface:var(--card,#192334);--campaign-accent:var(--primary,#3b82f6);gap:22px;max-width:1480px;margin-inline:auto;color:inherit}
+.campaign-workspace{--campaign-line:#dce4ee;--campaign-surface:#fff;--campaign-accent:#245db2;gap:22px;max-width:1480px;margin-inline:auto;color:inherit}
 .campaign-workspace-header{position:relative;overflow:hidden;isolation:isolate;padding:clamp(22px,3vw,34px);border:1px solid var(--campaign-line);border-radius:22px;background:var(--campaign-surface);box-shadow:0 12px 32px rgba(0,0,0,.055)}
 .campaign-workspace-header::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--campaign-accent),#38bdf8 65%,transparent);pointer-events:none}
 .campaign-workspace-header h2{font-size:clamp(1.55rem,2.5vw,2.15rem);font-weight:750;letter-spacing:-.035em;line-height:1.15}
@@ -455,3 +455,26 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 @media(max-width:850px){.campaign-tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}.campaign-tabs .campaign-tab{flex:0 0 auto;white-space:nowrap}.campaign-guide{grid-template-columns:1fr}.campaign-guide>div{min-height:84px}}
 @media(max-width:540px){.campaign-workspace{gap:15px}.campaign-workspace-header{padding:20px;border-radius:16px}.campaign-summary{width:100%;min-width:0}.campaign-tabs{border-radius:12px}.campaign-content .panel{padding:16px!important}.campaign-content label{width:100%}.campaign-content button{max-width:100%}.campaign-guide>div{padding:14px}}
 @media(prefers-reduced-motion:reduce){.campaign-tabs .campaign-tab{transition:none}}
+
+/* Contrast hotfix: ZARKO uses a light canvas, not dark card surfaces. */
+.campaign-workspace{color:#213149}
+.campaign-workspace-header,.campaign-tabs,.campaign-guide>div,.campaign-content .panel{background:#fff;color:#213149;border-color:#dce4ee}
+.campaign-workspace-header p,.campaign-summary span,.campaign-guide span,.campaign-section-heading p,.campaign-content small{color:#53657d;opacity:1}
+.campaign-eyebrow{color:#245db2}
+.campaign-summary{background:#edf4ff;border-color:#cbdcf7;color:#183b71}
+.campaign-summary span{color:#526783}
+.campaign-guide b{background:#e8f1ff;color:#245db2}
+.campaign-tabs .campaign-tab{color:#35455c}
+.campaign-tabs .campaign-tab:hover:not(.active){background:#f0f5fd;color:#1f4f91}
+.campaign-tabs .campaign-tab.active{background:#e8f1ff;border-color:#a9c8f4;color:#174d9b;box-shadow:inset 0 -2px 0 #245db2}
+.campaign-content .panel p,.campaign-content .panel label,.campaign-content .panel h2,.campaign-content .panel h3{color:#213149}
+.campaign-content input:not([type=checkbox]),.campaign-content select,.campaign-content textarea{background:#fff;color:#263750;border-color:#cbd5e1}
+.campaign-content input::placeholder,.campaign-content textarea::placeholder{color:#718198}
+.campaign-content button:not(.primary){background:#fff;color:#294263;border-color:#cbd5e1}
+.campaign-content button.primary{background:#245db2;color:#fff;border-color:#245db2}
+.campaign-content button.primary:hover{background:#194987}
+.campaign-content th{background:#f1f5fa;color:#43536b}
+.campaign-content td{background:#fff;color:#40536d}
+.campaign-content td b,.campaign-content td strong{color:#213149}
+.campaign-content tbody tr:hover td{background:#f5f8fd}
+.campaign-content .tag{color:#174d9b;background:#e8f1ff}
