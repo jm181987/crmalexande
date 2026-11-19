@@ -1,3 +1,4 @@
+import InventoryWaitlist from './inventory-waitlist.jsx';
 import React,{useEffect,useState} from 'react';
 const dictionary={
 es:{title:'Stock e inventario',new:'Agregar artículo',edit:'Editar',save:'Guardar',cancel:'Cancelar',name:'Nombre',kind:'Tipo',sku:'Código / SKU',description:'Descripción',price:'Precio',currency:'Moneda',quantity:'Cantidad',status:'Estado',image:'Fotos (hasta 12, JPG, PNG o WebP)',attributes:'Características adicionales (JSON)',search:'Buscar por nombre o código',empty:'No hay artículos registrados',send:'Compartir por WhatsApp',history:'Historial',notifications:'Avisos pendientes',note:'Los avisos de stock y precio quedan registrados para automatizaciones. El envío automático requiere configuración y consentimiento.',types:['Producto','Vehículo','Inmueble','Servicio'],states:['Disponible','Reservado','Vendido','Inactivo'],error:'No se pudo guardar el artículo'},

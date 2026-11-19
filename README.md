@@ -198,3 +198,8 @@ En **Configuración → Telegram** (solo owner) seleccioná y guardá los evento
 
 
 **Grupo Telegram editable:** el ID inicial de destino es `-5468425894`. El owner puede cambiarlo en Configuración → Telegram, guardar y luego enviar una prueba. La preferencia por empresa tiene prioridad sobre `TELEGRAM_CHAT_ID`; el token del bot continúa únicamente en variables de entorno. Ejecutá `npm run db:migrate` para incorporar la columna `chat_id` a instalaciones existentes.
+
+
+### Lista de espera de inventario por WhatsApp
+
+El módulo **Stock e inventario** permite asociar contactos existentes a un producto con consentimiento explícito para avisos de reposición. Configuración por empresa: `manual` (confirmación del vendedor) o `automatic` (envío al pasar de 0 a stock positivo), seleccionando una instancia de Evolution API de esa empresa. La cola registra `pending`, `sending`, `accepted`, `unknown`, `failed` o `skipped` y evita duplicados por reposición y cliente. Solo se permiten mensajes de texto dentro de una ventana de atención de WhatsApp de 24 horas con mensaje entrante del cliente. Fuera de esa ventana se omite el envío hasta incorporar plantillas aprobadas; no se reintentan automáticamente estados inciertos. Requiere ejecutar `scripts/inventory-waitlist.sql` en PostgreSQL o `npm run db:migrate` tras desplegar; no incluye un envío de prueba en vivo.
