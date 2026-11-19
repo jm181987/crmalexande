@@ -1,5 +1,6 @@
 import {registerBuilderbot,registerBuilderbotWebhook} from './builderbot.js';
 import {registerSendgridSettings} from './sendgrid-settings.js';
+import {registerTelegramSettings,notifyTelegram} from './telegram-settings.js';
 import {registerEmailImageRoutes} from './email-images.js';
 import 'dotenv/config';
 import express from 'express';
@@ -117,7 +118,7 @@ app.post('/api/auth/login',asyncRoute(async(req,res)=>{
  const {email,password}=req.body;if(!valid(email)||!valid(password))return res.status(400).json({error:'Email and password required'});
  const r=process.env.TENANT_RLS_ENABLED==='true'?await query('SELECT * FROM public.crm_auth_user_by_email($1)',[email.trim()]):await query('SELECT * FROM users WHERE lower(email)=lower($1) AND is_active=true',[email.trim()]);
  if(!r.rowCount||!(await bcrypt.compare(password,r.rows[0].password_hash)))return res.status(401).json({error:'Invalid credentials'});
- const u=r.rows[0];res.cookie('crm_session',jwt.sign({sub:u.id},secret,{algorithm:'HS256',expiresIn:'8h'}),cookie);
+ const u=r.rows[0];void notifyTelegram(u.company_id,'security_access','Inicio de sesión: '+u.name+' ('+u.email+')');res.cookie('crm_session',jwt.sign({sub:u.id},secret,{algorithm:'HS256',expiresIn:'8h'}),cookie);
  res.json({user:{id:u.id,name:u.name,email:u.email,role:u.role}});
 }));
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('crm_session',{path:'/',httpOnly:true,sameSite:'lax',secure:cookie.secure});res.json({ok:true});});
@@ -346,7 +347,7 @@ app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
  if(!valid(email)||email.trim().length>254||!isValidUserEmail(email))return res.status(400).json({error:'Ingresá un correo electrónico válido'});
  if(typeof password!=='string'||password.length<12)return res.status(400).json({error:'La contraseña debe tener al menos 12 caracteres'});
  if(!['owner','manager','agent'].includes(role))return res.status(400).json({error:'Seleccioná un rol válido: usuario, manager u owner'});
- const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);res.status(201).json(r.rows[0]);
+ const r=await query('INSERT INTO users(company_id,name,email,password_hash,role) VALUES($1,$2,lower($3),$4,$5) RETURNING id,name,email,role',[req.user.company_id,name.trim(),email.trim(),await bcrypt.hash(password,12),role]);void notifyTelegram(req.user.company_id,'security_access','Usuario creado: '+r.rows[0].name+' ('+r.rows[0].email+') · Rol: '+r.rows[0].role);res.status(201).json(r.rows[0]);
 }));
 app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  const {name,email,role,password}=req.body||{};
@@ -360,7 +361,7 @@ app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  }
  const hash=password?await bcrypt.hash(password,12):null;
  const x=await query('UPDATE users SET name=COALESCE($3,name),email=COALESCE(lower($4),email),role=COALESCE($5,role),password_hash=COALESCE($6,password_hash) WHERE id=$1 AND company_id=$2 AND is_active=true RETURNING id,name,email,role',[req.params.id,req.user.company_id,name?.trim()||null,email?.trim()||null,role||null,hash]);
- res.json(x.rows[0]);
+ void notifyTelegram(req.user.company_id,'security_access','Usuario modificado: '+x.rows[0].name+' ('+x.rows[0].email+') · Rol: '+x.rows[0].role);res.json(x.rows[0]);
 }));
 app.delete('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  if(req.params.id===String(req.user.id))return res.status(409).json({error:'No podés desactivar tu propia cuenta'});
@@ -388,7 +389,7 @@ app.get('/api/contacts',auth,asyncRoute(async(req,res)=>{
 app.post('/api/contacts',auth,asyncRoute(async(req,res)=>{
  const {name,email,phone,source,notes,tags=[],custom_fields={}}=req.body;
  if(!valid(name)||!Array.isArray(tags)||tags.length>30||typeof custom_fields!=='object'||custom_fields===null||Array.isArray(custom_fields))return res.status(400).json({error:'Invalid contact'});
- const r=await query('INSERT INTO contacts(company_id,owner_id,name,email,phone,source,notes,tags,custom_fields) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.user.company_id,req.user.id,name.trim(),email||null,phone||null,source||null,notes||null,tags.map(String),JSON.stringify(custom_fields)]);res.status(201).json(r.rows[0]);
+ const r=await query('INSERT INTO contacts(company_id,owner_id,name,email,phone,source,notes,tags,custom_fields) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.user.company_id,req.user.id,name.trim(),email||null,phone||null,source||null,notes||null,tags.map(String),JSON.stringify(custom_fields)]);void notifyTelegram(req.user.company_id,'new_contact','Contacto: '+r.rows[0].name+' · Registrado por: '+req.user.name);res.status(201).json(r.rows[0]);
 }));
 app.patch('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
  const allow=['name','email','phone','source','notes','tags','custom_fields'],keys=Object.keys(req.body).filter(k=>allow.includes(k));
@@ -451,7 +452,7 @@ app.post('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const par=p(req.user),contact=await query('SELECT id FROM contacts WHERE company_id=$1'+ownerSql(req.user)+' AND id=$'+(par.length+1),[...par,contact_id]);
  const stage=await query('SELECT s.status FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE s.id=$1 AND s.pipeline_id=$2 AND p.company_id=$3',[stage_id,pipeline_id,req.user.company_id]);
  if(!contact.rowCount||!stage.rowCount)return res.status(400).json({error:'Invalid contact or pipeline stage'});
- const r=await query('INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[req.user.company_id,pipeline_id,stage_id,contact_id,req.user.id,title.trim(),value,stage.rows[0].status]);res.status(201).json(r.rows[0]);
+ const r=await query('INSERT INTO opportunities(company_id,pipeline_id,stage_id,contact_id,owner_id,title,value,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',[req.user.company_id,pipeline_id,stage_id,contact_id,req.user.id,title.trim(),value,stage.rows[0].status]);void notifyTelegram(req.user.company_id,'new_opportunity','Oportunidad: '+r.rows[0].title+' · Valor: '+r.rows[0].value+' · Creada por: '+req.user.name);res.status(201).json(r.rows[0]);
 }));
 app.patch('/api/opportunities/:id',auth,asyncRoute(async(req,res)=>{
  const {title,value,contact_id}=req.body||{};
@@ -547,6 +548,7 @@ registerCampaignDelivery(app,auth);
 registerModuleRoutes(app,auth);
 registerEmailImageRoutes(app,auth);
 registerSendgridSettings(app,auth);
+registerTelegramSettings(app,auth);
 registerBuilderbot(app,auth);
 registerAiReceptionRoutes(app,auth);
 registerInventoryRoutes(app,auth);
