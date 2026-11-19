@@ -68,6 +68,7 @@ const auth=asyncRoute(async(req,res,next)=>{
  }
  // Per-user permissions: deny unauthorized module access at the API boundary.
  const moduleFromPath=(p)=>{
+  if(p==='/api/dashboard')return 'dashboard';
   if(/^\/api\/inventory(?:\/|$)|^\/api\/inventory-images\//.test(p))return 'inventory';
   if(/^\/api\/evolution\//.test(p))return 'conversations';
   if(/^\/api\/builderbot(?:\/|$)/.test(p))return 'ai';
