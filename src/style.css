@@ -867,3 +867,48 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .app .campaign-workspace button:focus-visible,.app .settings-page button:focus-visible,.app .campaign-workspace a:focus-visible,.app .settings-page a:focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
 :root[data-theme="dark"] .app .campaign-workspace .panel,:root[data-theme="dark"] .app .settings-page .panel{background:var(--module-surface);color:var(--module-text);border-color:var(--module-border)}
 :root[data-theme="dark"] .app .campaign-workspace .panel p,:root[data-theme="dark"] .app .settings-page .panel p{color:var(--module-muted)}
+
+
+/* Theme contrast audit: override legacy high-specificity light-only module styles.
+   Keep each foreground paired with its surface to avoid invisible headings. */
+:root[data-theme="dark"] .app .workspace .crm-main .settings-page{color:#f1f5f9}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-page-header h2{color:#f8fafc}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-description{color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tabs{background:#1e293b;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab{background:#29394e;color:#f1f5f9;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab strong{color:#f8fafc}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab small{color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab:hover{background:#385273;color:#fff;border-color:#93c5fd}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab:hover small{color:#f1f5f9}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab.active{background:#1e40af;color:#fff;border-color:#93c5fd}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-tab.active small{color:#dbeafe}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-section-heading{background:#273449;color:#f8fafc;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-section-heading h3{color:#f8fafc}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-section-heading p{color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content .panel{background:#1e293b;color:#f1f5f9;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content .panel :is(h1,h2,h3,h4,h5,strong,b,label){color:#f8fafc}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content .panel :is(p,small){color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content :is(input,select,textarea){background:#263449;color:#f8fafc;border-color:#64748b}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content :is(input,textarea)::placeholder{color:#cbd5e1;opacity:1}
+:root[data-theme="dark"] .app .workspace .crm-main .settings-content button:disabled{opacity:.65;color:#e2e8f0}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .settings-page-header h2{color:#172b4d}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .settings-section-heading h3{color:#172b4d}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .settings-content .panel :is(h1,h2,h3,h4,h5,strong,b){color:#172b4d}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .settings-content .panel :is(p,small){color:#475569}
+/* Shared module defaults: explicitly readable text and muted copy on panel surfaces */
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(h1,h2,h3,h4,h5){color:#f8fafc}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(label,legend){color:#f1f5f9}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(input,textarea,select){background:#263449;color:#f8fafc;border-color:#64748b}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(input,textarea)::placeholder{color:#cbd5e1;opacity:1}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(input,textarea,select):focus-visible{outline:2px solid #93c5fd;outline-offset:1px}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(button,a):focus-visible{outline:3px solid #93c5fd;outline-offset:2px}
+:root[data-theme="dark"] .app .workspace .crm-main :is(.panel,.card,.toolbar,.modal-content) :is(button,a):hover:not(:disabled){text-decoration-color:currentColor}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-workspace{color:#f1f5f9}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-workspace>.subtitle{color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-metrics>div,:root[data-theme="dark"] .app .workspace .crm-main .inventory-sections,:root[data-theme="dark"] .app .workspace .crm-main .inventory-toolbar,:root[data-theme="dark"] .app .workspace .crm-main .inventory-workspace .panel{background:#1e293b;color:#f1f5f9;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-metrics small,:root[data-theme="dark"] .app .workspace .crm-main .inventory-empty{color:#cbd5e1}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-metrics strong{color:#bfdbfe}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-sections button{background:#29394e;color:#f8fafc;border-color:#475569}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-sections button:hover{background:#385273;color:#fff}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-sections button.active{background:#1e40af;color:#fff;border-color:#93c5fd}
+:root[data-theme="dark"] .app .workspace .crm-main .inventory-workspace .panel :is(input,select,textarea){background:#263449;color:#f8fafc;border-color:#64748b}
