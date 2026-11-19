@@ -267,15 +267,34 @@ function SendgridOwnerPanel(){
  <small>Guía: verificá tu dominio o remitente en SendGrid, configurá los DNS de autenticación, creá una API Key con permiso Mail Send y guardala aquí. Nunca compartas la clave con otros usuarios.</small>
  </div>{notice&&<div key={notice.id} role={notice.kind==='error'?'alert':'status'} aria-live={notice.kind==='error'?'assertive':'polite'} style={{position:'fixed',right:24,bottom:24,zIndex:9999,maxWidth:440,padding:'16px 20px',borderRadius:12,boxShadow:'0 10px 35px rgba(0,0,0,.25)',background:notice.kind==='error'?'#7f1d1d':'#14532d',color:'#fff',display:'flex',alignItems:'center',gap:12}}><span>{notice.kind==='error'?'⚠':'✓'} {notice.message}</span><button type="button" aria-label="Cerrar aviso" onClick={()=>setNotice(null)} style={{background:'transparent',color:'#fff',border:'1px solid #ffffff88',borderRadius:6,cursor:'pointer'}}>×</button></div>}</section>;
 }
+function TelegramOwnerPanel(){
+ const eventLabels={new_opportunity:'Nueva oportunidad comercial',security_access:'Alertas de seguridad y accesos',new_contact:'Nuevo contacto registrado'};
+ const [data,setData]=useState(null),[enabled,setEnabled]=useState(true),[events,setEvents]=useState(Object.keys(eventLabels)),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
+ const load=async()=>{try{const x=await call('/settings/telegram');setData(x);setEnabled(x.enabled);setEvents(x.events);setNotice('')}catch(e){setNotice('Error al consultar Telegram: '+e.message)}};
+ useEffect(()=>{load()},[]);
+ const save=async()=>{setBusy(true);try{await call('/settings/telegram','PUT',{enabled,events});setNotice('Preferencias de Telegram guardadas.');await load();setNotice('Preferencias de Telegram guardadas.')}catch(e){setNotice('No se pudo guardar: '+e.message)}finally{setBusy(false)}};
+ const test=async()=>{setBusy(true);try{const r=await call('/settings/telegram/test','POST',{});setNotice(r.message)}catch(e){setNotice('Prueba fallida: '+e.message)}finally{setBusy(false)}};
+ return <section className="settings-section"><header><h3>Telegram · Alertas para owner</h3><p>Elegí qué eventos generan avisos. El token del bot permanece exclusivamente en Coolify y nunca se muestra aquí.</p></header>
+ <div className="panel" style={{padding:20,display:'grid',gap:16,maxWidth:760}}>
+ {!data?<p>Consultando configuración…</p>:<><div style={{display:'flex',gap:12,flexWrap:'wrap'}}><span>Bot: <strong>{data.bot_configured?'Configurado':'Falta TELEGRAM_BOT_TOKEN'}</strong></span><span>Destino: <strong>{data.chat_configured?data.chat_id_masked:'Sin configurar'}</strong></span></div>
+ {data.migration_required&&<p role="alert">Falta la tabla de preferencias. Ejecutá npm run db:migrate en Coolify.</p>}
+ <label style={{display:'flex',alignItems:'center',gap:10}}><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Activar avisos automáticos</label>
+ <fieldset style={{border:'1px solid #cbd5e1',borderRadius:12,padding:14}}><legend>Eventos seleccionados</legend>{Object.entries(eventLabels).map(([key,label])=><label key={key} style={{display:'flex',alignItems:'center',gap:10,margin:'10px 0'}}><input type="checkbox" checked={events.includes(key)} onChange={e=>setEvents(old=>e.target.checked?[...old,key]:old.filter(v=>v!==key))}/>{label}</label>)}</fieldset>
+ <div style={{display:'flex',flexWrap:'wrap',gap:10}}><button type="button" disabled={busy||data.migration_required} onClick={save}>Guardar configuración</button><button type="button" disabled={busy||!data.bot_configured||!data.chat_configured} onClick={test}>Enviar mensaje de prueba</button></div></>}
+ {notice&&<p role="status" aria-live="polite">{notice}</p>}
+ </div></section>;
+}
+
 function SettingsPage({t,user,error,reload}){
  const reportModuleError=message=>{if(typeof error==='function')error(message);else console.error('Settings integration:',message)};
  const [tab,setTab]=useState('integrations'),[status,setStatus]=useState(null);
  useEffect(()=>{if(user.role!=='agent')call('/campaigns/operations/status').then(setStatus).catch(()=>{})},[user.role]);
- const tabs=[['integrations',t.integrations],['operations',({es:'Campañas y automatizaciones',pt:'Campanhas e automações',en:'Campaigns and automations'})[localStorage.getItem('crm_lang')||'pt']],['users',t.users],...(user.role==='owner'?[['sendgrid','SendGrid'],['branding',({es:'Marca y logo',pt:'Marca e logotipo',en:'Brand and logo'})[localStorage.getItem('crm_lang')||'pt']]]:[])];
+ const tabs=[['integrations',t.integrations],['operations',({es:'Campañas y automatizaciones',pt:'Campanhas e automações',en:'Campaigns and automations'})[localStorage.getItem('crm_lang')||'pt']],['users',t.users],...(user.role==='owner'?[['sendgrid','SendGrid'],['telegram','Telegram'],['branding',({es:'Marca y logo',pt:'Marca e logotipo',en:'Brand and logo'})[localStorage.getItem('crm_lang')||'pt']]]:[])];
  return <section className="settings-page"><header className="settings-page-header"><div><p className="settings-eyebrow">ZARCO CRM</p><h2>{t.settings}</h2><p className="settings-description">Administrá conexiones, funcionamiento, usuarios y personalización desde espacios independientes.</p></div></header>
  <nav className="settings-tabs" aria-label="Secciones de configuración">{tabs.map(([key,label])=><button type="button" key={key} className={'settings-tab'+(tab===key?' active':'')} aria-current={tab===key?'page':undefined} onClick={()=>setTab(key)}>{label}</button>)}</nav>
  <div className="settings-content">
  {tab==='sendgrid'&&user.role==='owner'&&<SendgridOwnerPanel/>}
+ {tab==='telegram'&&user.role==='owner'&&<TelegramOwnerPanel/>}
  {tab==='branding'&&user.role==='owner'&&<section className="settings-section"><header><h3>Identidad de la empresa</h3><p>Logo, nombre y presentación visual de tu marca.</p></header><BrandingSettings/></section>}
  {tab==='users'&&<section className="settings-section"><header><h3>Usuarios y permisos</h3><p>Administración de accesos y roles del equipo.</p></header><UsersPage t={t} user={user} error={error} reload={reload}/></section>}
  {tab==='integrations'&&<section className="settings-section"><header><h3>Conexiones y proveedores</h3><p>Configurá cada integración en su propio espacio. Las credenciales privadas se administran según el rol.</p></header><WhatsAppProviderSelector user={user} error={reportModuleError}/><Modules page="integrations" user={user} lang={localStorage.getItem('crm_lang')||'pt'} error={reportModuleError}/></section>}
