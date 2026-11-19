@@ -960,7 +960,7 @@ export default app;
  });
  // Campaign dispatches are logged separately and may not create a conversation message.
  const hasCampaigns=await query("SELECT to_regclass('public.crm_campaign_deliveries') IS NOT NULL AS available");
- if(hasCampaigns.rows[0].available){
+ if(hasCampaigns.rows[0].available&&u.role!=='agent'){
   const campaignParams=[u.company_id,...(since?[since]:[])];
   const campaignDate=since?' AND d.due_at >= $2::date':'';
   const campaigns=await query(`SELECT d.id,d.status,d.sent_at,d.due_at,d.external_id,
