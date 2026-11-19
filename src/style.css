@@ -730,3 +730,28 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root:not([data-theme="dark"]) .app .crm-main .thread:hover,:root:not([data-theme="dark"]) .app .crm-main .wa-thread:hover{background:#e8f0fc;color:#172b4d}
 .app button:focus-visible,.app a:focus-visible,.app select:focus-visible,.app input:focus-visible,.app textarea:focus-visible,.app [role="button"]:focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
 :root[data-theme="dark"] .app .crm-main button:disabled{opacity:.55;cursor:not-allowed}
+
+
+/* Dashboard: keep text readable on its own card surface in both appearance modes */
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-kpi,
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-insight{background:#fff;color:#172b4d;border-color:#dbe3ed}
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-kpi strong,
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-insight h3{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-kpi-top>span,
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-kpi-bottom,
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-insight p{color:#52657e}
+:root[data-theme="dark"] .app .crm-dashboard .crm-kpi,
+:root[data-theme="dark"] .app .crm-dashboard .crm-insight{background:#1e293b;color:#f8fafc;border-color:#475569}
+:root[data-theme="dark"] .app .crm-dashboard .crm-kpi strong,
+:root[data-theme="dark"] .app .crm-dashboard .crm-insight h3{color:#f8fafc}
+:root[data-theme="dark"] .app .crm-dashboard .crm-kpi-top>span,
+:root[data-theme="dark"] .app .crm-dashboard .crm-kpi-bottom,
+:root[data-theme="dark"] .app .crm-dashboard .crm-insight p{color:#cbd5e1}
+:root[data-theme="dark"] .app .crm-dashboard .crm-kpi:hover,
+:root[data-theme="dark"] .app .crm-dashboard .crm-insight:hover{background:#273449;color:#f8fafc}
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-kpi:hover,
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-insight:hover{background:#eff6ff;color:#172b4d}
+:root[data-theme="dark"] .app .crm-dashboard .crm-section-intro h2{color:#f8fafc}
+:root[data-theme="dark"] .app .crm-dashboard .crm-section-intro p{color:#cbd5e1}
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-section-intro h2{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-dashboard .crm-section-intro p{color:#52657e}
