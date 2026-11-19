@@ -295,6 +295,15 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  query('SELECT count(*)::int AS n FROM tasks WHERE company_id=$1 AND completed=false'+scope,q)]);
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});
 }));
+// Lightweight polling endpoint for new inbound WhatsApp messages (scoped to tenant and assigned agent).
+app.get('/api/dashboard/whatsapp-incoming',auth,asyncRoute(async(req,res)=>{
+ const since=String(req.query.since||'');
+ if(!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$/.test(since)||!Number.isFinite(Date.parse(since)))return res.status(400).json({error:'Invalid cursor'});
+ const u=req.user;
+ const r=await query("SELECT m.id,m.created_at,m.body,v.id AS conversation_id,c.name AS contact_name,c.phone AS contact_phone FROM public.messages m JOIN public.conversations v ON v.id=m.conversation_id JOIN public.contacts c ON c.id=v.contact_id AND c.company_id=v.company_id WHERE v.company_id=$1 AND v.channel='whatsapp' AND m.direction='inbound' AND m.created_at>$2::timestamptz AND ($3::uuid IS NULL OR v.assignee_id=$3) ORDER BY m.created_at DESC LIMIT 20",[u.company_id,since,u.role==='agent'?u.id:null]);
+ res.set('Cache-Control','no-store');
+ res.json({items:r.rows});
+}));
 // Tenant-scoped WhatsApp audit: do not guess the origin of webhook outbound messages.
 app.get('/api/dashboard/whatsapp-activity',auth,asyncRoute(async(req,res)=>{
  const u=req.user,since=String(req.query.since||'');

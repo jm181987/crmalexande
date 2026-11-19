@@ -608,3 +608,11 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-audit-filters{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.wa-audit-filters label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.wa-audit-filters input,.wa-audit-filters select{min-width:130px;max-width:100%;padding:9px;border-radius:8px;border:1px solid #94a3b8;background:var(--surface,#fff);color:var(--text,#1f2937)}.wa-audit-filters>input{align-self:flex-end;flex:1}
 .wa-audit-scroll{overflow-x:auto}.wa-audit table{width:100%;border-collapse:collapse;text-align:left;min-width:730px}.wa-audit th,.wa-audit td{padding:10px;border-bottom:1px solid var(--border,#d7dce4);font-size:.83rem;vertical-align:top}.wa-audit td small{display:block;opacity:.7}.wa-audit-body{max-width:290px;overflow-wrap:anywhere;white-space:pre-wrap}.wa-audit-tag{display:inline-block;border-radius:6px;padding:3px 7px;border:1px solid currentColor}.wa-audit-automation{color:#047857}.wa-audit-unknown{color:#b45309}
 @media(max-width:700px){.wa-audit{padding:12px}.wa-audit-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-audit-filters>*{flex:1 1 140px}}
+
+
+/* Incoming WhatsApp alerts */
+.wa-notify-control{position:fixed;right:22px;bottom:22px;z-index:1100}.wa-notify-control button{padding:10px 14px;border-radius:999px;background:#14532d;color:#fff;border:1px solid #86efac;box-shadow:0 5px 20px #0003;cursor:pointer;font-weight:600}
+.wa-notify-stack{position:fixed;right:20px;bottom:80px;z-index:1101;display:flex;flex-direction:column;gap:10px;max-width:min(360px,calc(100vw - 30px));width:100%;pointer-events:none}
+.wa-notify-toast{pointer-events:auto;background:#fff;color:#17212e;border:1px solid #cbd5e1;border-left:4px solid #16a34a;border-radius:12px;box-shadow:0 10px 30px #0004;padding:14px;overflow-wrap:anywhere}
+.wa-notify-toast>div{display:flex;justify-content:space-between;gap:10px}.wa-notify-toast>div button{border:0;background:transparent;color:#334155;font-size:22px;cursor:pointer}.wa-notify-toast b{display:block;margin:8px 0 3px}.wa-notify-toast p{font-size:.86rem;margin:3px 0 10px;max-height:5em;overflow:hidden}.wa-notify-toast>button{background:#166534;color:white;border:0;border-radius:7px;padding:7px 12px;cursor:pointer}
+@media(max-width:600px){.wa-notify-control{right:12px;bottom:12px}.wa-notify-stack{right:12px;bottom:70px}}
