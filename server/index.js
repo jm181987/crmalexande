@@ -69,6 +69,9 @@ const auth=asyncRoute(async(req,res,next)=>{
  // Per-user permissions: deny unauthorized module access at the API boundary.
  const moduleFromPath=(p)=>{
   if(p==='/api/dashboard')return 'dashboard';
+  if(p==='/api/company'||p.startsWith('/api/company/'))return 'settings';
+  if(/^\/api\/pipelines(?:\/|$)/.test(p))return 'opportunities';
+  if(/^\/api\/round-robin(?:\/|$)/.test(p))return 'conversations';
   if(/^\/api\/appointments(?:\/|$)/.test(p))return 'calendar';
   if(/^\/api\/automation-rules(?:\/|$)|^\/api\/followup(?:\/|$)/.test(p))return 'automation';
   if(/^\/api\/campaign(?:\/|$)|^\/api\/email-campaign(?:\/|$)/.test(p))return 'campaigns';
@@ -87,7 +90,8 @@ const auth=asyncRoute(async(req,res,next)=>{
    const permission=await query('SELECT can_view,can_create,can_edit,can_delete FROM public.crm_user_module_permissions WHERE company_id=$1 AND user_id=$2 AND module_key=$3',[req.user.company_id,req.user.id,moduleKey]);
    if(permission.rowCount){
     const row=permission.rows[0];
-    if(!row['can_'+action]||(action!=='view'&&!row.can_view))return res.status(403).json({error:'Sin permiso para esta acción',code:'USER_PERMISSION_DENIED',module:moduleKey,action});
+    const effectiveAction=(moduleKey==='conversations'&&req.method==='POST'&&(/\/read$|\/messages$/.test(req.path)))?'edit':action;
+    if(!row['can_'+effectiveAction]||(effectiveAction!=='view'&&!row.can_view))return res.status(403).json({error:'Sin permiso para esta acción',code:'USER_PERMISSION_DENIED',module:moduleKey,action:effectiveAction});
    }
   }
  }
