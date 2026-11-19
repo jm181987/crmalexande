@@ -407,16 +407,16 @@ app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
   // Remove message/media dependents through their conversation FK, without touching other contacts.
   const conversations=await db.query('SELECT id FROM public.conversations WHERE contact_id=$1 AND company_id=$2 FOR UPDATE',[id,company]);
   const conversationIds=conversations.rows.map(x=>x.id);
-  if(conversationIds.length){
-   await db.query('DELETE FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
+  // Some older installations have not created every optional CRM module table.\n  const optionalTables=await db.query("SELECT to_regclass('public.crm_chat_media') AS chat_media,to_regclass('public.crm_automation_executions') AS automations,to_regclass('public.crm_campaign_deliveries') AS deliveries,to_regclass('public.crm_contact_consents') AS consents,to_regclass('public.crm_review_requests') AS reviews");\n  const tables=optionalTables.rows[0];\n  if(conversationIds.length){
+   if(tables.chat_media)await db.query('DELETE FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
    await db.query('DELETE FROM public.messages WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
    await db.query('DELETE FROM public.conversations WHERE id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
   }
   // These records belong exclusively to the contact; campaigns, rules and pipelines remain intact.
-  await db.query('DELETE FROM public.crm_automation_executions WHERE contact_id=$1',[id]);
-  await db.query('DELETE FROM public.crm_campaign_deliveries WHERE contact_id=$1 AND company_id=$2',[id,company]);
-  await db.query('DELETE FROM public.crm_contact_consents WHERE contact_id=$1 AND company_id=$2',[id,company]);
-  await db.query('DELETE FROM public.crm_review_requests WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.automations)await db.query('DELETE FROM public.crm_automation_executions WHERE contact_id=$1',[id]);
+  if(tables.deliveries)await db.query('DELETE FROM public.crm_campaign_deliveries WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.consents)await db.query('DELETE FROM public.crm_contact_consents WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.reviews)await db.query('DELETE FROM public.crm_review_requests WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.opportunities WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.tasks WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.appointments WHERE contact_id=$1 AND company_id=$2',[id,company]);
@@ -427,7 +427,7 @@ app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
  }catch(e){
   try{await db.query('ROLLBACK')}catch{}
   if(e.code==='23503')return res.status(409).json({error:'Another linked record prevents deletion. No data was removed; contact support to review its dependency.'});
-  throw e;
+  console.error('Owner contact deletion failed',{code:e.code,constraint:e.constraint,table:e.table,message:e.message});\n  if(e.code==='42P01')return res.status(503).json({error:'Contact deletion requires a missing database table. Run CRM migrations and retry.'});\n  if(e.code==='42501')return res.status(403).json({error:'Database permissions prevent deleting linked records.'});\n  throw e;
  }finally{db.release()}
 }));
 app.delete('/api/conversations/:id',auth,asyncRoute(async(req,res)=>{
