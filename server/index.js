@@ -392,11 +392,43 @@ app.post('/api/contacts',auth,asyncRoute(async(req,res)=>{
  const r=await query('INSERT INTO contacts(company_id,owner_id,name,email,phone,source,notes,tags,custom_fields) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.user.company_id,req.user.id,name.trim(),email||null,phone||null,source||null,notes||null,tags.map(String),JSON.stringify(custom_fields)]);void notifyTelegram(req.user.company_id,'new_contact','Contacto: '+r.rows[0].name+' · Registrado por: '+req.user.name);res.status(201).json(r.rows[0]);
 }));
 
+// Owner-only permanent deletion: remove only rows belonging to this contact in one transaction.
+// Unknown foreign-key dependencies are never bypassed; PostgreSQL rolls back all changes.
 app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
  if(req.user.role!=='owner')return res.status(403).json({error:'Owner access required'});
  if(!validUuid(req.params.id))return res.status(400).json({error:'Invalid contact ID'});
- try{const r=await query('DELETE FROM contacts WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!r.rowCount)return res.status(404).json({error:'Contact not found'});res.json({ok:true,id:r.rows[0].id})}
- catch(e){if(e.code==='23503')return res.status(409).json({error:'Contact has linked records. Remove dependent records first.'});throw e}
+ const db=await pool.connect();
+ try{
+  await db.query('BEGIN');
+  await db.query("SELECT set_config('app.company_id',$1,true)",[req.user.company_id]);
+  const contact=await db.query('SELECT id FROM public.contacts WHERE id=$1 AND company_id=$2 FOR UPDATE',[req.params.id,req.user.company_id]);
+  if(!contact.rowCount){await db.query('ROLLBACK');return res.status(404).json({error:'Contact not found'})}
+  const id=req.params.id,company=req.user.company_id;
+  // Remove message/media dependents through their conversation FK, without touching other contacts.
+  const conversations=await db.query('SELECT id FROM public.conversations WHERE contact_id=$1 AND company_id=$2 FOR UPDATE',[id,company]);
+  const conversationIds=conversations.rows.map(x=>x.id);
+  if(conversationIds.length){
+   await db.query('DELETE FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
+   await db.query('DELETE FROM public.messages WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
+   await db.query('DELETE FROM public.conversations WHERE id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
+  }
+  // These records belong exclusively to the contact; campaigns, rules and pipelines remain intact.
+  await db.query('DELETE FROM public.crm_automation_executions WHERE contact_id=$1',[id]);
+  await db.query('DELETE FROM public.crm_campaign_deliveries WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  await db.query('DELETE FROM public.crm_contact_consents WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  await db.query('DELETE FROM public.crm_review_requests WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  await db.query('DELETE FROM public.opportunities WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  await db.query('DELETE FROM public.tasks WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  await db.query('DELETE FROM public.appointments WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  const deleted=await db.query('DELETE FROM public.contacts WHERE id=$1 AND company_id=$2 RETURNING id',[id,company]);
+  if(!deleted.rowCount)throw new Error('Contact deletion did not complete');
+  await db.query('COMMIT');
+  res.json({ok:true,id,deleted_conversations:conversationIds.length});
+ }catch(e){
+  try{await db.query('ROLLBACK')}catch{}
+  if(e.code==='23503')return res.status(409).json({error:'Another linked record prevents deletion. No data was removed; contact support to review its dependency.'});
+  throw e;
+ }finally{db.release()}
 }));
 app.delete('/api/conversations/:id',auth,asyncRoute(async(req,res)=>{
  if(req.user.role!=='owner')return res.status(403).json({error:'Owner access required'});
