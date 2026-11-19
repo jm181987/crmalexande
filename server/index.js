@@ -611,7 +611,24 @@ app.post('/api/conversations',auth,asyncRoute(async(req,res)=>{
  const r=await query('INSERT INTO conversations(company_id,contact_id,assignee_id,channel) VALUES($1,$2,$3,$4) RETURNING *',[req.user.company_id,req.body.contact_id,req.user.id,'internal']);res.status(201).json(r.rows[0]);
 }));
 app.get('/api/conversations/:id/messages',auth,asyncRoute(async(req,res)=>{
- const r=await query('SELECT m.*,u.name AS sender_name FROM messages m JOIN conversations v ON v.id=m.conversation_id LEFT JOIN users u ON u.id=m.sender_id WHERE v.id=$1 AND v.company_id=$2'+ownerSql(req.user,'v.assignee_id',3)+' ORDER BY m.created_at LIMIT 500',[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])]);res.json(r.rows);
+ const r=await query('SELECT m.*,u.name AS sender_name FROM messages m JOIN conversations v ON v.id=m.conversation_id LEFT JOIN users u ON u.id=m.sender_id WHERE v.id=$1 AND v.company_id=$2'+ownerSql(req.user,'v.assignee_id',3)+' ORDER BY m.created_at,m.id LIMIT 500',[req.params.id,req.user.company_id,...(agent(req.user)?[req.user.id]:[])]);
+ // Duplicate webhook echoes may have distinct database IDs even though the
+ // recipient received one message. Collapse only the conversation response;
+ // retain every stored row for auditing and never touch message delivery.
+ const visible=[],seenExternal=new Set(),lastByBody=new Map();
+ for(const m of r.rows){
+  if(m.direction!=='inbound'&&m.direction!=='outbound'){visible.push(m);continue;}
+  const external=String(m.external_id||'').trim().replace(/^.*:/,'');
+  const externalKey=external?m.direction+'|'+external:null;
+  const contentKey=m.direction+'|'+String(m.body||'');
+  const time=new Date(m.created_at).getTime(),prior=lastByBody.get(contentKey);
+  if(externalKey&&seenExternal.has(externalKey))continue;
+  if(Number.isFinite(time)&&prior!==undefined&&time-prior<=2000&&time-prior>=0)continue;
+  visible.push(m);
+  if(externalKey)seenExternal.add(externalKey);
+  if(Number.isFinite(time))lastByBody.set(contentKey,time);
+ }
+ res.json(visible);
 }));
 app.post('/api/conversations/:id/messages',auth,asyncRoute(async(req,res)=>{
  const {body,direction='internal'}=req.body;
