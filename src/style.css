@@ -844,3 +844,26 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span b,
 :root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span strong{color:#172b4d}
 :root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span small{color:#52657e}
+
+
+/* Campaigns and Settings: coherent theme surfaces, labels, controls and interaction contrast */
+:root:not([data-theme="dark"]) .app .campaign-workspace,:root:not([data-theme="dark"]) .app .settings-page{--module-surface:#fff;--module-raised:#f1f5f9;--module-text:#172b4d;--module-muted:#475569;--module-border:#cbd5e1;--module-hover:#dbeafe;--module-active:#1d4ed8;--module-active-text:#fff}
+:root[data-theme="dark"] .app .campaign-workspace,:root[data-theme="dark"] .app .settings-page{--module-surface:#1e293b;--module-raised:#29394e;--module-text:#f1f5f9;--module-muted:#cbd5e1;--module-border:#475569;--module-hover:#385273;--module-active:#2563eb;--module-active-text:#fff}
+.app .campaign-workspace,.app .settings-page{color:var(--module-text)}
+.app .campaign-workspace-header,.app .campaign-tabs,.app .campaign-guide>div,.app .campaign-content .panel,.app .settings-tabs,.app .settings-section .panel,.app .settings-section>section{background:var(--module-surface);color:var(--module-text);border-color:var(--module-border)}
+.app .campaign-summary,.app .settings-layout{background:var(--module-raised);color:var(--module-text);border-color:var(--module-border)}
+.app .campaign-workspace h2,.app .campaign-workspace h3,.app .campaign-workspace strong,.app .campaign-workspace .campaign-guide strong,.app .settings-page h2,.app .settings-page h3,.app .settings-page h4,.app .settings-page strong,.app .settings-page label{color:var(--module-text)}
+.app .campaign-workspace-header p,.app .campaign-section-heading p,.app .campaign-guide span,.app .settings-description,.app .settings-section>header p,.app .settings-section-heading p{color:var(--module-muted);opacity:1}
+.app .campaign-eyebrow,.app .settings-eyebrow{color:var(--module-active);opacity:1}
+.app .campaign-tabs .campaign-tab,.app .settings-tabs .settings-tab{background:var(--module-raised);color:var(--module-text);border:1px solid var(--module-border);opacity:1}
+.app .campaign-tabs .campaign-tab:hover:not(:disabled),.app .settings-tabs .settings-tab:hover:not(:disabled){background:var(--module-hover);color:var(--module-text);border-color:var(--module-active)}
+.app .campaign-tabs .campaign-tab.active,.app .settings-tabs .settings-tab.active{background:var(--module-active);color:var(--module-active-text);border-color:var(--module-active)}
+.app .campaign-tabs .campaign-tab.active:hover:not(:disabled),.app .settings-tabs .settings-tab.active:hover:not(:disabled){background:#1d4ed8;color:#fff;border-color:#93c5fd}
+.app .campaign-workspace input,.app .campaign-workspace textarea,.app .campaign-workspace select,.app .settings-page input:not([type=checkbox]),.app .settings-page textarea,.app .settings-page select{background:var(--module-surface);color:var(--module-text);border-color:var(--module-border)}
+.app .campaign-workspace input::placeholder,.app .campaign-workspace textarea::placeholder,.app .settings-page input::placeholder,.app .settings-page textarea::placeholder{color:var(--module-muted);opacity:1}
+.app .campaign-workspace .panel th,.app .campaign-workspace .panel td,.app .settings-page .panel th,.app .settings-page .panel td{background:var(--module-surface);color:var(--module-text);border-color:var(--module-border)}
+.app .campaign-workspace tbody tr:hover td,.app .settings-page tbody tr:hover td{background:var(--module-hover);color:var(--module-text)}
+.app .campaign-workspace button:not(.primary):not(.campaign-tab):not(:disabled):hover,.app .settings-page button:not(.primary):not(.settings-tab):not(:disabled):hover{background:var(--module-hover);color:var(--module-text);border-color:var(--module-active)}
+.app .campaign-workspace button:focus-visible,.app .settings-page button:focus-visible,.app .campaign-workspace a:focus-visible,.app .settings-page a:focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
+:root[data-theme="dark"] .app .campaign-workspace .panel,:root[data-theme="dark"] .app .settings-page .panel{background:var(--module-surface);color:var(--module-text);border-color:var(--module-border)}
+:root[data-theme="dark"] .app .campaign-workspace .panel p,:root[data-theme="dark"] .app .settings-page .panel p{color:var(--module-muted)}
