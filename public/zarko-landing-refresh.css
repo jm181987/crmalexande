@@ -48,3 +48,37 @@ body.zarko-scrolled #alexandre-navbar{box-shadow:0 14px 42px rgba(6,28,66,.2)!im
 @keyframes zarkoGrid{to{background-position:38px 38px}}
 @media(max-width:760px){#topo{min-height:auto}#topo h1{font-size:clamp(2.5rem,9vw,4rem)!important}#topo a[href="#contato"]{padding:15px 20px!important}#problema .grid > *:hover,#ecossistema .grid > *:hover,#setores .grid > *:hover{transform:none!important}}
 @media(prefers-reduced-motion:reduce){#topo::before{animation:none}.zarko-scroll-progress{transition:none}}
+
+/* Desktop layout: make meaningful use of wide monitors without edge-to-edge text */
+@media(min-width:1024px){
+ #topo > .relative.mx-auto.grid,
+ #problema > .mx-auto.max-w-7xl,
+ #ecossistema > .mx-auto.max-w-7xl,
+ #comparativo > .relative.mx-auto.max-w-6xl,
+ #setores > .mx-auto.max-w-7xl,
+ #contato > .relative.mx-auto.grid,
+ #faq > .mx-auto.max-w-3xl{
+   width:calc(100% - clamp(64px,7vw,160px))!important;
+   max-width:1800px!important;
+   margin-left:auto!important;margin-right:auto!important;
+ }
+ #topo > .relative.mx-auto.grid{gap:clamp(40px,4vw,96px)!important;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr)!important}
+ #contato > .relative.mx-auto.grid{gap:clamp(48px,5vw,110px)!important;grid-template-columns:minmax(0,1fr) minmax(380px,.9fr)!important}
+ #problema .grid,#ecossistema .grid,#setores .grid{gap:clamp(20px,2vw,36px)!important}
+ #problema .mx-auto.mb-14.max-w-3xl,
+ #ecossistema .mx-auto.mb-14.max-w-3xl,
+ #comparativo .mx-auto.mb-14.max-w-3xl,
+ #setores .mx-auto.mb-14.max-w-3xl,
+ #faq .mx-auto.mb-14.max-w-3xl{max-width:1100px!important}
+ #faq > .mx-auto.max-w-3xl{max-width:1100px!important}
+ #alexandre-navbar .alexandre-navbar-inner{max-width:1800px!important;width:calc(100% - clamp(32px,5vw,120px))!important}
+}
+@media(min-width:1900px){
+ #topo > .relative.mx-auto.grid,
+ #problema > .mx-auto.max-w-7xl,
+ #ecossistema > .mx-auto.max-w-7xl,
+ #comparativo > .relative.mx-auto.max-w-6xl,
+ #setores > .mx-auto.max-w-7xl,
+ #contato > .relative.mx-auto.grid{max-width:1920px!important}
+ #alexandre-navbar .alexandre-navbar-inner{max-width:1920px!important}
+}
