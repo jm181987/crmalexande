@@ -407,16 +407,19 @@ app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
   // Remove message/media dependents through their conversation FK, without touching other contacts.
   const conversations=await db.query('SELECT id FROM public.conversations WHERE contact_id=$1 AND company_id=$2 FOR UPDATE',[id,company]);
   const conversationIds=conversations.rows.map(x=>x.id);
+  // Some older installations have not created every optional CRM module table.
+  const optionalTables=await db.query("SELECT to_regclass('public.crm_chat_media') AS chat_media,to_regclass('public.crm_automation_executions') AS automations,to_regclass('public.crm_campaign_deliveries') AS deliveries,to_regclass('public.crm_contact_consents') AS consents,to_regclass('public.crm_review_requests') AS reviews");
+  const tables=optionalTables.rows[0];
   if(conversationIds.length){
-   await db.query('DELETE FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
+   if(tables.chat_media)await db.query('DELETE FROM public.crm_chat_media WHERE conversation_id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
    await db.query('DELETE FROM public.messages WHERE conversation_id=ANY($1::uuid[])',[conversationIds]);
    await db.query('DELETE FROM public.conversations WHERE id=ANY($1::uuid[]) AND company_id=$2',[conversationIds,company]);
   }
   // These records belong exclusively to the contact; campaigns, rules and pipelines remain intact.
-  await db.query('DELETE FROM public.crm_automation_executions WHERE contact_id=$1',[id]);
-  await db.query('DELETE FROM public.crm_campaign_deliveries WHERE contact_id=$1 AND company_id=$2',[id,company]);
-  await db.query('DELETE FROM public.crm_contact_consents WHERE contact_id=$1 AND company_id=$2',[id,company]);
-  await db.query('DELETE FROM public.crm_review_requests WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.automations)await db.query('DELETE FROM public.crm_automation_executions WHERE contact_id=$1',[id]);
+  if(tables.deliveries)await db.query('DELETE FROM public.crm_campaign_deliveries WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.consents)await db.query('DELETE FROM public.crm_contact_consents WHERE contact_id=$1 AND company_id=$2',[id,company]);
+  if(tables.reviews)await db.query('DELETE FROM public.crm_review_requests WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.opportunities WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.tasks WHERE contact_id=$1 AND company_id=$2',[id,company]);
   await db.query('DELETE FROM public.appointments WHERE contact_id=$1 AND company_id=$2',[id,company]);
@@ -427,6 +430,9 @@ app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
  }catch(e){
   try{await db.query('ROLLBACK')}catch{}
   if(e.code==='23503')return res.status(409).json({error:'Another linked record prevents deletion. No data was removed; contact support to review its dependency.'});
+  console.error('Owner contact deletion failed',{code:e.code,constraint:e.constraint,table:e.table,message:e.message});
+  if(e.code==='42P01')return res.status(503).json({error:'Contact deletion requires a missing database table. Run CRM migrations and retry.'});
+  if(e.code==='42501')return res.status(403).json({error:'Database permissions prevent deleting linked records.'});
   throw e;
  }finally{db.release()}
 }));
@@ -602,7 +608,7 @@ if(process.env.NODE_ENV==='production'){
  const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
  app.use(express.static(dist));app.get('*',(req,res)=>res.sendFile(path.join(dist,'index.html')));
 }
-app.use((e,req,res,next)=>{console.error('API error',e.code||e.message);if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error'});});
+app.use((e,req,res,next)=>{console.error('API error',{method:req.method,path:req.path,code:e.code||null,table:e.table||null,constraint:e.constraint||null,message:e.message});if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error',code:e.code||'UNEXPECTED_ERROR'});});
 if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
 if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler()});
 export default app;
