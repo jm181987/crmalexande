@@ -545,3 +545,28 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .app .workspace .crm-main .stats{gap:14px}
 @media(max-width:900px){.app .workspace .crm-main{padding:18px 16px 48px}.app .sidebar{overflow-y:auto}.app .sidebar nav{overflow-y:visible;flex:initial}}
 @media(max-width:600px){.app .workspace .crm-main>h1{font-size:25px}.app .workspace .crm-main .toolbar{align-items:stretch}.app .workspace .crm-main .toolbar>input{flex-basis:100%;max-width:none}.app .workspace .crm-main th,.app .workspace .crm-main td{padding:11px 12px}}
+
+
+/* Settings information architecture: persistent section menu and readable content. */
+.app .workspace .crm-main .settings-page{max-width:1500px;margin-inline:auto;gap:18px;color:#213149}
+.app .workspace .crm-main .settings-page-header{padding:4px 2px 12px}
+.app .workspace .crm-main .settings-page-header h2{color:#182e4b}
+.app .workspace .crm-main .settings-description{color:#53657d}
+.app .workspace .crm-main .settings-layout{display:grid;grid-template-columns:minmax(215px,260px) minmax(0,1fr);align-items:start;gap:22px;min-width:0}
+.app .workspace .crm-main .settings-tabs{position:sticky;top:20px;display:grid;grid-template-columns:minmax(0,1fr);gap:5px;padding:10px;background:#fff;border:1px solid #dce5f0;border-radius:15px;box-shadow:0 4px 16px #102a4610}
+.app .workspace .crm-main .settings-tab{width:100%;min-width:0;display:grid;justify-items:start;text-align:left;gap:5px;padding:12px 14px;min-height:0;background:transparent;color:#294263;border:1px solid transparent;border-radius:10px}
+.app .workspace .crm-main .settings-tab strong{font-size:13px;font-weight:750;line-height:1.35}
+.app .workspace .crm-main .settings-tab small{color:#5b6e86;font-size:11px;line-height:1.4;font-weight:450;white-space:normal}
+.app .workspace .crm-main .settings-tab:hover{background:#f0f5fc;border-color:#dbe7f6}
+.app .workspace .crm-main .settings-tab.active{background:#e9f2ff;border-color:#a9c8f4;color:#174d9b;box-shadow:inset 3px 0 #245db2}
+.app .workspace .crm-main .settings-tab.active small{color:#365d91}
+.app .workspace .crm-main .settings-content{display:grid;gap:18px;min-width:0}
+.app .workspace .crm-main .settings-section{display:grid;gap:18px;min-width:0}
+.app .workspace .crm-main .settings-section-heading{padding:16px 18px;background:#f4f8fd;border:1px solid #dce5f0;border-radius:12px}
+.app .workspace .crm-main .settings-section-heading h3{margin:0 0 5px;color:#182e4b;font-size:19px}
+.app .workspace .crm-main .settings-section-heading p{margin:0;color:#53657d;font-size:13px}
+.app .workspace .crm-main .settings-content .panel{background:#fff;color:#213149;border-color:#dce5f0;max-width:100%}
+.app .workspace .crm-main .settings-content :is(input,select,textarea){background:#fff;color:#213149;border-color:#bdcbdc}
+.app .workspace .crm-main .settings-content :is(th,td){overflow-wrap:anywhere}
+@media(max-width:950px){.app .workspace .crm-main .settings-layout{grid-template-columns:minmax(0,1fr)}.app .workspace .crm-main .settings-tabs{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.app .workspace .crm-main .settings-tabs{grid-template-columns:minmax(0,1fr)}.app .workspace .crm-main .settings-tab{padding:10px 12px}.app .workspace .crm-main .settings-section-heading{padding:14px}}
