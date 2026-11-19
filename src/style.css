@@ -912,3 +912,29 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root[data-theme="dark"] .app .workspace .crm-main .inventory-sections button:hover{background:#385273;color:#fff}
 :root[data-theme="dark"] .app .workspace .crm-main .inventory-sections button.active{background:#1e40af;color:#fff;border-color:#93c5fd}
 :root[data-theme="dark"] .app .workspace .crm-main .inventory-workspace .panel :is(input,select,textarea){background:#263449;color:#f8fafc;border-color:#64748b}
+
+
+/* WhatsApp message registry: complete light/dark surface and foreground pairs */
+:root:not([data-theme="dark"]) .app .workspace .crm-main .wa-audit{--audit-bg:#fff;--audit-raised:#f1f5f9;--audit-text:#172b4d;--audit-muted:#475569;--audit-border:#cbd5e1;--audit-hover:#e8f0fc;--audit-button:#e2e8f0;--audit-button-text:#172b4d;--audit-link:#1d4ed8}
+:root[data-theme="dark"] .app .workspace .crm-main .wa-audit{--audit-bg:#1e293b;--audit-raised:#29394e;--audit-text:#f8fafc;--audit-muted:#cbd5e1;--audit-border:#64748b;--audit-hover:#385273;--audit-button:#334155;--audit-button-text:#f8fafc;--audit-link:#bfdbfe}
+.app .workspace .crm-main .wa-audit{background:var(--audit-bg);color:var(--audit-text);border-color:var(--audit-border)}
+.app .workspace .crm-main .wa-audit :is(h2,h3,strong,b,label){color:var(--audit-text)}
+.app .workspace .crm-main .wa-audit :is(p,small,.wa-audit-note){color:var(--audit-muted);opacity:1}
+.app .workspace .crm-main .wa-audit .wa-audit-summary>div{background:var(--audit-raised);color:var(--audit-text);border-color:var(--audit-border)}
+.app .workspace .crm-main .wa-audit .wa-audit-summary span{color:var(--audit-muted);opacity:1}
+.app .workspace .crm-main .wa-audit .wa-audit-summary strong{color:var(--audit-text)}
+.app .workspace .crm-main .wa-audit .wa-audit-filters :is(input,select){background:var(--audit-bg);color:var(--audit-text);border-color:var(--audit-border)}
+.app .workspace .crm-main .wa-audit .wa-audit-filters input::placeholder{color:var(--audit-muted);opacity:1}
+.app .workspace .crm-main .wa-audit button:not(:disabled){background:var(--audit-button);color:var(--audit-button-text);border-color:var(--audit-border)}
+.app .workspace .crm-main .wa-audit button:not(:disabled):hover{background:var(--audit-hover);color:var(--audit-text);border-color:var(--audit-link)}
+.app .workspace .crm-main .wa-audit button:disabled{color:var(--audit-muted);opacity:.65}
+.app .workspace .crm-main .wa-audit :is(th,td){background:var(--audit-bg);color:var(--audit-text);border-color:var(--audit-border)}
+.app .workspace .crm-main .wa-audit th{background:var(--audit-raised);font-weight:700}
+.app .workspace .crm-main .wa-audit tbody tr:hover td{background:var(--audit-hover);color:var(--audit-text)}
+.app .workspace .crm-main .wa-audit td small{color:var(--audit-muted);opacity:1}
+.app .workspace .crm-main .wa-audit .wa-audit-body{color:var(--audit-text)}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .wa-audit .wa-audit-automation{color:#047857}
+:root[data-theme="dark"] .app .workspace .crm-main .wa-audit .wa-audit-automation{color:#6ee7b7}
+:root:not([data-theme="dark"]) .app .workspace .crm-main .wa-audit .wa-audit-unknown{color:#92400e}
+:root[data-theme="dark"] .app .workspace .crm-main .wa-audit .wa-audit-unknown{color:#fcd34d}
+.app .workspace .crm-main .wa-audit :is(button,input,select,a):focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
