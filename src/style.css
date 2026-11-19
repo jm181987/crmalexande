@@ -787,3 +787,17 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .app .wa-layout .wa-send,.app .wa-layout .wa-send:hover:not(:disabled){background:#0369a1;color:#fff;border-color:#0369a1}
 .app .wa-layout .wa-welcome{color:var(--wa-muted)}
 .app .wa-layout button:focus-visible,.app .wa-layout input:focus-visible,.app .wa-layout textarea:focus-visible,.app .wa-layout select:focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
+
+
+/* Conversation composer: internal note and message mode remain readable in every state */
+:root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode{background:#e8eef5;border-color:#bdcadb}
+:root[data-theme="dark"] .app .wa-layout .wa-compose-mode{background:#26364b;border-color:#64748b}
+:root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode button{background:transparent!important;color:#24364d!important;border:1px solid transparent!important;opacity:1}
+:root[data-theme="dark"] .app .wa-layout .wa-compose-mode button{background:transparent!important;color:#f1f5f9!important;border:1px solid transparent!important;opacity:1}
+:root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode button:hover:not(:disabled){background:#c7dbf6!important;color:#102b50!important}
+:root[data-theme="dark"] .app .wa-layout .wa-compose-mode button:hover:not(:disabled){background:#3c5573!important;color:#fff!important}
+:root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode button.active{background:#fff!important;color:#14532d!important;border-color:#8ab4a0!important}
+:root[data-theme="dark"] .app .wa-layout .wa-compose-mode button.active{background:#174b43!important;color:#ecfdf5!important;border-color:#4adea6!important}
+:root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode button.active:hover:not(:disabled){background:#dcfce7!important;color:#14532d!important}
+:root[data-theme="dark"] .app .wa-layout .wa-compose-mode button.active:hover:not(:disabled){background:#20665a!important;color:#fff!important}
+.app .wa-layout .wa-compose-mode button svg,.app .wa-layout .wa-compose-mode button span{color:inherit!important;opacity:1}
