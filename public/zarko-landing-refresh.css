@@ -21,3 +21,30 @@ body.zarko-scrolled #alexandre-navbar{box-shadow:0 12px 36px rgba(11,37,69,.1)}
 @keyframes zarkoAura{from{transform:translate3d(0,0,0) scale(.9)}to{transform:translate3d(-6%,8%,0) scale(1.15)}}
 @media(max-width:640px){#topo h1{letter-spacing:-.035em}#topo::after{width:90vw;right:-35vw}.zarko-reveal{transform:translateY(14px)}}
 @media(prefers-reduced-motion:reduce){:root{scroll-behavior:auto}#topo::after{animation:none}.zarko-reveal{opacity:1;transform:none;transition:none}#topo a,#contato a,#problema [class*="rounded"],#ecossistema [class*="rounded"],#setores [class*="rounded"]{transition:none!important}}
+
+/* Phase 2: bold high-contrast commercial presentation */
+:root{--zarko-electric:#42c7ff;--zarko-violet:#8268ff}
+#topo{min-height:min(900px,100svh);display:flex;align-items:center;background:radial-gradient(ellipse 55% 75% at 88% 40%,rgba(85,75,235,.34),transparent 72%),radial-gradient(ellipse 55% 65% at 14% 68%,rgba(0,186,247,.25),transparent 75%),linear-gradient(125deg,#040c20 0%,#092348 58%,#050d24 100%)!important}
+#topo::before{background-size:38px 38px;background-image:linear-gradient(rgba(118,204,255,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(118,204,255,.09) 1px,transparent 1px);mask-image:radial-gradient(ellipse at 70% 45%,#000 10%,transparent 76%);animation:zarkoGrid 18s linear infinite}
+#topo::after{right:-8vw;top:3%;width:min(65vw,850px);background:radial-gradient(circle at 50% 50%,rgba(68,181,255,.28),rgba(98,74,243,.16) 32%,transparent 66%);filter:blur(6px);animation:zarkoAura 8s ease-in-out infinite alternate}
+#topo h1{font-size:clamp(2.7rem,5.7vw,5.9rem)!important;line-height:1.04!important;letter-spacing:-.065em!important;max-width:1000px;text-shadow:0 14px 50px rgba(0,0,0,.25)}
+#topo h1 span,#topo h1 strong{background:linear-gradient(100deg,#fff 5%,#61d8ff 45%,#aa9aff 90%);background-clip:text;-webkit-background-clip:text;color:transparent!important;-webkit-text-fill-color:transparent}
+#topo p{font-size:clamp(1.05rem,1.35vw,1.35rem);max-width:750px;color:#c7dcf7!important}
+#topo a[href="#contato"]{background:linear-gradient(110deg,#008bff,#695bff)!important;border:1px solid rgba(255,255,255,.25)!important;box-shadow:0 18px 45px rgba(25,117,255,.35),inset 0 1px rgba(255,255,255,.22)!important;padding:17px 28px!important;border-radius:16px!important;font-weight:800!important}
+#topo a[href="#contato"]:hover{transform:translateY(-6px) scale(1.035);box-shadow:0 24px 65px rgba(46,119,255,.5)!important}
+#problema{background:#f7faff!important}
+#problema h2,#ecossistema h2,#setores h2,#faq h2{font-size:clamp(2.15rem,3.7vw,3.8rem)!important;line-height:1.12!important}
+#problema .grid > *,#ecossistema .grid > *,#setores .grid > *{position:relative;overflow:hidden;border:1px solid rgba(69,118,198,.18)!important;border-radius:22px!important;box-shadow:0 12px 30px rgba(13,41,91,.08)!important;transition:transform .35s ease,box-shadow .35s ease,border-color .35s ease!important}
+#problema .grid > *::before,#ecossistema .grid > *::before,#setores .grid > *::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#158fff,#42d7e7,#8b68ff);opacity:.8}
+#problema .grid > *:hover,#ecossistema .grid > *:hover,#setores .grid > *:hover{transform:translateY(-12px)!important;box-shadow:0 28px 65px rgba(18,75,150,.19)!important;border-color:rgba(55,144,245,.5)!important}
+#ecossistema{background:linear-gradient(150deg,#e8f5ff 0%,#f7faff 48%,#eae9ff 100%)!important}
+#comparativo{background:radial-gradient(ellipse at 85% 25%,rgba(89,74,241,.26),transparent 55%),linear-gradient(135deg,#050e25,#0b2c55)!important}
+#comparativo h2,#contato h2{font-size:clamp(2.2rem,4vw,4rem)!important;line-height:1.12!important}
+#contato{background:radial-gradient(ellipse at 90% 10%,rgba(100,83,248,.34),transparent 58%),radial-gradient(ellipse at 5% 90%,rgba(19,176,240,.23),transparent 60%),#071b3a!important}
+#contato form{border-radius:24px!important;box-shadow:0 30px 80px rgba(0,0,0,.22)!important}
+#alexandre-navbar{border-bottom:1px solid rgba(100,169,238,.22)!important}
+body.zarko-scrolled #alexandre-navbar{box-shadow:0 14px 42px rgba(6,28,66,.2)!important}
+.zarko-scroll-progress{position:fixed;top:0;left:0;height:3px;width:0;z-index:10001;background:linear-gradient(90deg,#00c6ff,#8368ff);box-shadow:0 0 16px #31b9ff;pointer-events:none}
+@keyframes zarkoGrid{to{background-position:38px 38px}}
+@media(max-width:760px){#topo{min-height:auto}#topo h1{font-size:clamp(2.5rem,9vw,4rem)!important}#topo a[href="#contato"]{padding:15px 20px!important}#problema .grid > *:hover,#ecossistema .grid > *:hover,#setores .grid > *:hover{transform:none!important}}
+@media(prefers-reduced-motion:reduce){#topo::before{animation:none}.zarko-scroll-progress{transition:none}}
