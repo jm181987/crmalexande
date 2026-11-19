@@ -66,6 +66,26 @@ const auth=asyncRoute(async(req,res,next)=>{
   const access=await query('SELECT enabled FROM public.crm_company_tools WHERE company_id=$1 AND tool_key=$2',[req.user.company_id,tool]);
   if(access.rowCount&&!access.rows[0].enabled)return res.status(403).json({error:'Tool disabled for this company',code:'TOOL_DISABLED',tool});
  }
+ // Per-user permissions: deny unauthorized module access at the API boundary.
+ const moduleFromPath=(p)=>{
+  if(/^\/api\/inventory(?:\/|$)|^\/api\/inventory-images\//.test(p))return 'inventory';
+  if(/^\/api\/evolution\//.test(p))return 'conversations';
+  if(/^\/api\/builderbot(?:\/|$)/.test(p))return 'ai';
+  for(const key of ['conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports'])
+   if(p==='/api/'+key||p.startsWith('/api/'+key+'/'))return key;
+  return null;
+ };
+ const moduleKey=moduleFromPath(req.path);
+ if(moduleKey&&req.user.role!=='owner'){
+  const action=req.method==='GET'||req.method==='HEAD'?'view':req.method==='POST'?'create':req.method==='PATCH'||req.method==='PUT'?'edit':req.method==='DELETE'?'delete':null;
+  if(action){
+   const permission=await query('SELECT can_view,can_create,can_edit,can_delete FROM public.crm_user_module_permissions WHERE company_id=$1 AND user_id=$2 AND module_key=$3',[req.user.company_id,req.user.id,moduleKey]);
+   if(permission.rowCount){
+    const row=permission.rows[0];
+    if(!row['can_'+action]||(action!=='view'&&!row.can_view))return res.status(403).json({error:'Sin permiso para esta acción',code:'USER_PERMISSION_DENIED',module:moduleKey,action});
+   }
+  }
+ }
  tenantContext.enterWith({companyId:req.user.company_id});next();
 });
 const manager=(req,res,next)=>req.user.role==='owner'||req.user.role==='manager'?next():res.status(403).json({error:'Forbidden'});
@@ -274,6 +294,39 @@ app.patch('/api/company',auth,owner,asyncRoute(async(req,res)=>{
  if(typeof name!=='string'||!name.trim()||name.trim().length>120)return res.status(400).json({error:'Invalid company name'});
  const r=await query('UPDATE companies SET name=$2 WHERE id=$1 RETURNING id,name,created_at',[req.user.company_id,name.trim()]);
  res.json(r.rows[0]);
+}));
+const permissionModules=['dashboard','inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','settings'];
+const permissionActions=['view','create','edit','delete'];
+app.get('/api/me/permissions',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT module_key,can_view,can_create,can_edit,can_delete FROM public.crm_user_module_permissions WHERE company_id=$1 AND user_id=$2',[req.user.company_id,req.user.id]);
+ res.json({permissions:Object.fromEntries(r.rows.map(x=>[x.module_key,{view:x.can_view,create:x.can_create,edit:x.can_edit,delete:x.can_delete}])),role:req.user.role});
+}));
+app.get('/api/users/:id/permissions',auth,owner,asyncRoute(async(req,res)=>{
+ const u=await query('SELECT role FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[req.params.id,req.user.company_id]);
+ if(!u.rowCount)return res.sendStatus(404);
+ const r=await query('SELECT module_key,can_view,can_create,can_edit,can_delete FROM public.crm_user_module_permissions WHERE company_id=$1 AND user_id=$2',[req.user.company_id,req.params.id]);
+ res.json({role:u.rows[0].role,permissions:Object.fromEntries(r.rows.map(x=>[x.module_key,{view:x.can_view,create:x.can_create,edit:x.can_edit,delete:x.can_delete}]))});
+}));
+app.put('/api/users/:id/permissions',auth,owner,asyncRoute(async(req,res)=>{
+ const u=await query('SELECT role FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[req.params.id,req.user.company_id]);
+ if(!u.rowCount)return res.sendStatus(404);
+ if(u.rows[0].role==='owner')return res.status(403).json({error:'Los permisos de Owner no se pueden restringir'});
+ const permissions=req.body?.permissions;
+ if(!permissions||typeof permissions!=='object'||Array.isArray(permissions)||Object.keys(permissions).length!==permissionModules.length||Object.keys(permissions).some(k=>!permissionModules.includes(k)))return res.status(400).json({error:'Matriz de permisos incompleta'});
+ for(const key of permissionModules){
+  const v=permissions[key];
+  if(!v||permissionActions.some(a=>typeof v[a]!=='boolean')||permissionActions.some(a=>a!=='view'&&v[a]&&!v.view))return res.status(400).json({error:'Permisos inválidos en '+key});
+ }
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  for(const key of permissionModules){
+   const v=permissions[key];
+   await client.query('INSERT INTO public.crm_user_module_permissions(company_id,user_id,module_key,can_view,can_create,can_edit,can_delete) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,user_id,module_key) DO UPDATE SET can_view=EXCLUDED.can_view,can_create=EXCLUDED.can_create,can_edit=EXCLUDED.can_edit,can_delete=EXCLUDED.can_delete',[req.user.company_id,req.params.id,key,v.view,v.create,v.edit,v.delete]);
+  }
+  await client.query('COMMIT');
+ }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+ res.json({saved:true});
 }));
 app.get('/api/users',auth,asyncRoute(async(req,res)=>{const r=await query('SELECT id,name,email,role FROM users WHERE company_id=$1 AND is_active=true ORDER BY name',[req.user.company_id]);res.json(r.rows);}));
 app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
