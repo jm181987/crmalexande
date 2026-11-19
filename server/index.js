@@ -69,7 +69,7 @@ const auth=asyncRoute(async(req,res,next)=>{
  }
  // Per-user permissions: deny unauthorized module access at the API boundary.
  const moduleFromPath=(p)=>{
-  if(p==='/api/dashboard')return 'dashboard';
+  if(p==='/api/dashboard'||p.startsWith('/api/dashboard/'))return 'dashboard';
   if(p==='/api/company'||p.startsWith('/api/company/'))return 'settings';
   if(/^\/api\/pipelines(?:\/|$)/.test(p))return 'opportunities';
   if(/^\/api\/round-robin(?:\/|$)/.test(p))return 'conversations';
@@ -294,6 +294,24 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  query('SELECT count(*)::int AS n FROM conversations WHERE company_id=$1'+ownerSql(u,'assignee_id'),q),
  query('SELECT count(*)::int AS n FROM tasks WHERE company_id=$1 AND completed=false'+scope,q)]);
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});
+}));
+// Tenant-scoped WhatsApp audit: do not guess the origin of webhook outbound messages.
+app.get('/api/dashboard/whatsapp-activity',auth,asyncRoute(async(req,res)=>{
+ const u=req.user,since=String(req.query.since||'');
+ if(since&&!/^\d{4}-\d{2}-\d{2}$/.test(since))return res.status(400).json({error:'Invalid date'});
+ const date=since||null,assignee=u.role==='agent'?u.id:null;
+ const rows=await query("SELECT m.id,m.created_at,m.direction,m.body,m.external_id,m.sender_id,v.id AS conversation_id,v.external_id AS conversation_external_id,c.name AS contact_name,c.phone AS contact_phone,usr.name AS sender_name FROM public.messages m JOIN public.conversations v ON v.id=m.conversation_id JOIN public.contacts c ON c.id=v.contact_id AND c.company_id=v.company_id LEFT JOIN public.users usr ON usr.id=m.sender_id AND usr.company_id=v.company_id WHERE v.company_id=$1 AND v.channel='whatsapp' AND ($2::date IS NULL OR m.created_at >= $2::date) AND ($3::uuid IS NULL OR v.assignee_id=$3) ORDER BY m.created_at DESC LIMIT 200",[u.company_id,date,assignee]);
+ const activity=rows.rows.map(m=>{const inbound=m.direction==='inbound',manual=!!m.sender_id,instance=String(m.conversation_external_id||'').split(':')[0]||null;return {id:m.id,created_at:m.created_at,direction:inbound?'inbound':'outbound',source:inbound?'customer':manual?'manual':'unknown',sender:inbound?(m.contact_name||m.contact_phone||'Contact'):(manual?m.sender_name||'Agent':'WhatsApp / external'),recipient:inbound?(instance||'WhatsApp'):(m.contact_name||m.contact_phone||'Contact'),contact_name:m.contact_name,contact_phone:m.contact_phone,instance,body:String(m.body||'').slice(0,500),external_id:m.external_id,conversation_id:m.conversation_id,status:'recorded'};});
+ const hasCampaigns=await query("SELECT to_regclass('public.crm_campaign_deliveries') IS NOT NULL AS available");
+ if(hasCampaigns.rows[0].available&&u.role!=='agent'){
+  const campaigns=await query("SELECT d.id,d.status,d.sent_at,d.due_at,d.external_id,c.name AS contact_name,c.phone AS contact_phone,cam.name AS campaign_name,cam.content,cam.instance_name FROM public.crm_campaign_deliveries d JOIN public.crm_campaigns cam ON cam.id=d.campaign_id AND cam.company_id=d.company_id JOIN public.contacts c ON c.id=d.contact_id AND c.company_id=d.company_id WHERE d.company_id=$1 AND cam.channel='whatsapp' AND d.status IN ('sent','failed','sending') AND ($2::date IS NULL OR d.due_at >= $2::date) ORDER BY COALESCE(d.sent_at,d.due_at) DESC LIMIT 200",[u.company_id,date]);
+  for(const c of campaigns.rows){
+   const matching=c.external_id&&activity.find(m=>m.external_id&&(m.external_id===c.external_id||m.external_id.endsWith(':'+c.external_id)));if(matching){matching.source='automation';matching.sender='CRM campaign: '+c.campaign_name;matching.status=c.status;continue;}
+   activity.push({id:'campaign:'+c.id,created_at:c.sent_at||c.due_at,direction:'outbound',source:'automation',sender:'CRM campaign: '+c.campaign_name,recipient:c.contact_name||c.contact_phone||'Contact',contact_name:c.contact_name,contact_phone:c.contact_phone,instance:c.instance_name,body:String(c.content||'').slice(0,500),external_id:c.external_id,conversation_id:null,status:c.status});
+  }
+ }
+ activity.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+ res.json({items:activity.slice(0,200),limit:200,partial:activity.length>200,counts:{inbound:activity.filter(x=>x.direction==='inbound').length,outbound:activity.filter(x=>x.direction==='outbound').length,automation:activity.filter(x=>x.source==='automation').length,manual:activity.filter(x=>x.source==='manual').length,unknown:activity.filter(x=>x.source==='unknown').length}});
 }));
 app.get('/api/company',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT id,name,created_at FROM companies WHERE id=$1',[req.user.company_id]);

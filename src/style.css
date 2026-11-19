@@ -595,3 +595,16 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 @media(max-width:450px){.inventory-metrics{grid-template-columns:1fr}}
 
 .crm-danger-action{border:1px solid #fecaca!important;background:#fff5f5!important;color:#991b1b!important;border-radius:8px;padding:7px 10px;font-weight:650;cursor:pointer}.crm-danger-action:hover{background:#fee2e2!important;color:#7f1d1d!important}.wa-chat-head .crm-danger-action{font-size:12px;white-space:normal;max-width:160px}
+
+
+/* WhatsApp activity audit: responsive and theme-independent contrast */
+.wa-audit{margin-top:24px;padding:20px;border:1px solid var(--border,#d7dce4);border-radius:16px;background:var(--surface,#fff);color:var(--text,#1f2937)}
+.wa-audit-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.wa-audit-heading h2{font-size:1.2rem;margin:0 0 6px}.wa-audit-heading p,.wa-audit-note{font-size:.85rem;opacity:.8;margin:0 0 12px}
+.wa-audit-actions{display:flex;gap:8px}.wa-audit button{padding:9px 12px;border:1px solid #64748b;border-radius:8px;background:transparent;color:inherit;cursor:pointer}.wa-audit button:disabled{opacity:.5;cursor:default}
+.wa-audit-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+.wa-audit-summary>div{border:1px solid var(--border,#d7dce4);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:5px}
+.wa-audit-summary span{font-size:.8rem;opacity:.85}.wa-audit-summary strong{font-size:1.35rem}
+.wa-audit-filters{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.wa-audit-filters label{display:flex;flex-direction:column;gap:4px;font-size:.8rem}.wa-audit-filters input,.wa-audit-filters select{min-width:130px;max-width:100%;padding:9px;border-radius:8px;border:1px solid #94a3b8;background:var(--surface,#fff);color:var(--text,#1f2937)}.wa-audit-filters>input{align-self:flex-end;flex:1}
+.wa-audit-scroll{overflow-x:auto}.wa-audit table{width:100%;border-collapse:collapse;text-align:left;min-width:730px}.wa-audit th,.wa-audit td{padding:10px;border-bottom:1px solid var(--border,#d7dce4);font-size:.83rem;vertical-align:top}.wa-audit td small{display:block;opacity:.7}.wa-audit-body{max-width:290px;overflow-wrap:anywhere;white-space:pre-wrap}.wa-audit-tag{display:inline-block;border-radius:6px;padding:3px 7px;border:1px solid currentColor}.wa-audit-automation{color:#047857}.wa-audit-unknown{color:#b45309}
+@media(max-width:700px){.wa-audit{padding:12px}.wa-audit-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-audit-filters>*{flex:1 1 140px}}
