@@ -631,3 +631,34 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .automation-config{margin-top:18px;border-top:1px solid var(--border,#475569);padding-top:18px}.automation-form p{margin:0 0 14px;line-height:1.5}.automation-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.automation-fields label{display:grid;gap:7px;font-size:.88rem;font-weight:600}.automation-fields input,.automation-fields select{width:100%;min-width:0;box-sizing:border-box}.automation-hint{font-size:.87rem;line-height:1.5;margin:16px 0 0;opacity:.88}
 .automation-rules table{width:100%;border-collapse:collapse}.automation-rules th,.automation-rules td{padding:13px;text-align:left;border-bottom:1px solid var(--border,#475569);vertical-align:middle}.automation-rules th{font-size:.8rem}.automation-rules .table-scroll{overflow-x:auto}.automation-detail{display:block;margin-top:4px}.automation-status{font-weight:600}.automation-status.enabled{color:#16a34a}.automation-toggle{display:flex;align-items:center;gap:9px;cursor:pointer;font-weight:600}.automation-toggle input{width:18px;height:18px;accent-color:#16a34a}.automation-empty{padding:16px;margin:0}
 @media(max-width:760px){.automation-header,.automation-creator,.automation-rules{padding:16px}.automation-steps,.automation-choices,.automation-fields{grid-template-columns:1fr}.automation-choice{min-height:0}.automation-metrics>div{min-width:80px}.automation-steps>div{padding:10px}}
+
+
+/* Automation layout and contrast correction: explicit colors avoid inherited global button styles */
+.automation-workspace{max-width:none;width:100%;box-sizing:border-box;gap:22px;color:#f1f5f9;align-content:start}
+.automation-workspace .automation-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:24px;min-height:0;height:auto;overflow:visible;background:#fff;color:#1e293b;padding:24px 28px;border-color:#dbe3ed}
+.automation-header>div:first-child{flex:1 1 350px;min-width:0}
+.automation-header h2{color:#1e293b;line-height:1.2;margin:12px 0 10px}
+.automation-header p{color:#475569;line-height:1.55;max-width:650px;margin:0;position:static}
+.automation-header .campaign-eyebrow{color:#1d4ed8}
+.automation-metrics{flex:0 1 auto;align-items:stretch;gap:10px}
+.automation-metrics>div{background:#f1f5f9;color:#1e293b;border:1px solid #dbe3ed;min-width:112px;padding:14px 16px;box-sizing:border-box}
+.automation-metrics strong{color:#0f172a;line-height:1.2}
+.automation-metrics span{color:#475569}
+.automation-steps>div{background:#27313e;color:#f8fafc;border-color:#475569;min-height:66px;box-sizing:border-box}
+.automation-steps span{color:#f8fafc}
+.automation-creator,.automation-rules{background:#20252d;color:#f8fafc;border-color:#475569}
+.automation-creator h3,.automation-rules h3{color:#f8fafc}
+.automation-choice,.automation-workspace button.automation-choice{background:#2b3441!important;color:#f8fafc!important;border:1px solid #64748b!important;box-shadow:none;text-shadow:none;opacity:1}
+.automation-choice strong,.automation-choice span{color:#f1f5f9!important;opacity:1}
+.automation-choice span{color:#cbd5e1!important}
+.automation-choice.selected,.automation-workspace button.automation-choice.selected{background:#213c5c!important;border:2px solid #60a5fa!important}
+.automation-choice.selected strong{color:#fff!important}
+.automation-form p,.automation-hint{color:#e2e8f0}
+.automation-fields label{color:#f8fafc}
+.automation-fields input,.automation-fields select{background:#fff;color:#0f172a;border:1px solid #94a3b8;border-radius:9px;padding:10px 12px}
+.automation-rules th,.automation-rules td{color:#f1f5f9;border-color:#475569}
+.automation-rules th{color:#cbd5e1}
+.automation-rules .automation-status.enabled{color:#86efac}
+.automation-rules .automation-toggle{color:#f8fafc}
+@media(max-width:1000px){.automation-header{flex-direction:column}.automation-header>div:first-child{flex-basis:auto}.automation-metrics{width:100%}.automation-metrics>div{flex:1 1 105px}}
+@media(max-width:760px){.automation-workspace .automation-header{padding:18px}.automation-steps{grid-template-columns:1fr}.automation-choices,.automation-fields{grid-template-columns:1fr}.automation-metrics{gap:8px}.automation-metrics>div{padding:10px;min-width:0}}
