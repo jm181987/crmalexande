@@ -188,3 +188,10 @@ Desde Automatizaciones, crear una regla de **contacto inactivo** o **estado de o
 También existe el endpoint privado `POST /api/internal/automation-run` para un scheduler externo. Requiere `Authorization: Bearer <CAMPAIGN_WORKER_SECRET>`, con secreto de al menos 24 caracteres. No exponer el secreto al navegador.
 
 **Importante:** comprobar que las migraciones de la base de datos estén aplicadas, incluida `crm_automation_executions`, antes de habilitar el motor. Supervisar logs de Coolify tras activarlo.
+
+
+### Telegram — avisos privados del owner
+
+En Coolify, configurá las variables **runtime** `TELEGRAM_BOT_TOKEN` (token nuevo generado en BotFather, nunca en el repositorio) y `TELEGRAM_CHAT_ID` (ID del chat destinatario; si se omite se usa el ID proporcionado durante la configuración inicial). Redeploy después de agregarlas. Ejecutá `npm run db:migrate` una vez para crear `public.crm_telegram_settings`.
+
+En **Configuración → Telegram** (solo owner) seleccioná y guardá los eventos `new_opportunity`, `security_access` y `new_contact`, activá los avisos y probá **Enviar mensaje de prueba**. Los avisos están desactivados por empresa hasta que un owner los habilite expresamente, para evitar filtraciones entre empresas. Los eventos de acceso incluyen inicios de sesión correctos y creación/modificación de usuarios; no incluyen contraseñas, tokens ni intentos fallidos sin identificación segura de empresa. El envío se realiza desde el servidor y los errores del proveedor no bloquean la operación comercial.
