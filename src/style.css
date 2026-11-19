@@ -662,3 +662,45 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .automation-rules .automation-toggle{color:#f8fafc}
 @media(max-width:1000px){.automation-header{flex-direction:column}.automation-header>div:first-child{flex-basis:auto}.automation-metrics{width:100%}.automation-metrics>div{flex:1 1 105px}}
 @media(max-width:760px){.automation-workspace .automation-header{padding:18px}.automation-steps{grid-template-columns:1fr}.automation-choices,.automation-fields{grid-template-columns:1fr}.automation-metrics{gap:8px}.automation-metrics>div{padding:10px;min-width:0}}
+
+
+/* Global user-selected appearance: scoped to the authenticated CRM, not the public landing */
+:root{--crm-bg:#f5f7fb;--crm-surface:#fff;--crm-elevated:#f1f5f9;--crm-text:#213149;--crm-muted:#52657e;--crm-border:#dbe3ed;--crm-input:#fff;--crm-accent:#2563eb;color-scheme:light}
+:root[data-theme="dark"]{--crm-bg:#111827;--crm-surface:#1e293b;--crm-elevated:#273449;--crm-text:#f1f5f9;--crm-muted:#cbd5e1;--crm-border:#475569;--crm-input:#263449;--crm-accent:#60a5fa;color-scheme:dark}
+:root[data-theme="dark"],:root[data-theme="dark"] body{background:var(--crm-bg);color:var(--crm-text)}
+.theme-switch{display:inline-flex;gap:7px;align-items:center;flex-shrink:0;padding:8px 11px;border:1px solid var(--crm-border);background:var(--crm-elevated);color:var(--crm-text);border-radius:10px;font-size:12px;font-weight:700}
+.theme-switch:hover{border-color:var(--crm-accent)}.theme-switch:focus-visible{outline:3px solid var(--crm-accent);outline-offset:2px}
+:root[data-theme="dark"] .app,:root[data-theme="dark"] .workspace,:root[data-theme="dark"] .crm-main{background:var(--crm-bg);color:var(--crm-text)}
+:root[data-theme="dark"] .workspace>header{background:var(--crm-surface);border-color:var(--crm-border);color:var(--crm-text)}
+:root[data-theme="dark"] .crumb,:root[data-theme="dark"] .crumb span,:root[data-theme="dark"] .tenant-header,:root[data-theme="dark"] .language{color:var(--crm-text)}
+:root[data-theme="dark"] .language select{background:var(--crm-surface);color:var(--crm-text)}
+:root[data-theme="dark"] .crm-main h1,:root[data-theme="dark"] .crm-main h2,:root[data-theme="dark"] .crm-main h3,:root[data-theme="dark"] .crm-main h4,:root[data-theme="dark"] .crm-main label,:root[data-theme="dark"] .crm-main strong{color:inherit}
+:root[data-theme="dark"] .crm-main .panel,:root[data-theme="dark"] .crm-main .stat,:root[data-theme="dark"] .crm-main .automation-header,:root[data-theme="dark"] .crm-main .automation-creator,:root[data-theme="dark"] .crm-main .automation-rules,:root[data-theme="dark"] .crm-main .deal,:root[data-theme="dark"] .crm-main .inbox,:root[data-theme="dark"] .crm-main .thread-main,:root[data-theme="dark"] .crm-main .thread-head,:root[data-theme="dark"] .crm-main .toolbar,:root[data-theme="dark"] .crm-main .kanban section,:root[data-theme="dark"] .crm-main .card,:root[data-theme="dark"] .crm-main .modal-content{background:var(--crm-surface);border-color:var(--crm-border);color:var(--crm-text)}
+:root[data-theme="dark"] .crm-main input,:root[data-theme="dark"] .crm-main textarea,:root[data-theme="dark"] .crm-main select{background:var(--crm-input);color:var(--crm-text);border-color:var(--crm-border)}
+:root[data-theme="dark"] .crm-main input::placeholder,:root[data-theme="dark"] .crm-main textarea::placeholder{color:#cbd5e1;opacity:.85}
+:root[data-theme="dark"] .crm-main button:not(.primary):not(.nav-item):not(.automation-choice),:root[data-theme="dark"] .crm-main .tabs{background:var(--crm-elevated);color:var(--crm-text);border-color:var(--crm-border)}
+:root[data-theme="dark"] .crm-main .primary{background:#2563eb;color:#fff;border-color:#3b82f6}
+:root[data-theme="dark"] .crm-main th,:root[data-theme="dark"] .crm-main td{background:var(--crm-surface);color:var(--crm-text);border-color:var(--crm-border)}
+:root[data-theme="dark"] .crm-main td b,:root[data-theme="dark"] .crm-main td strong,:root[data-theme="dark"] .crm-main .stat strong{color:var(--crm-text)}
+:root[data-theme="dark"] .crm-main .stat p,:root[data-theme="dark"] .crm-main .stat small,:root[data-theme="dark"] .crm-main .subtitle,:root[data-theme="dark"] .crm-main .thread small,:root[data-theme="dark"] .crm-main .deal p{color:var(--crm-muted)}
+:root[data-theme="dark"] .crm-main .messages,:root[data-theme="dark"] .crm-main .tabs,:root[data-theme="dark"] .crm-main .thread,:root[data-theme="dark"] .crm-main .thread.selected{background:var(--crm-elevated);color:var(--crm-text);border-color:var(--crm-border)}
+:root[data-theme="dark"] .crm-main .tag{background:#1e40af;color:#dbeafe}
+:root[data-theme="dark"] .crm-main .automation-header{background:var(--crm-surface);color:var(--crm-text)}
+:root[data-theme="dark"] .crm-main .automation-header h2,:root[data-theme="dark"] .crm-main .automation-header p,:root[data-theme="dark"] .crm-main .automation-metrics strong,:root[data-theme="dark"] .crm-main .automation-metrics span{color:var(--crm-text)}
+:root[data-theme="dark"] .crm-main .automation-metrics>div{background:var(--crm-elevated);border-color:var(--crm-border)}
+:root[data-theme="dark"] .crm-main .automation-choice,:root[data-theme="dark"] .crm-main button.automation-choice{background:#29394f!important;color:#f8fafc!important;border-color:#64748b!important}
+:root[data-theme="dark"] .crm-main .automation-choice.selected{background:#214569!important;border-color:#93c5fd!important}
+:root[data-theme="dark"] .crm-main .automation-fields input,:root[data-theme="dark"] .crm-main .automation-fields select{background:var(--crm-input);color:var(--crm-text)}
+/* Light mode: make the automation section consistent with the rest of the CRM */
+:root:not([data-theme="dark"]) .automation-creator,:root:not([data-theme="dark"]) .automation-rules{background:#fff;color:#1e293b;border-color:#dbe3ed}
+:root:not([data-theme="dark"]) .automation-creator h3,:root:not([data-theme="dark"]) .automation-rules h3,:root:not([data-theme="dark"]) .automation-fields label{color:#1e293b}
+:root:not([data-theme="dark"]) .automation-choice,:root:not([data-theme="dark"]) button.automation-choice{background:#f1f5f9!important;color:#1e293b!important;border-color:#94a3b8!important}
+:root:not([data-theme="dark"]) .automation-choice strong{color:#0f172a!important}
+:root:not([data-theme="dark"]) .automation-choice span{color:#475569!important}
+:root:not([data-theme="dark"]) .automation-choice.selected,:root:not([data-theme="dark"]) button.automation-choice.selected{background:#dbeafe!important;border-color:#2563eb!important}
+:root:not([data-theme="dark"]) .automation-choice.selected strong{color:#1e3a8a!important}
+:root:not([data-theme="dark"]) .automation-form p,:root:not([data-theme="dark"]) .automation-hint,:root:not([data-theme="dark"]) .automation-rules th,:root:not([data-theme="dark"]) .automation-rules td,:root:not([data-theme="dark"]) .automation-toggle{color:#334155}
+:root:not([data-theme="dark"]) .automation-rules th,:root:not([data-theme="dark"]) .automation-rules td{border-color:#e2e8f0}
+:root:not([data-theme="dark"]) .automation-steps>div{background:#eff6ff;color:#1e3a8a;border-color:#bfdbfe}
+:root:not([data-theme="dark"]) .automation-steps span{color:#1e3a8a}
+@media(max-width:680px){.theme-switch{padding:8px;min-width:36px}.theme-switch span{display:none}.workspace>header{gap:9px;padding-left:12px;padding-right:12px}}
