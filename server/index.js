@@ -391,6 +391,19 @@ app.post('/api/contacts',auth,asyncRoute(async(req,res)=>{
  if(!valid(name)||!Array.isArray(tags)||tags.length>30||typeof custom_fields!=='object'||custom_fields===null||Array.isArray(custom_fields))return res.status(400).json({error:'Invalid contact'});
  const r=await query('INSERT INTO contacts(company_id,owner_id,name,email,phone,source,notes,tags,custom_fields) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[req.user.company_id,req.user.id,name.trim(),email||null,phone||null,source||null,notes||null,tags.map(String),JSON.stringify(custom_fields)]);void notifyTelegram(req.user.company_id,'new_contact','Contacto: '+r.rows[0].name+' · Registrado por: '+req.user.name);res.status(201).json(r.rows[0]);
 }));
+
+app.delete('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
+ if(req.user.role!=='owner')return res.status(403).json({error:'Owner access required'});
+ if(!validUuid(req.params.id))return res.status(400).json({error:'Invalid contact ID'});
+ try{const r=await query('DELETE FROM contacts WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!r.rowCount)return res.status(404).json({error:'Contact not found'});res.json({ok:true,id:r.rows[0].id})}
+ catch(e){if(e.code==='23503')return res.status(409).json({error:'Contact has linked records. Remove dependent records first.'});throw e}
+}));
+app.delete('/api/conversations/:id',auth,asyncRoute(async(req,res)=>{
+ if(req.user.role!=='owner')return res.status(403).json({error:'Owner access required'});
+ if(!validUuid(req.params.id))return res.status(400).json({error:'Invalid conversation ID'});
+ try{const r=await query('DELETE FROM conversations WHERE id=$1 AND company_id=$2 RETURNING id',[req.params.id,req.user.company_id]);if(!r.rowCount)return res.status(404).json({error:'Conversation not found'});res.json({ok:true,id:r.rows[0].id})}
+ catch(e){if(e.code==='23503')return res.status(409).json({error:'Conversation has linked records that prevent deletion.'});throw e}
+}));
 app.patch('/api/contacts/:id',auth,asyncRoute(async(req,res)=>{
  const allow=['name','email','phone','source','notes','tags','custom_fields'],keys=Object.keys(req.body).filter(k=>allow.includes(k));
  if(!keys.length||(keys.includes('name')&&!valid(req.body.name)))return res.status(400).json({error:'Invalid update'});
