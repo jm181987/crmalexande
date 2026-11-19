@@ -704,3 +704,29 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root:not([data-theme="dark"]) .automation-steps>div{background:#eff6ff;color:#1e3a8a;border-color:#bfdbfe}
 :root:not([data-theme="dark"]) .automation-steps span{color:#1e3a8a}
 @media(max-width:680px){.theme-switch{padding:8px;min-width:36px}.theme-switch span{display:none}.workspace>header{gap:9px;padding-left:12px;padding-right:12px}}
+
+
+/* Readable interactive states across light and dark CRM themes */
+:root{--crm-hover-bg:#e8f0fc;--crm-hover-fg:#172b4d;--crm-hover-border:#7ea6e5;--crm-focus:#2563eb}
+:root[data-theme="dark"]{--crm-hover-bg:#334761;--crm-hover-fg:#f8fafc;--crm-hover-border:#93c5fd;--crm-focus:#93c5fd}
+.app button:not(.primary):not(.nav-item):not(.sidebar-logout):not(.sidebar-collapse-control):not(.automation-choice):not(.wa-send):not(.wa-voice-mic):not(.wa-stock-trigger):not(.theme-switch):not(:disabled):hover,
+.app .crm-main button:not(.primary):not(.automation-choice):not(.wa-send):not(.wa-voice-mic):not(.wa-stock-trigger):not(:disabled):hover{background:var(--crm-hover-bg);color:var(--crm-hover-fg);border-color:var(--crm-hover-border)}
+.app button:not(:disabled):hover svg,.app button:not(:disabled):hover span,.app button:not(:disabled):hover strong{color:inherit}
+.app .primary:not(:disabled):hover{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.app .nav-item:hover,.app .nav-item.active{background:#294366;color:#fff}
+.app .theme-switch:hover{background:var(--crm-hover-bg);color:var(--crm-hover-fg);border-color:var(--crm-hover-border)}
+.app .crm-main .automation-choice:hover:not(:disabled){border-color:var(--crm-hover-border)!important;filter:brightness(1.05)}
+:root:not([data-theme="dark"]) .app .crm-main .automation-choice:hover:not(:disabled){background:#dbeafe!important;color:#172b4d!important}
+:root:not([data-theme="dark"]) .app .crm-main .automation-choice:hover:not(:disabled) strong{color:#172b4d!important}
+:root:not([data-theme="dark"]) .app .crm-main .automation-choice:hover:not(:disabled) span{color:#334155!important}
+:root[data-theme="dark"] .app .crm-main .automation-choice:hover:not(:disabled){background:#355171!important;color:#fff!important}
+:root[data-theme="dark"] .app .crm-main .automation-choice:hover:not(:disabled) strong,:root[data-theme="dark"] .app .crm-main .automation-choice:hover:not(:disabled) span{color:#f8fafc!important}
+:root:not([data-theme="dark"]) .app .crm-main tbody tr:hover{background:#eff6ff}
+:root:not([data-theme="dark"]) .app .crm-main tbody tr:hover td,:root:not([data-theme="dark"]) .app .crm-main tbody tr:hover td b,:root:not([data-theme="dark"]) .app .crm-main tbody tr:hover td strong{background:transparent;color:#1e293b}
+:root[data-theme="dark"] .app .crm-main tbody tr:hover{background:#334761}
+:root[data-theme="dark"] .app .crm-main tbody tr:hover td,:root[data-theme="dark"] .app .crm-main tbody tr:hover td b,:root[data-theme="dark"] .app .crm-main tbody tr:hover td strong{background:transparent;color:#f8fafc}
+:root[data-theme="dark"] .app .crm-main .thread:hover,:root[data-theme="dark"] .app .crm-main .wa-thread:hover,:root[data-theme="dark"] .app .crm-main .wa-thread.active{background:#334761;color:#f8fafc}
+:root[data-theme="dark"] .app .crm-main .thread:hover b,:root[data-theme="dark"] .app .crm-main .thread:hover small{color:#f8fafc}
+:root:not([data-theme="dark"]) .app .crm-main .thread:hover,:root:not([data-theme="dark"]) .app .crm-main .wa-thread:hover{background:#e8f0fc;color:#172b4d}
+.app button:focus-visible,.app a:focus-visible,.app select:focus-visible,.app input:focus-visible,.app textarea:focus-visible,.app [role="button"]:focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
+:root[data-theme="dark"] .app .crm-main button:disabled{opacity:.55;cursor:not-allowed}
