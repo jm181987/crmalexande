@@ -801,3 +801,46 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root:not([data-theme="dark"]) .app .wa-layout .wa-compose-mode button.active:hover:not(:disabled){background:#dcfce7!important;color:#14532d!important}
 :root[data-theme="dark"] .app .wa-layout .wa-compose-mode button.active:hover:not(:disabled){background:#20665a!important;color:#fff!important}
 .app .wa-layout .wa-compose-mode button svg,.app .wa-layout .wa-compose-mode button span{color:inherit!important;opacity:1}
+
+
+/* Opportunities: readable Kanban, deal cards and metrics in both themes */
+:root:not([data-theme="dark"]) .app .crm-kanban-stage{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .kanban-head b,
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .kanban-head strong{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .kanban-head span{background:#fff;color:#334155;border-color:#cbd5e1}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-stage-empty{color:#475569;border-color:#94a3b8}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal{background:#fff;color:#172b4d;border-color:#cbd5e1}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal b,
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal strong{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal-value{color:#1d4ed8!important}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal-details>summary{color:#1d4ed8}
+:root:not([data-theme="dark"]) .app .crm-kanban-stage .crm-deal-details>summary:hover{background:#dbeafe;color:#1e40af}
+:root[data-theme="dark"] .app .crm-kanban-stage{--stage-tint:#233249;background:#233249!important;color:#f8fafc;border:1px solid #475569;border-top:4px solid var(--stage-color)}
+:root[data-theme="dark"] .app .crm-kanban-stage.crm-stage-won{--stage-tint:#163c32;background:#163c32!important}
+:root[data-theme="dark"] .app .crm-kanban-stage.crm-stage-lost{--stage-tint:#432a34;background:#432a34!important}
+:root[data-theme="dark"] .app .crm-kanban-stage.crm-stage-abandoned{--stage-tint:#493921;background:#493921!important}
+:root[data-theme="dark"] .app .crm-kanban-stage .kanban-head b,
+:root[data-theme="dark"] .app .crm-kanban-stage .kanban-head strong{color:#f8fafc}
+:root[data-theme="dark"] .app .crm-kanban-stage .kanban-head span{background:#334155;color:#f8fafc;border-color:#64748b}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-stage-empty{color:#e2e8f0;border-color:#64748b;background:#1e293b}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal{background:#172335;color:#f8fafc;border-color:#64748b}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal b,
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal strong{color:#f8fafc}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal p{color:#cbd5e1}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-value{color:#93c5fd!important}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-details{border-color:#475569}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-details>summary{color:#bfdbfe}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-details>summary:hover{background:#334b67;color:#fff}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-details>summary:focus-visible{outline:3px solid #93c5fd}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-deal-status{background:#1e40af;color:#eff6ff}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-status-won{background:#14532d;color:#dcfce7}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-status-lost{background:#7f1d1d;color:#fee2e2}
+:root[data-theme="dark"] .app .crm-kanban-stage .crm-status-abandoned{background:#78350f;color:#fef3c7}
+:root[data-theme="dark"] .app .crm-section-intro .crm-stats span{background:#273449;color:#f8fafc;border:1px solid #475569}
+:root[data-theme="dark"] .app .crm-section-intro .crm-stats span b,
+:root[data-theme="dark"] .app .crm-section-intro .crm-stats span strong{color:#f8fafc}
+:root[data-theme="dark"] .app .crm-section-intro .crm-stats span small{color:#cbd5e1}
+:root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span{background:#fff;color:#172b4d;border:1px solid #dbe3ed}
+:root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span b,
+:root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span strong{color:#172b4d}
+:root:not([data-theme="dark"]) .app .crm-section-intro .crm-stats span small{color:#52657e}
