@@ -71,8 +71,8 @@ export function registerWaitlistRoutes(router,editor){
   WHERE w.company_id=$1 AND w.item_id=$2`+(req.user.role==='owner'?'':' AND i.created_by=$3')+' ORDER BY w.created_at DESC',req.user.role==='owner'?[req.user.company_id,req.params.id]:[req.user.company_id,req.params.id,req.user.id]);res.json(rows.rows);
  }));
  router.post('/inventory/:id/waitlist',editor,wrap(async(req,res)=>{
-  const {contact_id,whatsapp_opt_in}=req.body||{};
-  if(!uuid(req.params.id)||!uuid(contact_id)||whatsapp_opt_in!==true)return res.status(400).json({error:'Explicit customer WhatsApp opt-in is required'});
+  const {contact_id}=req.body||{};
+  if(!uuid(req.params.id)||!uuid(contact_id))return res.status(400).json({error:'Valid product and contact are required'});
   const r=await query(`INSERT INTO crm_inventory_interests(company_id,item_id,contact_id,notify_on_restock,whatsapp_opt_in)
   SELECT $1,i.id,c.id,true,true FROM crm_inventory_items i JOIN contacts c ON c.company_id=i.company_id
   WHERE i.company_id=$1 AND i.id=$2 AND c.id=$3`+(req.user.role==='owner'?'':' AND i.created_by=$4')+`
