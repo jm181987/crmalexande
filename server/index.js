@@ -69,6 +69,10 @@ const auth=asyncRoute(async(req,res,next)=>{
  // Per-user permissions: deny unauthorized module access at the API boundary.
  const moduleFromPath=(p)=>{
   if(p==='/api/dashboard')return 'dashboard';
+  if(/^\/api\/appointments(?:\/|$)/.test(p))return 'calendar';
+  if(/^\/api\/automation-rules(?:\/|$)|^\/api\/followup(?:\/|$)/.test(p))return 'automation';
+  if(/^\/api\/campaign(?:\/|$)|^\/api\/email-campaign(?:\/|$)/.test(p))return 'campaigns';
+  if(/^\/api\/smart-lists(?:\/|$)/.test(p))return 'contacts';
   if(/^\/api\/inventory(?:\/|$)|^\/api\/inventory-images\//.test(p))return 'inventory';
   if(/^\/api\/evolution\//.test(p))return 'conversations';
   if(/^\/api\/builderbot(?:\/|$)/.test(p))return 'ai';
@@ -321,6 +325,7 @@ app.put('/api/users/:id/permissions',auth,owner,asyncRoute(async(req,res)=>{
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
+  await client.query("SELECT set_config('app.company_id',$1,true)",[req.user.company_id]);
   for(const key of permissionModules){
    const v=permissions[key];
    await client.query('INSERT INTO public.crm_user_module_permissions(company_id,user_id,module_key,can_view,can_create,can_edit,can_delete) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,user_id,module_key) DO UPDATE SET can_view=EXCLUDED.can_view,can_create=EXCLUDED.can_create,can_edit=EXCLUDED.can_edit,can_delete=EXCLUDED.can_delete',[req.user.company_id,req.params.id,key,v.view,v.create,v.edit,v.delete]);
