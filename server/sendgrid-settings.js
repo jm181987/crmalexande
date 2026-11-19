@@ -1,6 +1,7 @@
 import {createCipheriv,createDecipheriv,randomBytes,createHash} from 'node:crypto';
 import {query} from './db.js';
-const secret=()=>process.env.SENDGRID_SETTINGS_ENCRYPTION_KEY||'';
+const secret=()=>String(process.env.SENDGRID_SETTINGS_ENCRYPTION_KEY||'').trim();
+const encryptionStatus=()=>({secret_ready:secret().length>=32,secret_present:secret().length>0,secret_length_valid:secret().length>=32});
 const key=()=>{if(secret().length<32)throw Error('SENDGRID_SETTINGS_ENCRYPTION_KEY must be at least 32 characters');return createHash('sha256').update(secret()).digest()};
 const email=s=>typeof s==='string'&&s.length<=254&&/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 export function encryptKey(value){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key(),iv);const data=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]);return [iv.toString('hex'),cipher.getAuthTag().toString('hex'),data.toString('hex')].join(':')}
@@ -35,7 +36,7 @@ export function registerSendgridSettings(app,auth){
  }));
  app.put('/api/settings/sendgrid',auth,owner,wrap(async(req,res)=>{
   const {api_key,from_email,reply_to=''}=req.body||{};
-  if(secret().length<32)return res.status(503).json({error:'Configure SENDGRID_SETTINGS_ENCRYPTION_KEY on the server first'});
+  if(secret().length<32)return res.status(503).json({error:secret().length?'SENDGRID_SETTINGS_ENCRYPTION_KEY is shorter than 32 characters in the running server':'SENDGRID_SETTINGS_ENCRYPTION_KEY is not available in the running server. Check Coolify runtime variables and redeploy'});
   if(typeof api_key!=='string'||!/^SG\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}$/.test(api_key)||!email(from_email)||(reply_to&&!email(reply_to)))return res.status(400).json({error:'Invalid SendGrid API key or sender email'});
   await query('INSERT INTO public.crm_sendgrid_settings(company_id,api_key_ciphertext,from_email,reply_to) VALUES($1,$2,$3,$4) ON CONFLICT(company_id) DO UPDATE SET api_key_ciphertext=EXCLUDED.api_key_ciphertext,from_email=EXCLUDED.from_email,reply_to=EXCLUDED.reply_to,updated_at=now()',[req.user.company_id,encryptKey(api_key),from_email,reply_to||null]);
   res.json({ok:true});
