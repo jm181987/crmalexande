@@ -1,7 +1,8 @@
 /* Progressive landing enhancements; no effect on CRM dashboard. */
 (()=>{'use strict';
 const init=()=>{
- const nav=()=>document.body.classList.toggle('zarko-scrolled',window.scrollY>24);
+ const progress=document.createElement('div');progress.className='zarko-scroll-progress';progress.setAttribute('aria-hidden','true');document.body.appendChild(progress);
+ const nav=()=>{document.body.classList.toggle('zarko-scrolled',window.scrollY>24);const max=document.documentElement.scrollHeight-window.innerHeight;progress.style.width=(max>0?Math.min(100,window.scrollY/max*100):0)+'%'};
  nav();window.addEventListener('scroll',nav,{passive:true});
  if(!('IntersectionObserver'in window)||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
  const targets=document.querySelectorAll('#topo h1,#topo p,#problema h2,#ecossistema h2,#comparativo h2,#setores h2,#faq h2,#contato h2,#problema .grid > *,#ecossistema .grid > *,#setores .grid > *');
