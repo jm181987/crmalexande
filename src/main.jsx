@@ -269,18 +269,20 @@ function SendgridOwnerPanel(){
 }
 function TelegramOwnerPanel(){
  const eventLabels={new_opportunity:'Nueva oportunidad comercial',security_access:'Alertas de seguridad y accesos',new_contact:'Nuevo contacto registrado'};
+ const [chatId,setChatId]=useState('-5468425894');
  const [data,setData]=useState(null),[enabled,setEnabled]=useState(true),[events,setEvents]=useState(Object.keys(eventLabels)),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
- const load=async()=>{try{const x=await call('/settings/telegram');setData(x);setEnabled(x.enabled);setEvents(x.events);setNotice('')}catch(e){setNotice('Error al consultar Telegram: '+e.message)}};
+ const load=async()=>{try{const x=await call('/settings/telegram');setData(x);setEnabled(x.enabled);setEvents(x.events);setChatId(x.chat_id||'');setNotice('')}catch(e){setNotice('Error al consultar Telegram: '+e.message)}};
  useEffect(()=>{load()},[]);
- const save=async()=>{setBusy(true);try{await call('/settings/telegram','PUT',{enabled,events});setNotice('Preferencias de Telegram guardadas.');await load();setNotice('Preferencias de Telegram guardadas.')}catch(e){setNotice('No se pudo guardar: '+e.message)}finally{setBusy(false)}};
+ const save=async()=>{setBusy(true);try{await call('/settings/telegram','PUT',{enabled,events,chat_id:chatId.trim()});setNotice('Preferencias de Telegram guardadas.');await load();setNotice('Preferencias de Telegram guardadas.')}catch(e){setNotice('No se pudo guardar: '+e.message)}finally{setBusy(false)}};
  const test=async()=>{setBusy(true);try{const r=await call('/settings/telegram/test','POST',{});setNotice(r.message)}catch(e){setNotice('Prueba fallida: '+e.message)}finally{setBusy(false)}};
  return <section className="settings-section"><header><h3>Telegram · Alertas para owner</h3><p>Elegí qué eventos generan avisos. El token del bot permanece exclusivamente en Coolify y nunca se muestra aquí.</p></header>
  <div className="panel" style={{padding:20,display:'grid',gap:16,maxWidth:760}}>
- {!data?<p>Consultando configuración…</p>:<><div style={{display:'flex',gap:12,flexWrap:'wrap'}}><span>Bot: <strong>{data.bot_configured?'Configurado':'Falta TELEGRAM_BOT_TOKEN'}</strong></span><span>Destino: <strong>{data.chat_configured?data.chat_id_masked:'Sin configurar'}</strong></span></div>
+ {!data?<p>Consultando configuración…</p>:<><div style={{display:'flex',gap:12,flexWrap:'wrap'}}><span>Bot: <strong>{data.bot_configured?'Configurado':'Falta TELEGRAM_BOT_TOKEN'}</strong></span><span>Destino: <strong>{data.chat_configured?data.chat_id:'Sin configurar'}</strong></span></div>
+ <label style={{display:'grid',gap:6}}>ID del grupo o chat de Telegram<input type="text" value={chatId} onChange={e=>setChatId(e.target.value)} placeholder="-5468425894" autoComplete="off" style={{width:'100%',maxWidth:340,padding:'10px 12px',border:'1px solid #94a3b8',borderRadius:9}}/><small>Podés cambiar el destino sin editar Coolify. Guardá antes de enviar la prueba.</small></label>
  {data.migration_required&&<p role="alert">Falta la tabla de preferencias. Ejecutá npm run db:migrate en Coolify.</p>}
  <label style={{display:'flex',alignItems:'center',gap:10}}><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)}/> Activar avisos automáticos</label>
  <fieldset style={{border:'1px solid #cbd5e1',borderRadius:12,padding:14}}><legend>Eventos seleccionados</legend>{Object.entries(eventLabels).map(([key,label])=><label key={key} style={{display:'flex',alignItems:'center',gap:10,margin:'10px 0'}}><input type="checkbox" checked={events.includes(key)} onChange={e=>setEvents(old=>e.target.checked?[...old,key]:old.filter(v=>v!==key))}/>{label}</label>)}</fieldset>
- <div style={{display:'flex',flexWrap:'wrap',gap:10}}><button type="button" disabled={busy||data.migration_required} onClick={save}>Guardar configuración</button><button type="button" disabled={busy||!data.bot_configured||!data.chat_configured} onClick={test}>Enviar mensaje de prueba</button></div></>}
+ <div style={{display:'flex',flexWrap:'wrap',gap:10}}><button type="button" disabled={busy||data.migration_required||!/^[-]?\d{5,20}$/.test(chatId.trim())} onClick={save}>Guardar configuración</button><button type="button" disabled={busy||!data.bot_configured||!data.chat_configured} onClick={test}>Enviar mensaje de prueba</button></div></>}
  {notice&&<p role="status" aria-live="polite">{notice}</p>}
  </div></section>;
 }
