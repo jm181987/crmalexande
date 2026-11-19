@@ -611,7 +611,7 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 
 
 /* Incoming WhatsApp alerts */
-.wa-notify-control{position:fixed;right:22px;bottom:22px;z-index:1100}.wa-notify-control button{padding:10px 14px;border-radius:999px;background:#14532d;color:#fff;border:1px solid #86efac;box-shadow:0 5px 20px #0003;cursor:pointer;font-weight:600}
+.wa-notify-control{position:fixed;right:22px;bottom:22px;z-index:1100}.wa-notify-control button{padding:5px 9px;font-size:11px;line-height:1.2;border-radius:999px;background:#14532d;color:#fff;border:1px solid #86efac;box-shadow:0 5px 20px #0003;cursor:pointer;font-weight:600}
 .wa-notify-stack{position:fixed;right:20px;bottom:80px;z-index:1101;display:flex;flex-direction:column;gap:10px;max-width:min(360px,calc(100vw - 30px));width:100%;pointer-events:none}
 .wa-notify-toast{pointer-events:auto;background:#fff;color:#17212e;border:1px solid #cbd5e1;border-left:4px solid #16a34a;border-radius:12px;box-shadow:0 10px 30px #0004;padding:14px;overflow-wrap:anywhere}
 .wa-notify-toast>div{display:flex;justify-content:space-between;gap:10px}.wa-notify-toast>div button{border:0;background:transparent;color:#334155;font-size:22px;cursor:pointer}.wa-notify-toast b{display:block;margin:8px 0 3px}.wa-notify-toast p{font-size:.86rem;margin:3px 0 10px;max-height:5em;overflow:hidden}.wa-notify-toast>button{background:#166534;color:white;border:0;border-radius:7px;padding:7px 12px;cursor:pointer}
