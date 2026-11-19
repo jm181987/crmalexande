@@ -9,7 +9,7 @@ const isMissingTable=e=>e?.code==='42P01';
 async function preferences(companyId){
  try{
   const r=await query('SELECT enabled,events FROM public.crm_telegram_settings WHERE company_id=$1',[companyId]);
-  return r.rows[0]||{enabled:true,events:DEFAULT_EVENTS};
+  return r.rows[0]||{enabled:false,events:DEFAULT_EVENTS};
  }catch(e){if(isMissingTable(e))return {enabled:false,events:DEFAULT_EVENTS,migration_required:true};throw e}
 }
 async function deliver(message){
