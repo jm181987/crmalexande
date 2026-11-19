@@ -88,6 +88,7 @@ const auth=asyncRoute(async(req,res,next)=>{
   const action=req.method==='GET'||req.method==='HEAD'?'view':req.method==='POST'?'create':req.method==='PATCH'||req.method==='PUT'?'edit':req.method==='DELETE'?'delete':null;
   if(action){
    const permission=await query('SELECT can_view,can_create,can_edit,can_delete FROM public.crm_user_module_permissions WHERE company_id=$1 AND user_id=$2 AND module_key=$3',[req.user.company_id,req.user.id,moduleKey]);
+   if(!permission.rowCount)return res.status(403).json({error:'Permisos no configurados para este módulo',code:'USER_PERMISSION_DENIED',module:moduleKey,action});
    if(permission.rowCount){
     const row=permission.rows[0];
     const effectiveAction=(moduleKey==='conversations'&&req.method==='POST'&&(/\/read$|\/messages$/.test(req.path)))?'edit':action;
