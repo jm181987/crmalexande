@@ -570,3 +570,26 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .app .workspace .crm-main .settings-content :is(th,td){overflow-wrap:anywhere}
 @media(max-width:950px){.app .workspace .crm-main .settings-layout{grid-template-columns:minmax(0,1fr)}.app .workspace .crm-main .settings-tabs{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.app .workspace .crm-main .settings-tabs{grid-template-columns:minmax(0,1fr)}.app .workspace .crm-main .settings-tab{padding:10px 12px}.app .workspace .crm-main .settings-section-heading{padding:14px}}
+
+
+/* Inventory workspace — scoped to avoid affecting other modules. */
+.inventory-workspace{display:grid;gap:18px;min-width:0;max-width:1500px;margin:0 auto;color:#213149}
+.inventory-workspace>.subtitle{margin:0;color:#526780;line-height:1.6}
+.inventory-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.inventory-metrics>div{display:grid;gap:7px;padding:17px 20px;background:#fff;border:1px solid #dce5f0;border-radius:14px;box-shadow:0 4px 14px #16365a0a}
+.inventory-metrics small{font-size:12px;color:#50647d;font-weight:650}
+.inventory-metrics strong{font-size:27px;line-height:1.1;color:#1c467c;font-variant-numeric:tabular-nums}
+.inventory-sections{display:flex;flex-wrap:wrap;gap:7px;padding:7px;border:1px solid #dce5f0;border-radius:14px;background:#fff}
+.inventory-sections button{flex:1 1 170px;min-height:44px;border:1px solid transparent;background:transparent;color:#334b68;font-weight:700}
+.inventory-sections button:hover{background:#f0f5fc;border-color:#dce5f0}
+.inventory-sections button.active{background:#e9f2ff;color:#174d9b;border-color:#a9c8f4;box-shadow:inset 0 -2px #245db2}
+.inventory-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:15px;background:#fff;border:1px solid #dce5f0;border-radius:13px}
+.inventory-toolbar>input{flex:1 1 230px;min-width:160px}
+.inventory-toolbar>select{flex:0 1 190px}
+.inventory-workspace .panel{min-width:0;max-width:100%;background:#fff;color:#213149;border:1px solid #dce5f0}
+.inventory-workspace .panel table{min-width:700px}
+.inventory-workspace .panel td button{margin:3px}
+.inventory-workspace .panel input,.inventory-workspace .panel select,.inventory-workspace .panel textarea{background:#fff;color:#213149;border-color:#bdcbdc}
+.inventory-empty{padding:24px;text-align:center;color:#526780}
+@media(max-width:720px){.inventory-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-sections button{flex-basis:100%}.inventory-toolbar>input,.inventory-toolbar>select{flex:1 1 100%}}
+@media(max-width:450px){.inventory-metrics{grid-template-columns:1fr}}
