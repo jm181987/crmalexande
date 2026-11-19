@@ -593,3 +593,5 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .inventory-empty{padding:24px;text-align:center;color:#526780}
 @media(max-width:720px){.inventory-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-sections button{flex-basis:100%}.inventory-toolbar>input,.inventory-toolbar>select{flex:1 1 100%}}
 @media(max-width:450px){.inventory-metrics{grid-template-columns:1fr}}
+
+.crm-danger-action{border:1px solid #fecaca!important;background:#fff5f5!important;color:#991b1b!important;border-radius:8px;padding:7px 10px;font-weight:650;cursor:pointer}.crm-danger-action:hover{background:#fee2e2!important;color:#7f1d1d!important}.wa-chat-head .crm-danger-action{font-size:12px;white-space:normal;max-width:160px}
