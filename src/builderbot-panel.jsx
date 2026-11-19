@@ -5,7 +5,7 @@ const connectionStyles={verified:{color:'#166534',background:'#dcfce7',border:'#
 export default function BuilderBotPanel({user,contacts=[]}){
  const owner=user?.role==='owner',operator=owner||user?.role==='manager';
  const [activeTab,setActiveTab]=useState(user?.role==='owner'?'setup':'messages'),[cfg,setCfg]=useState(null),[botId,setBotId]=useState(''),[apiKey,setApiKey]=useState(''),[answerId,setAnswerId]=useState(''),[webhookToken,setWebhookToken]=useState(''),[templates,setTemplates]=useState([]),[events,setEvents]=useState([]),[files,setFiles]=useState([]),[instructions,setInstructions]=useState(''),[selected,setSelected]=useState(''),[content,setContent]=useState(''),[template,setTemplate]=useState(''),[language,setLanguage]=useState('es'),[number,setNumber]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
- const [connection,setConnection]=useState('missing'),[lastChecked,setLastChecked]=useState(null),[qrProjectId,setQrProjectId]=useState('');
+ const [connection,setConnection]=useState('missing'),[lastChecked,setLastChecked]=useState(null);
  const verify=async()=>{setConnection('checking');setBusy(true);setStatus('');try{await api('/test','POST');setConnection('verified');setLastChecked(new Date());setStatus('Conexión verificada correctamente con la API de Sistema IA 2. Esto no confirma que WhatsApp o el webhook estén operativos.')}catch(e){setConnection('failed');setLastChecked(new Date());setStatus('Error: '+e.message)}finally{setBusy(false)}};
  const run=async fn=>{setBusy(true);setStatus('');try{await fn()}catch(e){setStatus('Error: '+e.message)}finally{setBusy(false)}};
  const load=async()=>{if(owner){const x=await api('/settings');setCfg(x);setBotId(x.bot_id||'');setAnswerId(x.assistant_answer_id||'');setConnection(current=>current==='verified'||current==='failed'?current:x.configured?'saved':'missing')}};
@@ -32,13 +32,6 @@ export default function BuilderBotPanel({user,contacts=[]}){
  {!cfg?.secret_ready&&<p role="alert">Falta la clave de cifrado en el entorno de despliegue. No podrás guardar hasta configurarla.</p>}
  {cfg?.secret_ready&&(!botId||!apiKey)&&<p>Para guardar faltan: {[!botId?'ID del bot':null,!apiKey?'API Key':null].filter(Boolean).join(' y ')}.</p>}
  <button disabled={busy||!apiKey||!botId||!cfg?.secret_ready} onClick={save}>{busy?'Procesando…':'Guardar credenciales'}</button>
- <div style={{border:'1px solid #cbd5e1',borderRadius:12,padding:16,display:'grid',gap:10}}>
- <h3>Vincular WhatsApp por QR</h3>
- <p>Para vincular un número nuevo, abrí la página segura de vinculación de Sistema IA 2 y escaneá el QR desde WhatsApp → Dispositivos vinculados. El QR se genera en el servicio externo, no en ZARCO.</p>
- <label style={field}>ID del proyecto de esta empresa<input value={qrProjectId} onChange={e=>setQrProjectId(e.target.value.trim())} placeholder="UUID de la URL /project/…/deploy/qr/" autoComplete="off"/><small>Ingresá el ID del proyecto correspondiente a esta empresa, no el ID del bot de la API. Por seguridad, no se guarda ni se comparte entre empresas.</small></label>
- <button type="button" disabled={!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qrProjectId)} onClick={()=>window.open('https://app.builderbot.cloud/project/'+encodeURIComponent(qrProjectId)+'/deploy/qr/','_blank','noopener,noreferrer')}>Abrir QR de vinculación</button>
- <small>El enlace requiere iniciar sesión en el servicio externo. La conexión de la API y el estado real del teléfono son verificaciones distintas. ZARCO no puede mostrar el QR internamente hasta disponer de un endpoint oficial documentado.</small>
- </div>
  <div style={{border:'1px solid #dce5f1',borderRadius:12,padding:16,display:'grid',gap:10}}>
  <h3>Seguridad del webhook</h3>
  <p>Regenerá el token si se perdió o quedó expuesto. El token anterior dejará de funcionar inmediatamente. La API Key y la conexión de WhatsApp no cambian.</p>
