@@ -412,3 +412,46 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .campaign-section-heading p{margin:0;opacity:.75}
 .campaign-content .panel{min-width:0}
 @media(max-width:720px){.campaign-guide{grid-template-columns:1fr}.campaign-tabs .campaign-tab{flex:1 1 45%}.campaign-workspace-header{padding:18px}}
+
+/* Campaigns visual refinement — scoped to avoid changing other CRM modules */
+.campaign-workspace{--campaign-line:var(--border,rgba(148,163,184,.22));--campaign-surface:var(--card,#192334);--campaign-accent:var(--primary,#3b82f6);gap:22px;max-width:1480px;margin-inline:auto;color:inherit}
+.campaign-workspace-header{position:relative;overflow:hidden;isolation:isolate;padding:clamp(22px,3vw,34px);border:1px solid var(--campaign-line);border-radius:22px;background:var(--campaign-surface);box-shadow:0 12px 32px rgba(0,0,0,.055)}
+.campaign-workspace-header::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--campaign-accent),#38bdf8 65%,transparent);pointer-events:none}
+.campaign-workspace-header h2{font-size:clamp(1.55rem,2.5vw,2.15rem);font-weight:750;letter-spacing:-.035em;line-height:1.15}
+.campaign-workspace-header p{opacity:1;color:var(--muted,#94a3b8);font-size:.92rem;line-height:1.65}
+.campaign-eyebrow{color:var(--campaign-accent);opacity:1;letter-spacing:.13em;font-size:.7rem}
+.campaign-summary{min-width:170px;gap:6px;padding:18px 22px;background:color-mix(in srgb,var(--campaign-accent) 9%,var(--campaign-surface));border:1px solid color-mix(in srgb,var(--campaign-accent) 20%,transparent);border-radius:16px}
+.campaign-summary strong{font-size:2.1rem;font-weight:750;font-variant-numeric:tabular-nums}
+.campaign-summary span{font-size:.77rem;color:var(--muted,#94a3b8);opacity:1}
+.campaign-tabs{display:flex;align-items:stretch;gap:6px;padding:7px;border:1px solid var(--campaign-line);border-radius:16px;background:var(--campaign-surface);box-shadow:0 5px 18px rgba(0,0,0,.035)}
+.campaign-tabs .campaign-tab{position:relative;min-height:46px;min-width:130px;padding:11px 15px;border-radius:11px;color:inherit;line-height:1.3;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.campaign-tabs .campaign-tab:hover:not(.active){background:color-mix(in srgb,var(--campaign-accent) 7%,transparent)}
+.campaign-tabs .campaign-tab.active{background:color-mix(in srgb,var(--campaign-accent) 13%,var(--campaign-surface));border-color:color-mix(in srgb,var(--campaign-accent) 34%,transparent);color:var(--campaign-accent);box-shadow:inset 0 -2px 0 var(--campaign-accent)}
+.campaign-tabs .campaign-tab:focus-visible,.campaign-workspace button:focus-visible,.campaign-workspace input:focus-visible,.campaign-workspace select:focus-visible,.campaign-workspace textarea:focus-visible{outline:2px solid var(--campaign-accent);outline-offset:3px}
+.campaign-content{gap:20px}
+.campaign-guide{gap:14px}
+.campaign-guide>div{grid-template-columns:44px 1fr;column-gap:12px;row-gap:5px;min-height:108px;padding:18px;border:1px solid var(--campaign-line);border-radius:17px;background:var(--campaign-surface);box-shadow:0 4px 15px rgba(0,0,0,.035)}
+.campaign-guide b{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:color-mix(in srgb,var(--campaign-accent) 12%,transparent);color:var(--campaign-accent);font-size:1rem;opacity:1}
+.campaign-guide strong{font-size:.95rem}
+.campaign-guide span{font-size:.8rem;color:var(--muted,#94a3b8);opacity:1;line-height:1.5}
+.campaign-section-heading{padding:2px 4px}
+.campaign-section-heading h3{font-size:1.3rem;letter-spacing:-.02em}
+.campaign-section-heading p{font-size:.9rem;line-height:1.55;color:var(--muted,#94a3b8);opacity:1}
+.campaign-content .panel{min-width:0;margin-bottom:0!important;padding:clamp(17px,2.4vw,28px)!important;border:1px solid var(--campaign-line);border-radius:18px;background:var(--campaign-surface);box-shadow:0 6px 24px rgba(0,0,0,.04)}
+.campaign-content .panel h2,.campaign-content .panel h3{margin:0 0 12px;line-height:1.3;letter-spacing:-.015em}
+.campaign-content .panel p{line-height:1.6}
+.campaign-content label{display:inline-grid;gap:7px;min-width:0;max-width:100%;font-size:.86rem;font-weight:600;line-height:1.45}
+.campaign-content input:not([type=checkbox]),.campaign-content select,.campaign-content textarea{width:100%;max-width:100%;min-height:43px;padding:10px 12px;border-radius:10px;border:1px solid var(--campaign-line);background:var(--campaign-surface);color:inherit;font:inherit}
+.campaign-content textarea{min-height:130px;resize:vertical}
+.campaign-content button{min-height:42px;border-radius:10px;padding:10px 15px;font-weight:650}
+.campaign-content button:disabled{cursor:not-allowed;opacity:.55}
+.campaign-content .table-scroll{max-width:100%;overflow-x:auto;border:1px solid var(--campaign-line);border-radius:12px}
+.campaign-content table{width:100%;border-collapse:collapse;min-width:540px}
+.campaign-content th{text-align:left;font-size:.76rem;letter-spacing:.02em;white-space:nowrap;background:color-mix(in srgb,var(--campaign-accent) 5%,var(--campaign-surface))}
+.campaign-content td,.campaign-content th{padding:12px 14px;border-bottom:1px solid var(--campaign-line);vertical-align:middle}
+.campaign-content tbody tr:last-child td{border-bottom:0}
+.campaign-content tbody tr:hover{background:color-mix(in srgb,var(--campaign-accent) 4%,transparent)}
+.campaign-content small{line-height:1.55;color:var(--muted,#94a3b8)}
+@media(max-width:850px){.campaign-tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:thin}.campaign-tabs .campaign-tab{flex:0 0 auto;white-space:nowrap}.campaign-guide{grid-template-columns:1fr}.campaign-guide>div{min-height:84px}}
+@media(max-width:540px){.campaign-workspace{gap:15px}.campaign-workspace-header{padding:20px;border-radius:16px}.campaign-summary{width:100%;min-width:0}.campaign-tabs{border-radius:12px}.campaign-content .panel{padding:16px!important}.campaign-content label{width:100%}.campaign-content button{max-width:100%}.campaign-guide>div{padding:14px}}
+@media(prefers-reduced-motion:reduce){.campaign-tabs .campaign-tab{transition:none}}
