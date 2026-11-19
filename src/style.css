@@ -616,3 +616,5 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .wa-notify-toast{pointer-events:auto;background:#fff;color:#17212e;border:1px solid #cbd5e1;border-left:4px solid #16a34a;border-radius:12px;box-shadow:0 10px 30px #0004;padding:14px;overflow-wrap:anywhere}
 .wa-notify-toast>div{display:flex;justify-content:space-between;gap:10px}.wa-notify-toast>div button{border:0;background:transparent;color:#334155;font-size:22px;cursor:pointer}.wa-notify-toast b{display:block;margin:8px 0 3px}.wa-notify-toast p{font-size:.86rem;margin:3px 0 10px;max-height:5em;overflow:hidden}.wa-notify-toast>button{background:#166534;color:white;border:0;border-radius:7px;padding:7px 12px;cursor:pointer}
 @media(max-width:600px){.wa-notify-control{right:12px;bottom:12px}.wa-notify-stack{right:12px;bottom:70px}}
+
+.wa-notify-message{font-size:.92rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;background:#f0fdf4;color:#17212e;border:1px solid #bbf7d0;border-radius:9px;padding:11px 12px;margin:8px 0 12px;max-height:240px;overflow-y:auto;user-select:text}
