@@ -1137,3 +1137,69 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-dashboard-export-fields input{min-width:0;width:100%;max-width:100%;padding:10px;border-radius:9px;border:1px solid #8496ad;background:#fff;color:#172b4d}
 .crm-dashboard-export-fields button{min-height:43px;padding:10px 16px;max-width:100%}
 @media(max-width:600px){.crm-dashboard-export{padding:12px}.crm-dashboard-export-fields label,.crm-dashboard-export-fields button{flex:1 1 100%}}
+
+
+/* Opportunities / date view: explicit, accessible contrast in both themes.
+   Scoped to this module to avoid changing other CRM cards and tables. */
+.app .crm-main .crm-date-view{
+  --opp-surface:#ffffff;
+  --opp-heading:#edf3fa;
+  --opp-text:#172b4d;
+  --opp-muted:#475569;
+  --opp-border:#cbd5e1;
+  --opp-link:#1d4ed8;
+  --opp-badge:#e2e8f0;
+}
+:root[data-theme="dark"] .app .crm-main .crm-date-view{
+  --opp-surface:#1e293b;
+  --opp-heading:#28384f;
+  --opp-text:#f1f5f9;
+  --opp-muted:#cbd5e1;
+  --opp-border:#475569;
+  --opp-link:#93c5fd;
+  --opp-badge:#334155;
+}
+.app .crm-main .crm-date-group{
+  background:var(--opp-surface);
+  color:var(--opp-text);
+  border-color:var(--opp-border);
+}
+.app .crm-main .crm-date-group>header{
+  background:var(--opp-heading);
+  color:var(--opp-text);
+  border-bottom:1px solid var(--opp-border);
+}
+.app .crm-main .crm-date-group>header strong{color:var(--opp-text)}
+.app .crm-main .crm-date-group>header span{color:var(--opp-muted)}
+.app .crm-main .crm-date-deal{
+  background:var(--opp-surface);
+  color:var(--opp-text);
+  border-color:var(--opp-border);
+}
+.app .crm-main .crm-date-deal>summary{
+  background:var(--opp-surface);
+  color:var(--opp-text);
+}
+.app .crm-main .crm-date-deal>summary:hover,
+.app .crm-main .crm-date-deal[open]>summary{background:var(--opp-heading)}
+.app .crm-main .crm-date-deal>summary b,
+.app .crm-main .crm-date-deal>summary strong{color:var(--opp-text)}
+.app .crm-main .crm-date-deal>summary span{color:var(--opp-muted)}
+.app .crm-main .crm-date-deal>summary small{
+  color:var(--opp-text);
+  background:var(--opp-badge);
+  border:1px solid var(--opp-border);
+}
+.app .crm-main .crm-date-deal-body,
+.app .crm-main .crm-date-deal-body p{color:var(--opp-text)}
+.app .crm-main .crm-date-deal-body a{color:var(--opp-link);text-decoration:underline;text-underline-offset:2px}
+.app .crm-main .crm-date-deal-body button{
+  background:var(--opp-heading);
+  border-color:var(--opp-border);
+  color:var(--opp-text);
+}
+.app .crm-main .crm-date-deal-body button:hover{filter:brightness(1.1)}
+.app .crm-main .crm-date-deal :is(a,button,summary):focus-visible{
+  outline:2px solid var(--opp-link);
+  outline-offset:2px;
+}
