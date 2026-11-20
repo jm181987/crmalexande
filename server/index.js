@@ -311,7 +311,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
   query(`SELECT count(DISTINCT v.id)::int AS conversations,
    count(DISTINCT v.contact_id)::int AS contacted
    FROM conversations v WHERE v.company_id=$1 AND ($2::uuid IS NULL OR v.assignee_id=$2)`,[company,agentId]),
-  query(`SELECT c.id,c.name,c.channel,
+  query(`SELECT c.id,c.name,c.channel,c.filters,
    count(d.id)::int AS recipients,
    count(d.id) FILTER(WHERE d.status='sent')::int AS sent,
    count(d.id) FILTER(WHERE d.status='failed')::int AS failed,
@@ -320,7 +320,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
    ON d.campaign_id=c.id AND d.company_id=c.company_id
    WHERE c.company_id=$1 AND ($2::uuid IS NULL OR EXISTS(
     SELECT 1 FROM contacts ct WHERE ct.id=d.contact_id AND ct.company_id=c.company_id AND ct.owner_id=$2))
-   GROUP BY c.id,c.name,c.channel,c.created_at ORDER BY c.created_at DESC LIMIT 50`,[company,agentId]),
+   GROUP BY c.id,c.name,c.channel,c.filters,c.created_at ORDER BY c.created_at DESC LIMIT 50`,[company,agentId]),
   query(`WITH attributed AS (
    SELECT DISTINCT ON(o.id) o.id,o.value,o.contact_id,d.campaign_id
    FROM opportunities o JOIN crm_campaign_deliveries d
@@ -348,8 +348,16 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
  res.json({method:'last_sent_campaign_within_30_days_before_won_update',
   attribution_is_estimate:true,financial_roi_available:false,
   funnel:funnel.rows[0],activity:activity.rows[0],followups:followups.rows[0],
-  campaigns:campaigns.rows.map(c=>({...c,wins:byCampaign.get(c.id)?.wins||0,
-   attributed_value:byCampaign.get(c.id)?.attributed_value||0})),
+  campaigns:campaigns.rows.map(c=>{
+   const value=byCampaign.get(c.id)?.attributed_value||0;
+   const cost=Number(c.filters?.financials?.cost);
+   const margin=Number(c.filters?.financials?.margin_pct);
+   const configured=c.filters?.financials&&Number.isFinite(cost)&&cost>=0&&Number.isFinite(margin)&&margin>=0&&margin<=100;
+   return {id:c.id,name:c.name,channel:c.channel,recipients:c.recipients,sent:c.sent,
+    failed:c.failed,queued:c.queued,wins:byCampaign.get(c.id)?.wins||0,
+    attributed_value:value,cost:configured?cost:null,margin_pct:configured?margin:null,
+    estimated_roi_pct:configured&&cost>0?Math.round(((value*margin/100-cost)/cost)*10000)/100:null};
+  }),
   totals:{attributed_wins:attribution.rows.reduce((a,x)=>a+x.wins,0),
    attributed_value:attribution.rows.reduce((a,x)=>a+x.attributed_value,0)}});
 }));
