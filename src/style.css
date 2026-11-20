@@ -1028,3 +1028,52 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 .crm-campaign-recurrence-fields input{width:100%;min-width:0;background:var(--crm-input,#fff);color:var(--crm-text,#172b4d);border:1px solid var(--crm-border,#cbd5e1);border-radius:8px;padding:10px}
 .crm-campaign-recurrence-actions button{min-height:42px}
 @media(max-width:600px){.crm-commercial-audit .crm-business-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-campaign-recurrence-fields label,.crm-campaign-recurrence-actions button{flex:1 1 100%}}
+
+
+/* Mobile viewport containment: no horizontal page panning.
+   Wide data tables remain scrollable INSIDE their own region, never the page. */
+html{width:100%;max-width:100%;overflow-x:clip}
+body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
+.app,.app .workspace,.app .workspace .crm-main{min-width:0;max-width:100%}
+.app .workspace .crm-main{overflow-wrap:anywhere}
+.app .workspace .crm-main :is(.crm-dashboard,.crm-commercial-audit,.crm-business-analytics,.crm-business-topics,.crm-business-grid,.crm-kpi-grid,.crm-welcome,.crm-section-intro,.crm-dashboard-bottom,.crm-insight,.campaign-workspace,.campaign-content,.campaign-guide,.campaign-form,.inventory-workspace,.automation-workspace,.settings-page,.settings-layout,.settings-content,.global-admin,.global-header,.global-filters,.wa-inbox,.wa-chat,.wa-audit,.panel,.card,.toolbar){min-width:0;max-width:100%}
+.app .workspace .crm-main :is(.table-scroll,.wa-audit-scroll,.kanban,.campaign-tabs){min-width:0;max-width:100%;overscroll-behavior-x:contain}
+.app .workspace .crm-main :is(img,video,canvas,svg){max-width:100%}
+@media(max-width:900px){
+ .app{width:100%;min-width:0}
+ .app .workspace{flex:1 1 auto;width:100%;min-width:0;overflow-x:clip}
+ .app .workspace>header{width:100%;max-width:100%;min-width:0}
+ .app .workspace .crm-main{width:100%;min-width:0;max-width:100%;overflow-x:clip}
+ .app .workspace .crm-main>*{min-width:0;max-width:100%}
+ .app .workspace .crm-main :is(.crm-dashboard,.crm-commercial-audit,.crm-business-analytics,.crm-business-topics,.crm-welcome,.crm-section-intro,.crm-dashboard-bottom,.crm-insight,.campaign-workspace,.campaign-content,.settings-page,.inventory-workspace,.automation-workspace,.global-admin,.wa-audit){width:100%;min-width:0;max-width:100%}
+ .app .workspace .crm-main :is(.crm-section-intro,.toolbar,.crm-welcome-meta,.global-toolbar,.campaign-workspace-header,.campaign-tabs,.wa-audit-heading,.wa-chat-head){flex-wrap:wrap}
+ .app .workspace .crm-main :is(.crm-kpi-grid,.crm-business-grid,.crm-dashboard-bottom,.campaign-guide,.campaign-choices,.inventory-metrics,.automation-steps,.global-stats){min-width:0}
+ .app .workspace .crm-main :is(input,select,textarea,button){max-width:100%}
+ .app .workspace .crm-main :is(.table-scroll,.wa-audit-scroll){width:100%;max-width:100%;overflow-x:auto}
+ .app .workspace .crm-main :is(.table-scroll,.wa-audit-scroll) table{width:max-content;max-width:none;min-width:100%}
+ .app .workspace .crm-main .kanban{width:100%;overflow-x:auto}
+ .app .workspace .crm-main .crm-welcome-visual{pointer-events:none}
+}
+@media(max-width:600px){
+ .app .workspace .crm-main :is(.crm-dashboard,.crm-commercial-audit,.crm-business-analytics,.campaign-workspace,.settings-page,.inventory-workspace,.automation-workspace){gap:12px}
+ .app .workspace .crm-main .crm-commercial-audit .crm-business-grid{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main :is(.crm-section-intro,.crm-dashboard-bottom,.campaign-workspace-header,.global-header){min-width:0}
+ .app .workspace .crm-main :is(.crm-section-intro h2,.crm-welcome h2,.campaign-workspace-header h2){overflow-wrap:anywhere;hyphens:auto}
+ .app .workspace .crm-main :is(.crm-kpi,.crm-business-card,.crm-insight,.crm-business-topics,.crm-campaign-recurrence){min-width:0;max-width:100%}
+ .app .workspace .crm-main :is(.crm-campaign-recurrence-fields,.crm-campaign-recurrence-actions){width:100%;min-width:0}
+ .app .workspace .crm-main :is(.crm-campaign-recurrence-fields label,.crm-campaign-recurrence-actions button){min-width:0;max-width:100%}
+ .app .workspace .crm-main .wa-audit-filters>*{min-width:0;max-width:100%}
+}
+
+
+/* Commercial audit tables: readable stacked records without horizontal swiping. */
+@media(max-width:600px){
+ .app .workspace .crm-main .crm-commercial-audit .table-scroll{overflow:visible;width:100%}
+ .app .workspace .crm-main .crm-commercial-audit table{display:block;min-width:0;width:100%;max-width:100%}
+ .crm-commercial-audit table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+ .crm-commercial-audit table tbody{display:grid;gap:10px;min-width:0}
+ .crm-commercial-audit table tbody tr{display:grid;gap:6px;min-width:0;padding:12px;border:1px solid #dce5ef;border-radius:12px;background:#fff}
+ .crm-commercial-audit table tbody td{display:block;min-width:0;max-width:100%;padding:3px 0;border:0;overflow-wrap:anywhere;white-space:normal}
+ .crm-commercial-audit table tbody td:first-child{font-weight:700;color:#17324c}
+ .crm-commercial-audit table tbody td:not(:first-child){font-size:13px}
+}
