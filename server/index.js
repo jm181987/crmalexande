@@ -245,6 +245,48 @@ app.patch('/api/platform/companies/:id',auth,platformAdmin,asyncRoute(async(req,
  const r=await pool.query('UPDATE public.companies SET name=$2 WHERE id=$1 RETURNING id,name',[req.params.id,req.body.name.trim()]);
  if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);
 }));
+// Destructive company removal: only empty companies, exact-name confirmation,
+// and a transaction-scoped lock. Never cascade-delete customer records.
+app.delete('/api/platform/companies/:id',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.id)||typeof req.body?.confirm_name!=='string')return res.status(400).json({error:'Empresa o confirmación inválida'});
+ const db=await pool.connect();
+ try{
+  await db.query('BEGIN');
+  const result=await db.query('SELECT id,name FROM public.companies WHERE id=$1 FOR UPDATE',[req.params.id]);
+  if(!result.rowCount){await db.query('ROLLBACK');return res.sendStatus(404)}
+  const company=result.rows[0];
+  if(req.body.confirm_name!==company.name){await db.query('ROLLBACK');return res.status(400).json({error:'El nombre de confirmación no coincide'})}
+  const protectedUsers=await db.query('SELECT 1 FROM public.users WHERE company_id=$1 AND lower(email)=ANY($2::text[]) LIMIT 1',[company.id,[...PROTECTED_PLATFORM_EMAILS]]);
+  if(protectedUsers.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'No se puede eliminar una empresa con cuentas principales protegidas'})}
+  // Inspect all foreign keys to companies, including new modules. Refuse removal
+  // if any dependent records exist; this avoids accidental ON DELETE CASCADE.
+  const refs=await db.query(`SELECT ns.nspname AS schema_name,cl.relname AS table_name,att.attname AS column_name
+   FROM pg_constraint fk JOIN pg_class cl ON cl.oid=fk.conrelid
+   JOIN pg_namespace ns ON ns.oid=cl.relnamespace
+   JOIN pg_attribute att ON att.attrelid=fk.conrelid AND att.attnum=fk.conkey[1]
+   WHERE fk.contype='f' AND fk.confrelid='public.companies'::regclass
+   AND array_length(fk.conkey,1)=1`);
+  for(const ref of refs.rows){
+   const quote=v=>'"'+v.replace(/"/g,'""')+'"';
+   const table=quote(ref.schema_name)+'.'+quote(ref.table_name);
+   const found=await db.query('SELECT 1 FROM '+table+' WHERE '+quote(ref.column_name)+'=$1 LIMIT 1',[company.id]);
+   if(found.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'La empresa tiene datos asociados ('+ref.table_name+'). Para protegerlos, no se puede eliminar. Primero deben gestionarse esos registros.'})}
+  }
+  // Some legacy tables might have company_id without a declared FK.
+  const legacy=await db.query(`SELECT table_schema,table_name FROM information_schema.columns
+   WHERE column_name='company_id' AND table_schema='public' AND table_name<>'companies'`);
+  for(const ref of legacy.rows){
+   const quote=v=>'"'+v.replace(/"/g,'""')+'"';
+   const found=await db.query('SELECT 1 FROM '+quote(ref.table_schema)+'.'+quote(ref.table_name)+' WHERE company_id=$1 LIMIT 1',[company.id]);
+   if(found.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'La empresa tiene registros en '+ref.table_name+'. No se eliminaron datos.'})}
+  }
+  await db.query('DELETE FROM public.companies WHERE id=$1',[company.id]);
+  await db.query('COMMIT');
+  console.info('Empty company deleted by platform admin',{actor:req.user.id,company:company.id});
+  res.json({deleted:true,id:company.id});
+ }catch(e){await db.query('ROLLBACK');if(e.code==='23503')return res.status(409).json({error:'Existen registros vinculados a esta empresa. No se eliminó.'});throw e}
+ finally{db.release()}
+}));
 // Only existing active platform administrators may delegate global administration.
 app.get('/api/platform/admins',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const r=await pool.query('SELECT u.id,u.name,u.email,u.company_id FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE u.is_active=true ORDER BY u.name');
