@@ -346,7 +346,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
   query(`SELECT ct.id,ct.name,
     count(DISTINCT v.id)::int AS conversations,
     count(DISTINCT o.id)::int AS opportunities,
-    count(DISTINCT o.id) FILTER(WHERE o.status='won')::int AS won,
+    count(DISTINCT o.id) FILTER(WHERE o.status='won')::int AS won
    FROM contacts ct
    LEFT JOIN conversations v ON v.contact_id=ct.id AND v.company_id=ct.company_id
    LEFT JOIN opportunities o ON o.contact_id=ct.id AND o.company_id=ct.company_id
@@ -358,7 +358,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
  ]);
  const byCampaign=new Map(attribution.rows.map(x=>[x.campaign_id,x]));
  res.json({method:'last_sent_campaign_within_30_days_before_won_update',
-  attribution_is_estimate:true,financial_roi_available:false,
+  attribution_is_estimate:true,financial_roi_requires_entered_cost_and_margin:true,
   funnel:funnel.rows[0],activity:activity.rows[0],followups:followups.rows[0],contacts:contactAudit.rows,
   campaigns:campaigns.rows.map(c=>{
    const value=byCampaign.get(c.id)?.attributed_value||0;
