@@ -107,6 +107,41 @@ export function registerCampaignDelivery(app,auth){
  }));
  app.post('/api/campaigns/:id/prepare',...prepare('whatsapp'));
  app.post('/api/campaigns/:id/prepare-email',...prepare('email'));
+
+
+ // Financial inputs are explicitly entered by a manager; never infer costs or margin.
+ app.put('/api/campaigns/:id/financials',auth,manager,safe(async(req,res)=>{
+  const {cost,margin_pct}=req.body||{};
+  if(typeof cost!=='number'||!Number.isFinite(cost)||cost<0||cost>1000000000||
+   typeof margin_pct!=='number'||!Number.isFinite(margin_pct)||margin_pct<0||margin_pct>100)
+   return res.status(400).json({error:'Invalid campaign cost or gross margin'});
+  const x=await query(`UPDATE crm_campaigns SET filters=jsonb_set(
+   coalesce(filters,'{}'::jsonb),'{financials}',$3::jsonb)
+   WHERE id=$1 AND company_id=$2 RETURNING id,filters`,
+   [req.params.id,req.user.company_id,JSON.stringify({cost,margin_pct})]);
+  if(!x.rowCount)return res.sendStatus(404);
+  res.json({id:x.rows[0].id,financials:x.rows[0].filters.financials});
+ }));
+
+ // Explicit opt-in recurrence. Only prepared campaigns can be scheduled; no auto-send unless worker is enabled.
+ app.put('/api/campaigns/:id/recurrence',auth,manager,safe(async(req,res)=>{
+  const {enabled=false,every_days=30,next_run_at=null,max_cycles=6}=req.body||{};
+  if(typeof enabled!=='boolean'||(enabled&&(!Number.isInteger(every_days)||every_days<7||every_days>365||
+   !Number.isInteger(max_cycles)||max_cycles<1||max_cycles>24)))return res.status(400).json({error:'Invalid recurrence'});
+  const campaign=await query("SELECT id,status,channel,filters FROM crm_campaigns WHERE id=$1 AND company_id=$2",[req.params.id,req.user.company_id]);
+  if(!campaign.rowCount)return res.sendStatus(404);
+  if(enabled&&(!['whatsapp','email'].includes(campaign.rows[0].channel)||campaign.rows[0].status!=='ready'))
+   return res.status(409).json({error:'Prepare the campaign before enabling recurrence'});
+  const next=enabled?new Date(next_run_at):null;
+  if(enabled&&(!next_run_at||!Number.isFinite(next.getTime())||next.getTime()<Date.now()+60000))
+   return res.status(400).json({error:'Choose a future recurrence date'});
+  const filters={...(campaign.rows[0].filters||{})};
+  if(enabled)filters.recurrence={enabled:true,every_days,max_cycles,cycles:0,next_run_at:next.toISOString()};
+  else delete filters.recurrence;
+  const updated=await query('UPDATE crm_campaigns SET filters=$3::jsonb WHERE id=$1 AND company_id=$2 RETURNING id,filters',[req.params.id,req.user.company_id,JSON.stringify(filters)]);
+  res.json({id:updated.rows[0].id,recurrence:updated.rows[0].filters.recurrence||{enabled:false}});
+ }));
+
  app.post('/api/campaigns/:id/pause',auth,manager,safe(async(req,res)=>{
   const x=await query("UPDATE crm_campaigns SET status='paused' WHERE id=$1 AND company_id=$2 AND status='ready' RETURNING id,status",[req.params.id,req.user.company_id]);if(!x.rowCount)return res.sendStatus(409);res.json(x.rows[0]);
  }));

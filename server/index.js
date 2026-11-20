@@ -296,6 +296,85 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});
 }));
 // Company-scoped commercial metrics. All aggregates respect agent ownership.
+
+/* Company-scoped commercial audit and campaign-attributed opportunity estimates.
+   Attribution is contact-based, 30 days after a SENT delivery and before deal closure.
+   It is an estimate, not proof of incremental revenue or a financial ROI. */
+app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
+ const company=req.user.company_id,agentId=agent(req.user)?req.user.id:null;
+ const [funnel,activity,campaigns,attribution,followups,contactAudit]=await Promise.all([
+  query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE o.status='won')::int AS won,
+   count(*) FILTER(WHERE o.status='open')::int AS open,
+   coalesce(sum(o.value) FILTER(WHERE o.status='won'),0)::float AS won_value
+   FROM opportunities o WHERE o.company_id=$1 AND o.deleted_at IS NULL
+   AND ($2::uuid IS NULL OR o.owner_id=$2)`,[company,agentId]),
+  query(`SELECT count(DISTINCT v.id)::int AS conversations,
+   count(DISTINCT v.contact_id)::int AS contacted
+   FROM conversations v WHERE v.company_id=$1 AND ($2::uuid IS NULL OR v.assignee_id=$2)`,[company,agentId]),
+  query(`SELECT c.id,c.name,c.channel,c.filters,
+   count(d.id)::int AS recipients,
+   count(d.id) FILTER(WHERE d.status='sent')::int AS sent,
+   count(d.id) FILTER(WHERE d.status='failed')::int AS failed,
+   count(d.id) FILTER(WHERE d.status='queued')::int AS queued
+   FROM crm_campaigns c LEFT JOIN crm_campaign_deliveries d
+   ON d.campaign_id=c.id AND d.company_id=c.company_id
+   WHERE c.company_id=$1 AND ($2::uuid IS NULL OR EXISTS(
+    SELECT 1 FROM contacts ct WHERE ct.id=d.contact_id AND ct.company_id=c.company_id AND ct.owner_id=$2))
+   GROUP BY c.id,c.name,c.channel,c.filters,c.created_at ORDER BY c.created_at DESC LIMIT 50`,[company,agentId]),
+  query(`WITH attributed AS (
+   SELECT DISTINCT ON(o.id) o.id,o.value,o.contact_id,d.campaign_id
+   FROM opportunities o JOIN crm_campaign_deliveries d
+     ON d.company_id=o.company_id AND d.contact_id=o.contact_id AND d.status='sent'
+   JOIN crm_campaigns c ON c.id=d.campaign_id AND c.company_id=d.company_id
+   WHERE o.company_id=$1 AND o.deleted_at IS NULL AND o.status='won'
+     AND ($2::uuid IS NULL OR o.owner_id=$2)
+     AND d.sent_at IS NOT NULL AND d.sent_at<=o.updated_at
+     AND d.sent_at>=o.updated_at-interval '30 days'
+   ORDER BY o.id,d.sent_at DESC,d.id DESC
+  )
+  SELECT campaign_id,count(*)::int AS wins,
+    coalesce(sum(value),0)::float AS attributed_value
+  FROM attributed GROUP BY campaign_id`,[company,agentId]),
+  query(`SELECT count(*) FILTER(WHERE d.status='queued')::int AS queued,
+    count(*) FILTER(WHERE d.status='sent')::int AS sent,
+    count(*) FILTER(WHERE d.status='failed')::int AS failed
+   FROM crm_campaign_deliveries d JOIN crm_campaigns c
+   ON c.id=d.campaign_id AND c.company_id=d.company_id
+   WHERE d.company_id=$1 AND c.filters->>'type'='quote_followup'
+     AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM contacts ct
+       WHERE ct.id=d.contact_id AND ct.company_id=d.company_id AND ct.owner_id=$2))`,[company,agentId]),
+  query(`SELECT ct.id,ct.name,
+    count(DISTINCT v.id)::int AS conversations,
+    count(DISTINCT o.id)::int AS opportunities,
+    count(DISTINCT o.id) FILTER(WHERE o.status='won')::int AS won
+   FROM contacts ct
+   LEFT JOIN conversations v ON v.contact_id=ct.id AND v.company_id=ct.company_id
+   LEFT JOIN opportunities o ON o.contact_id=ct.id AND o.company_id=ct.company_id
+      AND o.deleted_at IS NULL
+   WHERE ct.company_id=$1 AND ($2::uuid IS NULL OR ct.owner_id=$2)
+   GROUP BY ct.id,ct.name
+   HAVING count(DISTINCT v.id)>0 OR count(DISTINCT o.id)>0
+   ORDER BY count(DISTINCT o.id) DESC,ct.name LIMIT 50`,[company,agentId])
+ ]);
+ const byCampaign=new Map(attribution.rows.map(x=>[x.campaign_id,x]));
+ res.json({method:'last_sent_campaign_within_30_days_before_won_update',
+  attribution_is_estimate:true,financial_roi_requires_entered_cost_and_margin:true,
+  funnel:funnel.rows[0],activity:activity.rows[0],followups:followups.rows[0],contacts:contactAudit.rows,
+  campaigns:campaigns.rows.map(c=>{
+   const value=byCampaign.get(c.id)?.attributed_value||0;
+   const cost=Number(c.filters?.financials?.cost);
+   const margin=Number(c.filters?.financials?.margin_pct);
+   const configured=c.filters?.financials&&Number.isFinite(cost)&&cost>=0&&Number.isFinite(margin)&&margin>=0&&margin<=100;
+   return {id:c.id,name:c.name,channel:c.channel,recipients:c.recipients,sent:c.sent,
+    failed:c.failed,queued:c.queued,wins:byCampaign.get(c.id)?.wins||0,
+    conversion_pct:c.sent>0?Math.round((byCampaign.get(c.id)?.wins||0)/c.sent*10000)/100:null,
+    attributed_value:value,cost:configured?cost:null,margin_pct:configured?margin:null,
+    estimated_roi_pct:configured&&cost>0?Math.round(((value*margin/100-cost)/cost)*10000)/100:null};
+  }),
+  totals:{attributed_wins:attribution.rows.reduce((a,x)=>a+x.wins,0),
+   attributed_value:attribution.rows.reduce((a,x)=>a+x.attributed_value,0)}});
+}));
+
 app.get('/api/dashboard/business-analytics',auth,asyncRoute(async(req,res)=>{
  const u=req.user,company=u.company_id,agentOnly=u.role==='agent';
  const agentId=agentOnly?u.id:null;

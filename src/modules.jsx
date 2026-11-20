@@ -21,6 +21,8 @@ function OpportunityRuleForm({refresh,error,lang='es'}){
  return <div className="automation-form"><p>{tx[4]}</p><div className="automation-fields"><label>{lang==='en'?'Rule name':lang==='pt'?'Nome da regra':'Nombre de la regla'}<input value={name} onChange={e=>setName(e.target.value)}/></label><label>{tx[1]}<select value={status} onChange={e=>setStatus(e.target.value)}>{['open','won','lost','abandoned'].map((v,i)=><option value={v} key={v}>{tx[i+5]}</option>)}</select></label><label>{tx[2]}<input type="number" min="1" max="365" value={days} onChange={e=>setDays(Number(e.target.value))}/></label></div><button className="primary" type="button" disabled={busy||!name.trim()||days<1||days>365} onClick={async()=>{setBusy(true);try{await api('/automation-rules','POST',{name,trigger_event:'opportunity_status',action_type:'create_task',config:{days,status}});refresh()}catch(e){error(e.message)}finally{setBusy(false)}}}>{tx[3]}</button></div>;
 }
 function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare'}){
+ const [campaignCost,setCampaignCost]=useState(''),[campaignMargin,setCampaignMargin]=useState('');
+ const [repeatDays,setRepeatDays]=useState(30),[repeatCycles,setRepeatCycles]=useState(6),[repeatStart,setRepeatStart]=useState('');
  const [sgSettings,setSgSettings]=useState(null),[sgKey,setSgKey]=useState(''),[sgFrom,setSgFrom]=useState(''),[sgReply,setSgReply]=useState('');
  useEffect(()=>{if(user?.role==='owner')api('/settings/sendgrid').then(v=>{setSgSettings(v);setSgFrom(v.from_email||'');setSgReply(v.reply_to||'')}).catch(()=>{})},[user?.role]);
  const [manualEmail,setManualEmail]=useState(''),[manualName,setManualName]=useState('');
@@ -38,6 +40,30 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
  <label>Intervalo (segundos)<input type="number" min="60" max="86400" value={interval} onChange={e=>setIntervalSeconds(Number(e.target.value))}/></label>
  <label>Etiqueta (opcional)<input value={tag} onChange={e=>setTag(e.target.value)}/></label>
  <label>Origen (opcional)<input value={source} onChange={e=>setSource(e.target.value)}/></label></div>
+ {chosen&&user.role!=='agent'&&<div className="crm-campaign-recurrence">
+  <h3>ROI comercial / Retorno comercial</h3>
+  <p>Ingresá el costo real de esta campaña y el margen bruto estimado de las ventas. El dashboard calculará un ROI estimado sobre oportunidades ganadas asociadas; no representa causalidad ni utilidad contable.</p>
+  <p>Costo guardado: {chosen.filters?.financials?.cost??'—'} · Margen bruto: {chosen.filters?.financials?.margin_pct??'—'}%</p>
+  <div className="crm-campaign-recurrence-fields">
+   <label>Costo total (R$)<input type="number" min="0" step="0.01" value={campaignCost} onChange={e=>setCampaignCost(e.target.value)}/></label>
+   <label>Margen bruto (%)<input type="number" min="0" max="100" step="0.01" value={campaignMargin} onChange={e=>setCampaignMargin(e.target.value)}/></label>
+  </div>
+  <button type="button" disabled={busy||campaignCost===''||campaignMargin===''} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/financials','PUT',{cost:Number(campaignCost),margin_pct:Number(campaignMargin)}))}>Guardar costos y margen</button>
+ </div>}
+ {chosen?.status==='ready'&&user.role!=='agent'&&<div className="crm-campaign-recurrence">
+  <h3>Campaña recurrente / Campanha recorrente</h3>
+  <p>Repetir una campaña ya preparada. Cada ejecución crea un nuevo lote de envíos con historial separado. Requiere automatizaciones y despachador habilitados; se respetan las bajas de WhatsApp y email.</p>
+  <p><strong>{chosen.filters?.recurrence?.enabled?'Activa / Ativa':'No activa / Inativa'}</strong>{chosen.filters?.recurrence?.next_run_at?' · '+new Date(chosen.filters.recurrence.next_run_at).toLocaleString():''}</p>
+  <div className="crm-campaign-recurrence-fields">
+   <label>Próxima ejecución<input type="datetime-local" value={repeatStart} onChange={e=>setRepeatStart(e.target.value)}/></label>
+   <label>Días entre campañas<input type="number" min="7" max="365" value={repeatDays} onChange={e=>setRepeatDays(Number(e.target.value))}/></label>
+   <label>Máximo de repeticiones<input type="number" min="1" max="24" value={repeatCycles} onChange={e=>setRepeatCycles(Number(e.target.value))}/></label>
+  </div>
+  <div className="crm-campaign-recurrence-actions">
+   <button type="button" disabled={busy||!repeatStart} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/recurrence','PUT',{enabled:true,every_days:repeatDays,max_cycles:repeatCycles,next_run_at:new Date(repeatStart).toISOString()}))}>Activar recurrencia</button>
+   <button type="button" disabled={busy||!chosen.filters?.recurrence?.enabled} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/recurrence','PUT',{enabled:false}))}>Detener recurrencia</button>
+  </div>
+ </div>}
  {chosen?.channel==='email'&&<div style={{border:'1px solid #dce5f1',borderRadius:12,padding:16,margin:'16px 0'}}>
   <h3>Destinatarios desde Contactos del CRM</h3>
   <p>Los emails se toman automáticamente de los clientes registrados. Se incluyen emails válidos, excepto bajas y direcciones suprimidas. Los filtros de etiqueta y origen se aplican a esta consulta.</p>
