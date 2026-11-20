@@ -295,6 +295,56 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
  query('SELECT count(*)::int AS n FROM tasks WHERE company_id=$1 AND completed=false'+scope,q)]);
  res.json({leads:a.rows[0].n,deals:b.rows[0],won:c.rows[0].amount,conversations:d.rows[0].n,pendingTasks:e.rows[0].n});
 }));
+// Company-scoped commercial metrics. All aggregates respect agent ownership.
+app.get('/api/dashboard/business-analytics',auth,asyncRoute(async(req,res)=>{
+ const u=req.user,company=u.company_id,agentOnly=u.role==='agent';
+ const agentId=agentOnly?u.id:null;
+ const [leads,wins,response,repeat,topics,velocity]=await Promise.all([
+  query('SELECT count(DISTINCT c.id)::int AS total FROM contacts c WHERE c.company_id=$1 AND ($2::uuid IS NULL OR c.owner_id=$2)',[company,agentId]),
+  query("SELECT count(DISTINCT o.contact_id)::int AS buyers,count(*)::int AS deals FROM opportunities o WHERE o.company_id=$1 AND o.deleted_at IS NULL AND o.status='won' AND ($2::uuid IS NULL OR o.owner_id=$2)",[company,agentId]),
+  query(`WITH first_in AS (
+    SELECT v.id AS conversation_id,min(m.created_at) AS at
+    FROM conversations v JOIN messages m ON m.conversation_id=v.id
+    WHERE v.company_id=$1 AND v.channel='whatsapp' AND m.direction='inbound'
+      AND ($2::uuid IS NULL OR v.assignee_id=$2)
+    GROUP BY v.id
+   ), first_out AS (
+    SELECT i.conversation_id,min(m.created_at) AS at
+    FROM first_in i JOIN messages m ON m.conversation_id=i.conversation_id
+    WHERE m.direction='outbound' AND m.created_at>i.at
+    GROUP BY i.conversation_id
+   )
+   SELECT round(avg(extract(epoch FROM (o.at-i.at))/60)::numeric,1)::float AS minutes,
+    count(o.at)::int AS answered,count(*)::int AS inbound_conversations
+   FROM first_in i LEFT JOIN first_out o ON o.conversation_id=i.conversation_id`,[company,agentId]),
+  query(`SELECT count(*)::int AS returning FROM (
+   SELECT o.contact_id FROM opportunities o
+   WHERE o.company_id=$1 AND o.deleted_at IS NULL AND o.status='won'
+    AND ($2::uuid IS NULL OR o.owner_id=$2)
+   GROUP BY o.contact_id HAVING count(*)>=2
+  ) x`,[company,agentId]),
+  query(`SELECT trim(o.title) AS name,count(*)::int AS total FROM opportunities o
+   WHERE o.company_id=$1 AND o.deleted_at IS NULL
+    AND ($2::uuid IS NULL OR o.owner_id=$2)
+    AND nullif(trim(o.title),'') IS NOT NULL
+   GROUP BY trim(o.title) ORDER BY total DESC,name LIMIT 5`,[company,agentId]),
+  query(`SELECT round(avg(extract(epoch FROM (o.updated_at-o.created_at))/86400)::numeric,1)::float AS days
+   FROM opportunities o WHERE o.company_id=$1 AND o.deleted_at IS NULL
+   AND o.status='won' AND o.updated_at>=o.created_at
+   AND ($2::uuid IS NULL OR o.owner_id=$2)`,[company,agentId])
+ ]);
+ const contacts=leads.rows[0].total,buyers=wins.rows[0].buyers;
+ res.set('Cache-Control','no-store');
+ res.json({contacts,wonContacts:buyers,wonDeals:wins.rows[0].deals,
+  conversionPct:contacts?Math.round(buyers/contacts*1000)/10:null,
+  repeatCustomers:repeat.rows[0].returning,
+  repeatPct:buyers?Math.round(repeat.rows[0].returning/buyers*1000)/10:null,
+  firstResponseMinutes:response.rows[0].minutes,
+  answeredConversations:response.rows[0].answered,
+  inboundConversations:response.rows[0].inbound_conversations,
+  topOpportunityTopics:topics.rows,
+  averageWonCycleDays:velocity.rows[0].days});
+}));
 // Lightweight polling endpoint for new inbound WhatsApp messages (scoped to tenant and assigned agent).
 app.get('/api/dashboard/whatsapp-incoming',auth,asyncRoute(async(req,res)=>{
  const since=String(req.query.since||'');
