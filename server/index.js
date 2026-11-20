@@ -367,6 +367,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
    const configured=c.filters?.financials&&Number.isFinite(cost)&&cost>=0&&Number.isFinite(margin)&&margin>=0&&margin<=100;
    return {id:c.id,name:c.name,channel:c.channel,recipients:c.recipients,sent:c.sent,
     failed:c.failed,queued:c.queued,wins:byCampaign.get(c.id)?.wins||0,
+    conversion_pct:c.sent>0?Math.round((byCampaign.get(c.id)?.wins||0)/c.sent*10000)/100:null,
     attributed_value:value,cost:configured?cost:null,margin_pct:configured?margin:null,
     estimated_roi_pct:configured&&cost>0?Math.round(((value*margin/100-cost)/cost)*10000)/100:null};
   }),
