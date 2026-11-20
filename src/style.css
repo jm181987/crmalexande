@@ -954,3 +954,60 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root[data-theme="dark"] .crm-business-topics li{border-color:#475569}
 :root:not([data-theme="dark"]) .crm-business-card,:root:not([data-theme="dark"]) .crm-business-topics{background:#fff;color:#172b4d;border-color:#cbd5e1}
 :root:not([data-theme="dark"]) .crm-business-card p,:root:not([data-theme="dark"]) .crm-business-topics p{color:#475569}
+
+
+/* Mobile layout hardening — scoped to authenticated CRM, preserve desktop layout. */
+.app,.app .workspace,.app .workspace .crm-main{min-width:0}
+.app .workspace .crm-main :is(.panel,.card,.settings-layout,.settings-content,.campaign-workspace,.campaign-content,.inventory-workspace,.automation-workspace,.wa-layout,.crm-business-analytics){min-width:0;max-width:100%}
+.app .workspace .crm-main :is(.panel,.card,.settings-section,.campaign-content,.inventory-workspace) :is(p,h1,h2,h3,h4,small,span){overflow-wrap:break-word}
+.app .workspace .crm-main :is(.panel,.card) :is(img,video,iframe){max-width:100%;height:auto}
+.app .workspace .crm-main :is(.table-scroll,.wa-audit-scroll){max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.app .workspace .crm-main :is(.table-scroll,.wa-audit-scroll) table{width:max-content;min-width:100%}
+@media(max-width:900px){
+ .app .workspace{width:100%;min-width:0}
+ .app .workspace .crm-main{width:100%;max-width:100%;padding:18px 14px 60px}
+ .app .workspace .crm-main :is(.crm-section-intro,.campaign-workspace-header,.wa-audit-heading,.global-header,.global-toolbar){min-width:0}
+ .app .workspace .crm-main :is(.crm-filter-toolbar,.wa-audit-filters,.global-filters){flex-wrap:wrap;max-width:100%}
+ .app .workspace .crm-main .kanban{max-width:100%;overflow-x:auto;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+ .app .workspace .crm-main .kanban>section{flex:0 0 min(280px,80vw);scroll-snap-align:start}
+ .app .workspace .crm-main .wa-inbox{max-width:100%}
+ .app .workspace .crm-main .settings-layout{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main .campaign-guide{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ .app .workspace>header{height:auto;min-height:60px;padding:10px 12px;flex-wrap:wrap;gap:8px}
+ .app .workspace>header .crumb{min-width:0;flex:1 1 130px;overflow-wrap:anywhere}
+ .app .workspace .crm-main{padding:14px 10px 76px}
+ .app .workspace .crm-main :is(.toolbar,.crm-filter-toolbar,.campaign-workspace-header,.wa-audit-heading,.global-toolbar){gap:10px}
+ .app .workspace .crm-main :is(.toolbar,.crm-filter-toolbar) :is(input,select){min-width:0;max-width:100%}
+ .app .workspace .crm-main .crm-filter-toolbar>input{flex:1 1 100%;width:100%}
+ .app .workspace .crm-main .crm-filter-toolbar>select{flex:1 1 145px}
+ .app .workspace .crm-main .campaign-guide,.app .workspace .crm-main .campaign-choices,.app .workspace .crm-main .campaign-form,.app .workspace .crm-main .inventory-metrics,.app .workspace .crm-main .automation-metrics{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main .campaign-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ .app .workspace .crm-main .campaign-tabs .campaign-tab{flex:0 0 auto;min-width:110px}
+ .app .workspace .crm-main .settings-tabs{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main .wa-audit{padding:12px 10px}
+ .app .workspace .crm-main .wa-audit-actions{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .app .workspace .crm-main .wa-audit-actions button{min-width:0;white-space:normal}
+ .app .workspace .crm-main .wa-audit-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .app .workspace .crm-main .wa-audit-filters>input{flex:1 1 100%;width:100%}
+ .app .workspace .crm-main .wa-inbox{height:calc(100dvh - 170px);min-height:360px}
+ .app .workspace .crm-main .wa-chat-head{flex-wrap:wrap}
+ .app .workspace .crm-main .wa-owner{max-width:100%}
+ .app .workspace .crm-main .wa-compose{padding:9px}
+ .app .workspace .crm-main .wa-compose-tools{align-items:stretch}
+ .app .workspace .crm-main .wa-compose-mode{max-width:100%}
+ .app .workspace .crm-main .wa-compose-row{min-width:0}
+ .app .workspace .crm-main .wa-compose-row textarea{min-width:0;width:100%}
+ .app .workspace .crm-main .wa-bubble{max-width:94%}
+ .app .workspace .crm-main .global-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .app .workspace .crm-main .crm-business-grid{grid-template-columns:minmax(0,1fr)}
+ .wa-notify-control{right:10px;bottom:10px}
+ .wa-notify-stack{right:10px;bottom:56px;max-width:calc(100vw - 20px)}
+}
+@media(max-width:380px){
+ .app .workspace .crm-main .global-stats,.app .workspace .crm-main .wa-audit-summary{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main .wa-audit-actions{grid-template-columns:minmax(0,1fr)}
+ .app .workspace .crm-main .wa-compose-row{flex-wrap:wrap}
+ .app .workspace .crm-main .wa-compose-row .wa-send{width:100%}
+}
