@@ -128,6 +128,8 @@ const platformAdmin=asyncRoute(async(req,res,next)=>{
  if(!r.rowCount)return res.status(403).json({error:'Platform administrator access required'});
  next();
 });
+const PROTECTED_PLATFORM_EMAIL='jorgitom18@gmail.com';
+const isProtectedAccount=email=>String(email||'').trim().toLowerCase()===PROTECTED_PLATFORM_EMAIL;
 const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
 // Global transfer: preview first; reject shared contacts or unsupported dependent records.
 const transferPlan=async(db,id,destination,lock=false)=>{
@@ -243,6 +245,31 @@ app.patch('/api/platform/companies/:id',auth,platformAdmin,asyncRoute(async(req,
  const r=await pool.query('UPDATE public.companies SET name=$2 WHERE id=$1 RETURNING id,name',[req.params.id,req.body.name.trim()]);
  if(!r.rowCount)return res.sendStatus(404);res.json(r.rows[0]);
 }));
+// Only existing active platform administrators may delegate global administration.
+app.get('/api/platform/admins',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ const r=await pool.query('SELECT u.id,u.name,u.email,u.company_id FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE u.is_active=true ORDER BY u.name');
+ res.json(r.rows);
+}));
+app.post('/api/platform/admins/:userId',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.userId))return res.sendStatus(400);
+ const user=await pool.query('SELECT id,name,email FROM public.users WHERE id=$1 AND is_active=true',[req.params.userId]);
+ if(!user.rowCount)return res.status(404).json({error:'Usuario activo no encontrado'});
+ await pool.query('INSERT INTO public.crm_platform_admins(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING',[req.params.userId]);
+ console.info('Platform administrator granted',{actor:req.user.id,target:req.params.userId});
+ res.json({granted:true,user:user.rows[0]});
+}));
+app.delete('/api/platform/admins/:userId',auth,platformAdmin,asyncRoute(async(req,res)=>{
+ if(!validUuid(req.params.userId))return res.sendStatus(400);
+ if(req.params.userId===String(req.user.id))return res.status(409).json({error:'No podés quitarte tu propio acceso global'});
+ const target=await pool.query('SELECT u.email FROM public.users u JOIN public.crm_platform_admins a ON a.user_id=u.id WHERE u.id=$1',[req.params.userId]);
+ if(!target.rowCount)return res.sendStatus(404);
+ if(isProtectedAccount(target.rows[0].email))return res.status(403).json({error:'La cuenta principal no puede perder su acceso global'});
+ const remaining=await pool.query('SELECT count(*)::int n FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE u.is_active=true');
+ if(remaining.rows[0].n<=1)return res.status(409).json({error:'No se puede quitar el último administrador global'});
+ await pool.query('DELETE FROM public.crm_platform_admins WHERE user_id=$1',[req.params.userId]);
+ console.info('Platform administrator revoked',{actor:req.user.id,target:req.params.userId});
+ res.json({revoked:true});
+}));
 app.get('/api/platform/companies/:id/users',auth,platformAdmin,asyncRoute(async(req,res)=>{
  if(!validUuid(req.params.id))return res.sendStatus(400);
  const r=await pool.query('SELECT id,name,email,role,is_active FROM public.users WHERE company_id=$1 ORDER BY name',[req.params.id]);res.json(r.rows);
@@ -256,7 +283,10 @@ app.post('/api/platform/companies/:id/users',auth,platformAdmin,asyncRoute(async
 app.patch('/api/platform/companies/:id/users/:userId',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const {name,email,role,is_active,password}=req.body||{};
  if(!validUuid(req.params.id)||!validUuid(req.params.userId)||name!==undefined&&(!valid(name)||name.length>120)||email!==undefined&&(!valid(email)||!isValidUserEmail(email))||role!==undefined&&!['owner','manager','agent'].includes(role)||is_active!==undefined&&typeof is_active!=='boolean'||password!==undefined&&(typeof password!=='string'||password.length<12))return res.sendStatus(400);
- const current=await pool.query('SELECT id,role,is_active FROM public.users WHERE id=$1 AND company_id=$2',[req.params.userId,req.params.id]);if(!current.rowCount)return res.sendStatus(404);
+ const current=await pool.query('SELECT id,role,is_active,email FROM public.users WHERE id=$1 AND company_id=$2',[req.params.userId,req.params.id]);
+ if(current.rowCount&&isProtectedAccount(current.rows[0].email))return res.status(403).json({error:'La cuenta principal está protegida contra modificaciones'});
+ if(current.rowCount&&(is_active===false||role&&role!=='owner')){const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.userId]);if(global.rowCount)return res.status(409).json({error:'Revocá primero la administración global antes de desactivar o cambiar el rol de esta cuenta'});}
+ if(current.rowCount){const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.id]);if(global.rowCount)return res.status(403).json({error:'Solo un administrador global puede modificar esta cuenta'});}if(!current.rowCount)return res.sendStatus(404);
  if(current.rows[0].role==='owner'&&(role&&role!=='owner'||is_active===false)){
   const n=await pool.query("SELECT count(*)::int AS n FROM public.users WHERE company_id=$1 AND role='owner' AND is_active=true",[req.params.id]);
   if(n.rows[0].n<=1)return res.status(409).json({error:'Cannot remove the last active owner'});
@@ -532,7 +562,8 @@ app.post('/api/users',auth,owner,asyncRoute(async(req,res)=>{
 app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  const {name,email,role,password}=req.body||{};
  if((name!==undefined&&(!valid(name)||name.length>120))||(email!==undefined&&(!valid(email)||email.length>254))||(role!==undefined&&!['owner','manager','agent'].includes(role))||(password!==undefined&&(typeof password!=='string'||password.length<12)))return res.status(400).json({error:'Datos inválidos; contraseña mínima de 12 caracteres'});
- const current=await query('SELECT id,role FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[req.params.id,req.user.company_id]);
+ const current=await query('SELECT id,role,email FROM users WHERE id=$1 AND company_id=$2 AND is_active=true',[req.params.id,req.user.company_id]);
+ if(current.rowCount&&isProtectedAccount(current.rows[0].email))return res.status(403).json({error:'La cuenta principal está protegida contra modificaciones'});
  if(!current.rowCount)return res.sendStatus(404);
  if(current.rows[0].role==='owner'&&role&&role!=='owner'){
   const count=await query("SELECT count(*)::int AS n FROM users WHERE company_id=$1 AND role='owner' AND is_active=true",[req.user.company_id]);
@@ -545,6 +576,9 @@ app.patch('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
 }));
 app.delete('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  if(req.params.id===String(req.user.id))return res.status(409).json({error:'No podés desactivar tu propia cuenta'});
+ const protectedTarget=await query('SELECT email FROM users WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+ if(protectedTarget.rowCount&&isProtectedAccount(protectedTarget.rows[0].email))return res.status(403).json({error:'La cuenta principal no puede eliminarse ni desactivarse'});
+ const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.id]);if(global.rowCount)return res.status(403).json({error:'Un administrador global no puede desactivarse desde la empresa'});
  const x=await query("UPDATE users SET is_active=false WHERE id=$1 AND company_id=$2 AND is_active=true AND role<>'owner' RETURNING id",[req.params.id,req.user.company_id]);
  if(!x.rowCount)return res.status(409).json({error:'Usuario inexistente o owner; cambiá primero su rol'});
  res.json({deactivated:true});
