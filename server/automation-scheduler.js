@@ -1,3 +1,4 @@
+import {runRecurringCampaigns} from './recurring-campaigns.js';
 import {runFollowupAutomations} from './followup-automation.js';
 
 // Opt-in scheduler for persistent Node servers (Coolify). Do not run on serverless.
@@ -14,7 +15,8 @@ export function startAutomationScheduler(){
   running=true;
   try{
    const result=await runFollowupAutomations({limit:50});
-   console.info('Automation scheduler completed',JSON.stringify(result));
+   const recurring=await runRecurringCampaigns({limit:10});
+   console.info('Automation scheduler completed',JSON.stringify({followups:result,recurring}));
   }catch(err){
    console.error('Automation scheduler failed',err.code||err.message);
   }finally{running=false}
