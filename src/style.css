@@ -1088,3 +1088,20 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-contact-audit-metrics dt{font-size:11px;line-height:1.4;color:var(--crm-muted,#475569);overflow-wrap:anywhere}
 .crm-contact-audit-metrics dd{margin:7px 0 0;font-size:23px;line-height:1.2;font-weight:800;color:var(--crm-text,#172b4d);font-variant-numeric:tabular-nums}
 @media(max-width:390px){.crm-contact-audit-card{padding:12px}.crm-contact-audit-metrics{gap:5px}.crm-contact-audit-metrics>div{padding:9px 4px}.crm-contact-audit-metrics dt{font-size:10px}.crm-contact-audit-metrics dd{font-size:21px}}
+
+
+/* Contact audit contrast: light metric tiles must never inherit dark-theme white text. */
+.crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics>div{
+ background:#eef3f9;color:#172b4d;border:1px solid #d6e0eb;
+}
+.crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dt{
+ color:#3e526d!important;opacity:1;font-weight:650;
+}
+.crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dd{
+ color:#12263f!important;opacity:1;font-size:24px;font-weight:850;
+}
+.crm-commercial-audit .crm-contact-audit-card h4{color:inherit;opacity:1}
+@media(max-width:390px){
+ .crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dt{font-size:10px}
+ .crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dd{font-size:22px}
+}
