@@ -1,3 +1,4 @@
+import {registerDashboardPdf} from './dashboard-pdf.js';
 import {registerBuilderbot,registerBuilderbotWebhook} from './builderbot.js';
 import {registerSendgridSettings} from './sendgrid-settings.js';
 import {registerTelegramSettings,notifyTelegram} from './telegram-settings.js';
@@ -793,6 +794,7 @@ registerEvolutionInstances(app,auth);
 registerUnsubscribe(app);
 registerCampaignDelivery(app,auth);
 registerModuleRoutes(app,auth);
+registerDashboardPdf(app,auth);
 registerEmailImageRoutes(app,auth);
 registerSendgridSettings(app,auth);
 registerTelegramSettings(app,auth);
