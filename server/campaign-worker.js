@@ -5,6 +5,18 @@ const json=async r=>{const text=await r.text();if(!r.ok)throw Error('upstream_ht
 export async function dispatchCampaignBatch({limit=10}={}){
  if(process.env.CAMPAIGN_DELIVERY_ENABLED!=='true')return {disabled:true,processed:0};
  if(!process.env.CAMPAIGN_WORKER_SECRET||process.env.CAMPAIGN_WORKER_SECRET.length<24)throw Error('CAMPAIGN_WORKER_SECRET missing');
+ // Resolve queued quote follow-ups that must no longer be sent.
+ await query(`UPDATE crm_campaign_deliveries d SET status='skipped',error_code='quote_closed'
+  FROM crm_campaigns c WHERE c.id=d.campaign_id AND c.company_id=d.company_id
+  AND c.filters->>'type'='quote_followup' AND d.status='queued'
+  AND EXISTS(SELECT 1 FROM opportunities o WHERE o.company_id=d.company_id
+   AND o.contact_id=d.contact_id AND o.deleted_at IS NULL AND o.status='won')`);
+ await query(`UPDATE crm_campaign_deliveries d SET status='skipped',error_code='customer_replied'
+  FROM crm_campaigns c WHERE c.id=d.campaign_id AND c.company_id=d.company_id
+  AND c.filters->>'type'='quote_followup' AND d.status='queued'
+  AND EXISTS(SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id
+   WHERE v.company_id=d.company_id AND v.contact_id=d.contact_id
+    AND m.direction='inbound' AND m.created_at>c.scheduled_at-interval '24 hours')`);
  const rows=await query("SELECT d.id,d.company_id,d.contact_id,d.campaign_id,c.channel,c.content,c.template_name,c.instance_name,ct.phone,ct.email,ct.name FROM crm_campaign_deliveries d JOIN crm_campaigns c ON c.id=d.campaign_id AND c.company_id=d.company_id JOIN contacts ct ON ct.id=d.contact_id AND ct.company_id=d.company_id WHERE (c.channel='email' OR EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.contact_id=ct.id AND co.company_id=d.company_id AND co.channel=c.channel AND co.opted_in=true)) AND (c.channel<>'email' OR NOT EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.contact_id=ct.id AND co.company_id=d.company_id AND co.channel='email' AND co.opted_in=false)) AND (c.channel<>'email' OR NOT EXISTS (SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=d.company_id AND s.email=lower(ct.email))) AND d.status='queued' AND d.due_at<=now() AND c.status='ready' AND (COALESCE(c.filters->>'type','')<>'quote_followup' OR NOT EXISTS (SELECT 1 FROM opportunities o WHERE o.company_id=d.company_id AND o.contact_id=d.contact_id AND o.deleted_at IS NULL AND o.status='won')) AND (COALESCE(c.filters->>'type','')<>'quote_followup' OR NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.company_id=d.company_id AND v.contact_id=d.contact_id AND m.direction='inbound' AND m.created_at > c.scheduled_at - interval '24 hours')) ORDER BY d.due_at LIMIT $1",[Math.min(20,Math.max(1,limit))]);
  let processed=0,failed=0;
  for(const item of rows.rows){
