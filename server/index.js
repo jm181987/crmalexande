@@ -284,7 +284,9 @@ app.patch('/api/platform/companies/:id/users/:userId',auth,platformAdmin,asyncRo
  const {name,email,role,is_active,password}=req.body||{};
  if(!validUuid(req.params.id)||!validUuid(req.params.userId)||name!==undefined&&(!valid(name)||name.length>120)||email!==undefined&&(!valid(email)||!isValidUserEmail(email))||role!==undefined&&!['owner','manager','agent'].includes(role)||is_active!==undefined&&typeof is_active!=='boolean'||password!==undefined&&(typeof password!=='string'||password.length<12))return res.sendStatus(400);
  const current=await pool.query('SELECT id,role,is_active,email FROM public.users WHERE id=$1 AND company_id=$2',[req.params.userId,req.params.id]);
- if(current.rowCount&&isProtectedAccount(current.rows[0].email))return res.status(403).json({error:'La cuenta principal está protegida contra modificaciones'});if(!current.rowCount)return res.sendStatus(404);
+ if(current.rowCount&&isProtectedAccount(current.rows[0].email))return res.status(403).json({error:'La cuenta principal está protegida contra modificaciones'});
+ if(current.rowCount&&(is_active===false||role&&role!=='owner')){const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.userId]);if(global.rowCount)return res.status(409).json({error:'Revocá primero la administración global antes de desactivar o cambiar el rol de esta cuenta'});}
+ if(current.rowCount){const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.id]);if(global.rowCount)return res.status(403).json({error:'Solo un administrador global puede modificar esta cuenta'});}if(!current.rowCount)return res.sendStatus(404);
  if(current.rows[0].role==='owner'&&(role&&role!=='owner'||is_active===false)){
   const n=await pool.query("SELECT count(*)::int AS n FROM public.users WHERE company_id=$1 AND role='owner' AND is_active=true",[req.params.id]);
   if(n.rows[0].n<=1)return res.status(409).json({error:'Cannot remove the last active owner'});
@@ -576,6 +578,7 @@ app.delete('/api/users/:id',auth,owner,asyncRoute(async(req,res)=>{
  if(req.params.id===String(req.user.id))return res.status(409).json({error:'No podés desactivar tu propia cuenta'});
  const protectedTarget=await query('SELECT email FROM users WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
  if(protectedTarget.rowCount&&isProtectedAccount(protectedTarget.rows[0].email))return res.status(403).json({error:'La cuenta principal no puede eliminarse ni desactivarse'});
+ const global=await pool.query('SELECT 1 FROM public.crm_platform_admins WHERE user_id=$1',[req.params.id]);if(global.rowCount)return res.status(403).json({error:'Un administrador global no puede desactivarse desde la empresa'});
  const x=await query("UPDATE users SET is_active=false WHERE id=$1 AND company_id=$2 AND is_active=true AND role<>'owner' RETURNING id",[req.params.id,req.user.company_id]);
  if(!x.rowCount)return res.status(409).json({error:'Usuario inexistente o owner; cambiá primero su rol'});
  res.json({deactivated:true});
