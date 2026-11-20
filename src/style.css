@@ -1105,3 +1105,13 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
  .crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dt{font-size:10px}
  .crm-commercial-audit .crm-contact-audit-card .crm-contact-audit-metrics dd{font-size:22px}
 }
+
+
+/* Contact audit search: compact and responsive, with readable light/dark contrast. */
+.crm-contact-audit-search{display:grid;gap:7px;max-width:480px;margin:0 0 16px;min-width:0}
+.crm-contact-audit-search label{font-size:13px;font-weight:700;color:inherit}
+.crm-contact-audit-search input{width:100%;max-width:100%;min-width:0;padding:11px 13px;border:1px solid #8b9bb0;border-radius:10px;background:#fff;color:#15243a;font-size:14px}
+.crm-contact-audit-search input::placeholder{color:#52657e;opacity:1}
+.crm-contact-audit-search input:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+.crm-contact-audit-search p{margin:0;font-size:12px;color:var(--crm-muted,#64748b)}
+@media(max-width:600px){.crm-contact-audit-search{max-width:100%}}
