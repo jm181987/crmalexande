@@ -149,8 +149,14 @@ function CommercialAudit({error}){
   ].map(([name,value])=><article className="crm-business-card" key={name}><h3>{name}</h3><strong>{value??'—'}</strong></article>)}</div>
   <div className="crm-business-topics"><h3>{tx.followups}</h3><p>{tx.queued}: {data?.followups?.queued??'—'} · {tx.sent}: {data?.followups?.sent??'—'} · {tx.failed}: {data?.followups?.failed??'—'}</p></div>
   <div className="crm-business-topics"><h3>{tx.conversations} → {tx.opportunities} → {tx.wonDeals}</h3>
-   <div className="table-scroll"><table><thead><tr><th>{tx.contact}</th><th>{tx.conversations}</th><th>{tx.opportunities}</th><th>{tx.wonDeals}</th></tr></thead>
-   <tbody>{data?.contacts?.map(c=><tr key={c.id}><td>{c.name}</td><td>{c.conversations}</td><td>{c.opportunities}</td><td>{c.won}</td></tr>)}</tbody></table></div>
+   <div className="crm-contact-audit-list">{data?.contacts?.map(c=><article className="crm-contact-audit-card" key={c.id}>
+    <h4>{c.name}</h4>
+    <dl className="crm-contact-audit-metrics">
+     <div><dt>{tx.conversations}</dt><dd>{c.conversations}</dd></div>
+     <div><dt>{tx.opportunities}</dt><dd>{c.opportunities}</dd></div>
+     <div><dt>{tx.wonDeals}</dt><dd>{c.won}</dd></div>
+    </dl>
+   </article>)}{data&&!data.contacts?.length&&<p>{tx.empty}</p>}</div>
   </div>
   <div className="crm-business-topics"><h3>{tx.campaign}</h3><div className="table-scroll"><table><thead><tr><th>{tx.campaign}</th><th>{tx.delivered}</th><th>{tx.conversions}</th><th>{tx.rate}</th><th>{tx.value}</th><th>{tx.roi}</th></tr></thead><tbody>{data?.campaigns?.map(c=><tr key={c.id}><td>{c.name}</td><td>{c.sent}</td><td>{c.wins}</td><td>{c.conversion_pct==null?'—':c.conversion_pct+'%'}</td><td>{money(c.attributed_value)}</td><td>{c.estimated_roi_pct==null?'—':c.estimated_roi_pct+'%'}</td></tr>)}</tbody></table></div>{data&&!data.campaigns.length&&<p>{tx.empty}</p>}<p className="crm-audit-disclaimer">{tx.disclaimer}</p></div>
  </section>;
