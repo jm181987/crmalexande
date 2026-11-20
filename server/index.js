@@ -352,9 +352,13 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
    LEFT JOIN opportunities o ON o.contact_id=ct.id AND o.company_id=ct.company_id
       AND o.deleted_at IS NULL
    WHERE ct.company_id=$1 AND ($2::uuid IS NULL OR ct.owner_id=$2)
-   GROUP BY ct.id,ct.name
+     AND ($3::text='' OR ct.name ILIKE '%' || $3 || '%')
+   GROUP BY ct.id,ct.name,ct.created_at
    HAVING count(DISTINCT v.id)>0 OR count(DISTINCT o.id)>0
-   ORDER BY count(DISTINCT o.id) DESC,ct.name LIMIT 50`,[company,agentId])
+   ORDER BY GREATEST(ct.created_at,coalesce(max(v.created_at),ct.created_at),
+     coalesce(max(o.created_at),ct.created_at)) DESC,ct.id DESC
+   LIMIT $4`,[company,agentId,String(req.query.contact_search||'').trim().slice(0,100),
+     String(req.query.contact_search||'').trim()?30:3])
  ]);
  const byCampaign=new Map(attribution.rows.map(x=>[x.campaign_id,x]));
  res.json({method:'last_sent_campaign_within_30_days_before_won_update',
