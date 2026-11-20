@@ -1128,3 +1128,12 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 @media(max-width:390px){
  .crm-commercial-audit .crm-contact-audit-metrics dt{font-size:10px}
 }
+
+
+.crm-dashboard-export{display:grid;gap:12px;min-width:0;max-width:100%;padding:18px;border:1px solid var(--crm-border,#d0d9e4);border-radius:14px;background:var(--crm-surface,#fff);color:var(--crm-text,#15253c)}
+.crm-dashboard-export strong{font-size:16px}.crm-dashboard-export p{margin:5px 0;color:var(--crm-muted,#64748b);font-size:13px}
+.crm-dashboard-export-fields{display:flex;align-items:end;flex-wrap:wrap;gap:12px;min-width:0}
+.crm-dashboard-export-fields label{display:grid;gap:5px;flex:1 1 155px;font-size:13px;font-weight:650}
+.crm-dashboard-export-fields input{min-width:0;width:100%;max-width:100%;padding:10px;border-radius:9px;border:1px solid #8496ad;background:#fff;color:#172b4d}
+.crm-dashboard-export-fields button{min-height:43px;padding:10px 16px;max-width:100%}
+@media(max-width:600px){.crm-dashboard-export{padding:12px}.crm-dashboard-export-fields label,.crm-dashboard-export-fields button{flex:1 1 100%}}
