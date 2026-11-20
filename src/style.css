@@ -938,3 +938,19 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
 :root:not([data-theme="dark"]) .app .workspace .crm-main .wa-audit .wa-audit-unknown{color:#92400e}
 :root[data-theme="dark"] .app .workspace .crm-main .wa-audit .wa-audit-unknown{color:#fcd34d}
 .app .workspace .crm-main .wa-audit :is(button,input,select,a):focus-visible{outline:3px solid var(--crm-focus);outline-offset:2px}
+
+
+/* Company business analytics — accessible in light and dark themes */
+.crm-business-analytics{margin:30px 0;display:grid;gap:18px}
+.crm-business-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
+.crm-business-card,.crm-business-topics{padding:20px;border:1px solid var(--crm-border,#cbd5e1);border-radius:16px;background:var(--crm-surface,#fff);color:var(--crm-text,#172b4d)}
+.crm-business-card h3,.crm-business-topics h3{margin:0 0 14px;font-size:15px;color:inherit}
+.crm-business-card strong{display:block;font-size:26px;color:inherit}
+.crm-business-card p,.crm-business-topics p{font-size:13px;line-height:1.55;color:var(--crm-muted,#475569)}
+.crm-business-topics ol{padding:0;margin:16px 0 0;list-style:none}
+.crm-business-topics li{display:flex;justify-content:space-between;gap:20px;padding:10px 0;border-bottom:1px solid var(--crm-border,#cbd5e1);overflow-wrap:anywhere}
+:root[data-theme="dark"] .crm-business-card,:root[data-theme="dark"] .crm-business-topics{background:#1e293b;color:#f8fafc;border-color:#475569}
+:root[data-theme="dark"] .crm-business-card p,:root[data-theme="dark"] .crm-business-topics p{color:#cbd5e1}
+:root[data-theme="dark"] .crm-business-topics li{border-color:#475569}
+:root:not([data-theme="dark"]) .crm-business-card,:root:not([data-theme="dark"]) .crm-business-topics{background:#fff;color:#172b4d;border-color:#cbd5e1}
+:root:not([data-theme="dark"]) .crm-business-card p,:root:not([data-theme="dark"]) .crm-business-topics p{color:#475569}
