@@ -302,7 +302,7 @@ app.get('/api/dashboard',auth,asyncRoute(async(req,res)=>{
    It is an estimate, not proof of incremental revenue or a financial ROI. */
 app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
  const company=req.user.company_id,agentId=agent(req.user)?req.user.id:null;
- const [funnel,activity,campaigns,attribution,followups]=await Promise.all([
+ const [funnel,activity,campaigns,attribution,followups,contactAudit]=await Promise.all([
   query(`SELECT count(*)::int AS total,count(*) FILTER(WHERE o.status='won')::int AS won,
    count(*) FILTER(WHERE o.status='open')::int AS open,
    coalesce(sum(o.value) FILTER(WHERE o.status='won'),0)::float AS won_value
@@ -342,12 +342,24 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
    ON c.id=d.campaign_id AND c.company_id=d.company_id
    WHERE d.company_id=$1 AND c.filters->>'type'='quote_followup'
      AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM contacts ct
-       WHERE ct.id=d.contact_id AND ct.company_id=d.company_id AND ct.owner_id=$2))`,[company,agentId])
+       WHERE ct.id=d.contact_id AND ct.company_id=d.company_id AND ct.owner_id=$2))`,[company,agentId]),
+  query(`SELECT ct.id,ct.name,
+    count(DISTINCT v.id)::int AS conversations,
+    count(DISTINCT o.id)::int AS opportunities,
+    count(DISTINCT o.id) FILTER(WHERE o.status='won')::int AS won,
+   FROM contacts ct
+   LEFT JOIN conversations v ON v.contact_id=ct.id AND v.company_id=ct.company_id
+   LEFT JOIN opportunities o ON o.contact_id=ct.id AND o.company_id=ct.company_id
+      AND o.deleted_at IS NULL
+   WHERE ct.company_id=$1 AND ($2::uuid IS NULL OR ct.owner_id=$2)
+   GROUP BY ct.id,ct.name
+   HAVING count(DISTINCT v.id)>0 OR count(DISTINCT o.id)>0
+   ORDER BY count(DISTINCT o.id) DESC,ct.name LIMIT 50`,[company,agentId])
  ]);
  const byCampaign=new Map(attribution.rows.map(x=>[x.campaign_id,x]));
  res.json({method:'last_sent_campaign_within_30_days_before_won_update',
   attribution_is_estimate:true,financial_roi_available:false,
-  funnel:funnel.rows[0],activity:activity.rows[0],followups:followups.rows[0],
+  funnel:funnel.rows[0],activity:activity.rows[0],followups:followups.rows[0],contacts:contactAudit.rows,
   campaigns:campaigns.rows.map(c=>{
    const value=byCampaign.get(c.id)?.attributed_value||0;
    const cost=Number(c.filters?.financials?.cost);
