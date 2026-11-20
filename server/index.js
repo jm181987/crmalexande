@@ -335,7 +335,7 @@ app.get('/api/dashboard/commercial-audit',auth,asyncRoute(async(req,res)=>{
   SELECT campaign_id,count(*)::int AS wins,
     coalesce(sum(value),0)::float AS attributed_value
   FROM attributed GROUP BY campaign_id`,[company,agentId]),
-  query(`SELECT count(*)::int AS queued,
+  query(`SELECT count(*) FILTER(WHERE d.status='queued')::int AS queued,
     count(*) FILTER(WHERE d.status='sent')::int AS sent,
     count(*) FILTER(WHERE d.status='failed')::int AS failed
    FROM crm_campaign_deliveries d JOIN crm_campaigns c
