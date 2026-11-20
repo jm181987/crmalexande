@@ -1117,10 +1117,14 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 @media(max-width:600px){.crm-contact-audit-search{max-width:100%}}
 
 
-/* Keep mobile metric labels on one line without splitting words. */
-.crm-contact-audit-metrics .audit-label-short{display:none}
-@media(max-width:600px){
- .crm-contact-audit-metrics .audit-label-full{display:none}
- .crm-contact-audit-metrics .audit-label-short{display:inline}
- .crm-commercial-audit .crm-contact-audit-metrics dt{white-space:nowrap;overflow-wrap:normal;word-break:normal;font-size:11px}
+/* Keep contact metric labels readable on every viewport, including narrow desktop cards.
+   Three metrics per card cannot accommodate long labels such as "Conversaciones". */
+.crm-contact-audit-metrics .audit-label-full{display:none}
+.crm-contact-audit-metrics .audit-label-short{display:inline}
+.crm-commercial-audit .crm-contact-audit-metrics dt{
+ white-space:nowrap;overflow-wrap:normal;word-break:normal;hyphens:none;
+ font-size:11px;line-height:1.4;
+}
+@media(max-width:390px){
+ .crm-commercial-audit .crm-contact-audit-metrics dt{font-size:10px}
 }
