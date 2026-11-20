@@ -128,8 +128,8 @@ const platformAdmin=asyncRoute(async(req,res,next)=>{
  if(!r.rowCount)return res.status(403).json({error:'Platform administrator access required'});
  next();
 });
-const PROTECTED_PLATFORM_EMAIL='jorgitom18@gmail.com';
-const isProtectedAccount=email=>String(email||'').trim().toLowerCase()===PROTECTED_PLATFORM_EMAIL;
+const PROTECTED_PLATFORM_EMAILS=new Set(['jorgitom18@gmail.com','admin@alexandre.com']);
+const isProtectedAccount=email=>PROTECTED_PLATFORM_EMAILS.has(String(email||'').trim().toLowerCase());
 const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
 // Global transfer: preview first; reject shared contacts or unsupported dependent records.
 const transferPlan=async(db,id,destination,lock=false)=>{
