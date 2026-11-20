@@ -1011,3 +1011,20 @@ input:focus,textarea:focus,select:focus{border-color:#16866f;box-shadow:0 0 0 3p
  .app .workspace .crm-main .wa-compose-row{flex-wrap:wrap}
  .app .workspace .crm-main .wa-compose-row .wa-send{width:100%}
 }
+
+
+/* Commercial audit and opt-in campaign recurrence */
+.crm-commercial-audit{display:grid;gap:16px;margin:28px 0;min-width:0}
+.crm-commercial-audit .crm-business-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))}
+.crm-commercial-audit .table-scroll{max-width:100%;overflow-x:auto}
+.crm-commercial-audit table{min-width:540px;width:100%;border-collapse:collapse}
+.crm-commercial-audit th,.crm-commercial-audit td{text-align:left;padding:10px;border-bottom:1px solid var(--crm-border,#cbd5e1);color:var(--crm-text,#172b4d)}
+.crm-audit-disclaimer{font-size:12px;color:var(--crm-muted,#475569);line-height:1.55}
+.crm-campaign-recurrence{padding:16px;margin:16px 0;border:1px solid var(--crm-border,#cbd5e1);border-radius:12px;background:var(--crm-surface,#fff);color:var(--crm-text,#172b4d)}
+.crm-campaign-recurrence h3{margin:0 0 8px;color:inherit}
+.crm-campaign-recurrence p{color:var(--crm-muted,#475569);line-height:1.55}
+.crm-campaign-recurrence-fields,.crm-campaign-recurrence-actions{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.crm-campaign-recurrence-fields label{display:grid;gap:5px;flex:1 1 160px}
+.crm-campaign-recurrence-fields input{width:100%;min-width:0;background:var(--crm-input,#fff);color:var(--crm-text,#172b4d);border:1px solid var(--crm-border,#cbd5e1);border-radius:8px;padding:10px}
+.crm-campaign-recurrence-actions button{min-height:42px}
+@media(max-width:600px){.crm-commercial-audit .crm-business-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-campaign-recurrence-fields label,.crm-campaign-recurrence-actions button{flex:1 1 100%}}
