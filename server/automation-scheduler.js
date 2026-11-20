@@ -1,3 +1,4 @@
+import {dispatchCampaignBatch} from './campaign-worker.js';
 import {runRecurringCampaigns} from './recurring-campaigns.js';
 import {runFollowupAutomations} from './followup-automation.js';
 
@@ -16,7 +17,9 @@ export function startAutomationScheduler(){
   try{
    const result=await runFollowupAutomations({limit:50});
    const recurring=await runRecurringCampaigns({limit:10});
-   console.info('Automation scheduler completed',JSON.stringify({followups:result,recurring}));
+   const delivery=process.env.CAMPAIGN_DELIVERY_ENABLED==='true'&&process.env.CAMPAIGN_WORKER_SECRET?.length>=24
+    ?await dispatchCampaignBatch({limit:10}):{disabled:true};
+   console.info('Automation scheduler completed',JSON.stringify({followups:result,recurring,delivery}));
   }catch(err){
    console.error('Automation scheduler failed',err.code||err.message);
   }finally{running=false}
