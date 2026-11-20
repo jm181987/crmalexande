@@ -21,7 +21,7 @@ export function registerDashboardPdf(app,auth){
   const start=new Date(from+'T00:00:00Z'),end=new Date(to+'T00:00:00Z');
   if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||start.toISOString().slice(0,10)!==from||end.toISOString().slice(0,10)!==to||end<start||end-start>366*86400000)return res.status(400).json({error:'Date range must be 1 to 367 calendar days'});
   const args=[req.user.company_id,from,to,req.user.role==='agent'?req.user.id:null];
-  const [contacts,conversations,opportunities,tasks,messages,campaigns,topics,team,deliveries]=await Promise.all([
+  const [contacts,conversations,opportunities,tasks,messages,campaigns,topics,team,deliveries,analytics]=await Promise.all([
    query("SELECT count(*)::int n FROM contacts WHERE company_id=$1 AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4)",args),
    query("SELECT count(*)::int n FROM conversations WHERE company_id=$1 AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR assignee_id=$4)",args),
    query("SELECT status,count(*)::int n,coalesce(sum(value),0)::float amount FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4) GROUP BY status ORDER BY status",args),
@@ -30,7 +30,8 @@ export function registerDashboardPdf(app,auth){
    query("SELECT name,channel,status FROM crm_campaigns WHERE company_id=$1 AND created_at >= $2::date AND created_at < $3::date+interval '1 day' ORDER BY created_at DESC LIMIT 100",args.slice(0,3)),
    query("SELECT title,count(*)::int n FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4) GROUP BY title ORDER BY n DESC,title LIMIT 15",args),
    query("SELECT u.name,count(o.id)::int n FROM users u LEFT JOIN opportunities o ON o.owner_id=u.id AND o.company_id=$1 AND o.deleted_at IS NULL AND o.created_at >= $2::date AND o.created_at < $3::date+interval '1 day' WHERE u.company_id=$1 AND ($4::uuid IS NULL OR u.id=$4) GROUP BY u.id,u.name ORDER BY n DESC LIMIT 40",args),
-   query("SELECT c.name,count(d.id)::int n,count(d.id) FILTER(WHERE d.status='sent')::int sent,count(d.id) FILTER(WHERE d.status='failed')::int failed FROM crm_campaigns c JOIN crm_campaign_deliveries d ON d.campaign_id=c.id AND d.company_id=c.company_id WHERE c.company_id=$1 AND d.created_at >= $2::date AND d.created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR EXISTS(SELECT 1 FROM contacts ct WHERE ct.id=d.contact_id AND ct.company_id=d.company_id AND ct.owner_id=$4)) GROUP BY c.id,c.name ORDER BY n DESC LIMIT 50",args)
+   query("SELECT c.name,count(d.id)::int n,count(d.id) FILTER(WHERE d.status='sent')::int sent,count(d.id) FILTER(WHERE d.status='failed')::int failed FROM crm_campaigns c JOIN crm_campaign_deliveries d ON d.campaign_id=c.id AND d.company_id=c.company_id WHERE c.company_id=$1 AND d.created_at >= $2::date AND d.created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR EXISTS(SELECT 1 FROM contacts ct WHERE ct.id=d.contact_id AND ct.company_id=d.company_id AND ct.owner_id=$4)) GROUP BY c.id,c.name ORDER BY n DESC LIMIT 50",args),
+   query("SELECT count(*) FILTER(WHERE status='won')::int wins,count(DISTINCT contact_id) FILTER(WHERE status='won')::int buyers,round(avg(extract(epoch FROM (updated_at-created_at))/86400) FILTER(WHERE status='won' AND updated_at>=created_at)::numeric,1)::float cycle_days FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4)",args)
   ]);
   const lines=['ZARKO CRM - REPORTE COMPLETO DEL DASHBOARD','Periodo: '+from+' a '+to,'Empresa: '+req.user.company_id,'Usuario: '+sanitize(req.user.name)+' ('+req.user.role+')','Generado: '+new Date().toISOString(),''];
   const section=s=>lines.push('',s.toUpperCase());
@@ -38,6 +39,7 @@ export function registerDashboardPdf(app,auth){
   section('Resumen comercial');push('Contactos nuevos: '+contacts.rows[0].n);push('Conversaciones nuevas: '+conversations.rows[0].n);
   let total=0,wins=0;for(const row of opportunities.rows){total+=row.n;if(row.status==='won')wins=row.n;push('Oportunidades '+row.status+': '+row.n+' | Valor: '+Number(row.amount).toFixed(2))}
   push('Conversion de oportunidades creadas, segun estado actual: '+(total?(wins*100/total).toFixed(1)+'%':'Sin datos'));
+  push('Clientes compradores (oportunidades ganadas creadas en periodo): '+analytics.rows[0].buyers);push('Tiempo medio hasta actualizacion de venta ganada, dias: '+(analytics.rows[0].cycle_days??'Sin datos'));
   section('Tareas');tasks.rows.forEach(x=>push((x.completed?'Completadas':'Pendientes')+': '+x.n));if(!tasks.rows.length)push('Sin tareas');
   section('Mensajes de WhatsApp');messages.rows.forEach(x=>push(x.direction+': '+x.n));if(!messages.rows.length)push('Sin mensajes');
   section('Campanas creadas');campaigns.rows.forEach(x=>push(x.name+' | '+x.channel+' | '+x.status));if(!campaigns.rows.length)push('Sin campanas');
