@@ -1258,3 +1258,22 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-help-modal footer button{background:#1d4e89!important;color:#fff!important;border:1px solid #1d4e89!important;padding:10px 22px;font-weight:750}
 .crm-help-modal :is(button,summary):focus-visible{outline:3px solid #71a7ff;outline-offset:3px}
 @media(max-width:600px){.crm-help-backdrop{padding:8px}.crm-help-modal{max-height:94dvh;border-radius:12px}.crm-help-modal .crm-help-header{padding:19px 17px}.crm-help-modal .crm-help-header h2{font-size:21px}.crm-help-modal .crm-help-body{padding:8px 17px}.crm-help-modal .crm-help-topic{grid-template-columns:30px minmax(0,1fr);gap:11px;padding:19px 0}.crm-help-modal .crm-help-topic-number{width:30px;height:30px}.crm-help-modal .crm-help-note{margin:0 17px 10px}.crm-help-modal footer{padding:12px 17px}}
+
+
+/* Saved contact notes: theme-aware, high-contrast read-only dialog. */
+.crm-contact-notes-open{background:#eaf2ff!important;color:#174777!important;border:1px solid #94b6dc!important;font-size:13px;font-weight:700;padding:7px 11px;white-space:nowrap}
+:root[data-theme="dark"] .crm-contact-notes-open{background:#28405d!important;color:#e7f2ff!important;border-color:#6484aa!important}
+.crm-contact-notes-backdrop{position:fixed;inset:0;z-index:11000;background:rgba(7,16,31,.76);display:flex;align-items:center;justify-content:center;padding:18px}
+.crm-contact-notes-modal{--cn-bg:#fff;--cn-fg:#192b43;--cn-sub:#475b74;--cn-border:#d1dce9;--cn-soft:#f1f5fa;background:var(--cn-bg)!important;color:var(--cn-fg)!important;border:1px solid var(--cn-border);width:min(660px,100%);max-height:88dvh;border-radius:16px;box-shadow:0 22px 70px #0007;display:flex;flex-direction:column;overflow:hidden}
+:root[data-theme="dark"] .crm-contact-notes-modal{--cn-bg:#19283b;--cn-fg:#f0f6ff;--cn-sub:#d0dff1;--cn-border:#59708c;--cn-soft:#263a53}
+.crm-contact-notes-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;background:var(--cn-bg)!important;padding:24px 26px;border-bottom:1px solid var(--cn-border)}
+.crm-contact-notes-head small{color:var(--cn-sub)!important;font-size:13px;font-weight:700}
+.crm-contact-notes-head h2{color:var(--cn-fg)!important;font-size:22px;margin:6px 0 0;overflow-wrap:anywhere}
+.crm-contact-notes-head button{background:var(--cn-soft)!important;color:var(--cn-fg)!important;border:1px solid var(--cn-border);min-width:38px;min-height:38px;font-size:22px;padding:4px}
+.crm-contact-notes-content{padding:25px 26px;overflow:auto;flex:1;min-height:90px;background:var(--cn-bg)!important}
+.crm-contact-notes-content p{color:var(--cn-fg)!important;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;font-size:16px;margin:0}
+.crm-contact-notes-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:17px 26px;border-top:1px solid var(--cn-border);background:var(--cn-bg)!important}
+.crm-contact-notes-actions button:not(.primary){background:var(--cn-soft)!important;color:var(--cn-fg)!important;border:1px solid var(--cn-border)}
+.crm-contact-notes-actions button.primary{background:#20518b!important;color:#fff!important;border:1px solid #20518b}
+.crm-contact-notes-modal button:focus-visible{outline:3px solid #76aaff;outline-offset:2px}
+@media(max-width:600px){.crm-contact-notes-backdrop{padding:9px}.crm-contact-notes-head,.crm-contact-notes-content,.crm-contact-notes-actions{padding:17px}.crm-contact-notes-modal{max-height:94dvh}}
