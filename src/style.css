@@ -1369,3 +1369,18 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-calendar button:focus-visible,.crm-calendar input:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:2px}
 @media(max-width:720px){.crm-calendar-top{flex-direction:column}.crm-calendar-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.crm-calendar-stats>div{padding:12px}.crm-calendar-stats strong{font-size:23px}.crm-calendar-tools input[type=search]{max-width:none;width:100%}.crm-calendar-card{align-items:flex-start;flex-wrap:wrap;padding:14px;gap:12px}.crm-calendar-actions{width:100%;padding-left:78px}}
 @media(max-width:400px){.crm-calendar-stats span{font-size:10px}.crm-calendar-stats>div{padding:10px}.crm-calendar-actions{padding-left:0}}
+
+
+/* Appointment reminder audit, isolated from the appointment edit modal. */
+.crm-audit-backdrop{position:fixed;inset:0;z-index:1200;display:flex;align-items:center;justify-content:center;background:rgba(5,12,26,.68);padding:20px}
+.crm-audit-panel{width:min(720px,100%);max-height:88vh;overflow:auto;padding:24px;border-radius:16px;background:var(--crm-surface,#fff);color:var(--crm-text,#17243b);border:1px solid var(--crm-border,#cbd5e1);box-shadow:0 24px 70px #0005}
+.crm-audit-panel header{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}.crm-audit-panel h2{margin:0 0 6px;font-size:21px;color:inherit}.crm-audit-panel header p{margin:0;color:var(--crm-muted,#64748b)}
+.crm-audit-panel header button{background:var(--crm-elevated,#f1f5f9);color:inherit;border:1px solid var(--crm-border,#cbd5e1);border-radius:9px;padding:8px 12px;cursor:pointer}
+.crm-audit-note{font-size:12px;color:var(--crm-muted,#64748b);margin:16px 0}
+.crm-audit-list{display:grid;gap:10px}.crm-audit-list article{padding:14px;border-radius:12px;border:1px solid var(--crm-border,#cbd5e1);background:var(--crm-elevated,#f8fafc)}
+.crm-audit-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.crm-audit-head strong{font-size:14px}
+.crm-audit-status{font-size:12px;font-weight:700;padding:4px 8px;border-radius:7px;background:var(--crm-surface,#fff);border:1px solid var(--crm-border,#cbd5e1)}
+.crm-audit-status.sent{color:#059669}.crm-audit-status.failed{color:#dc2626}
+:root[data-theme="dark"] .crm-audit-status.sent{color:#6ee7b7}:root[data-theme="dark"] .crm-audit-status.failed{color:#fca5a5}
+.crm-audit-list small{display:block;color:var(--crm-muted,#64748b);margin:9px 0}.crm-audit-error{color:#dc2626;overflow-wrap:anywhere}
+.crm-audit-list details{margin-top:10px}.crm-audit-list summary{cursor:pointer;font-weight:650}.crm-audit-list details p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:13px}
