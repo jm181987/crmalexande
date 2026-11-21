@@ -221,24 +221,6 @@ app.post('/api/platform/evolution/instances/:id/transfer',auth,platformAdmin,asy
   res.json({ok:true,conversations:plan.conversations,contacts:plan.contacts,messages:plan.messages,media:plan.media});
  }catch(err){await db.query('ROLLBACK');console.error('Platform instance transfer failed',{stage:transferStage,code:err.code,constraint:err.constraint,detail:err.detail});if(['22P02','23503','23502','23514'].includes(err.code))return res.status(409).json({error:'No se pudo transferir por una restricción de datos ('+transferStage+'). No se modificó ninguna empresa.',stage:transferStage,code:err.code});throw err}finally{db.release()}
 }));
-// Per-company externally hosted QR page. The embedded page controls QR rotation.
-const validQrPage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&u.hostname.length>3&&u.hostname!=='localhost'&&!u.hostname.endsWith('.local')&&!/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(u.hostname)&&value.length<=2000}catch{return false}};
-app.get('/api/ia/qr-page',auth,asyncRoute(async(req,res)=>{
- const r=await query('SELECT page_url FROM public.crm_company_qr_pages WHERE company_id=$1',[req.user.company_id]);
- res.json({page_url:r.rows[0]?.page_url||null});
-}));
-app.get('/api/platform/qr-pages',auth,platformAdmin,asyncRoute(async(req,res)=>{
- const r=await pool.query('SELECT company_id,page_url FROM public.crm_company_qr_pages');res.json(r.rows);
-}));
-app.put('/api/platform/companies/:id/qr-page',auth,platformAdmin,asyncRoute(async(req,res)=>{
- if(!validUuid(req.params.id))return res.sendStatus(400);
- const url=String(req.body?.page_url||'').trim();
- if(url&&!validQrPage(url))return res.status(400).json({error:'Ingresá un enlace HTTPS público válido'});
- const co=await pool.query('SELECT 1 FROM public.companies WHERE id=$1',[req.params.id]);if(!co.rowCount)return res.sendStatus(404);
- if(!url){await pool.query('DELETE FROM public.crm_company_qr_pages WHERE company_id=$1',[req.params.id]);return res.json({company_id:req.params.id,page_url:null})}
- const r=await pool.query('INSERT INTO public.crm_company_qr_pages(company_id,page_url) VALUES($1,$2) ON CONFLICT(company_id) DO UPDATE SET page_url=EXCLUDED.page_url,updated_at=now() RETURNING company_id,page_url',[req.params.id,url]);
- res.json(r.rows[0]);
-}));
 app.get('/api/platform/companies',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const companies=await pool.query('SELECT id,name,created_at FROM public.companies ORDER BY name');
  const rows=await pool.query('SELECT company_id,tool_key,enabled FROM public.crm_company_tools');
