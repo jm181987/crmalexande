@@ -41,9 +41,3 @@ CREATE POLICY crm_whatsapp_provider_tenant ON public.crm_whatsapp_provider_setti
  USING (company_id=NULLIF(current_setting('app.company_id',true),'')::uuid)
  WITH CHECK (company_id=NULLIF(current_setting('app.company_id',true),'')::uuid);
 
--- External QR pages assigned independently to each company.
-CREATE TABLE IF NOT EXISTS public.crm_company_qr_pages (
- company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
- page_url text NOT NULL CHECK (length(page_url)<=2000),
- updated_at timestamptz NOT NULL DEFAULT now()
-);
