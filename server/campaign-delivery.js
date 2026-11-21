@@ -102,7 +102,7 @@ export function registerCampaignDelivery(app,auth){
     await db.query('BEGIN');
     const existing=await db.query("SELECT 1 FROM public.crm_campaign_deliveries WHERE campaign_id=$1 LIMIT 1",[req.params.id]);
     if(existing.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'Campaign already prepared'});}
-    const candidates=await db.query(`WITH candidates AS (
+    const candidates=manual_email!==null?{rows:[]}:await db.query(`WITH candidates AS (
       SELECT c.id,c.name,c.email,c.company_id,c.source,c.tags,c.created_at,'client'::text AS kind
       FROM public.contacts c WHERE c.email IS NOT NULL AND trim(c.email)<>''
       AND ($1::text IS NULL OR $1=ANY(coalesce(c.tags,ARRAY[]::text[])))
