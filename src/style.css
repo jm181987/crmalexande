@@ -1282,3 +1282,23 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-brand-image{display:block;width:44px;height:44px;max-width:100%;object-fit:contain;object-position:center;border-radius:8px;flex-shrink:0;background:transparent}
 .login-card .crm-brand-image{width:64px;height:64px;margin:0 auto 12px}
 .sidebar.collapsed .crm-brand-image{width:36px;height:36px}
+
+
+/* Login colors are isolated from global form rules and follow selected theme. */
+.login-page{--login-bg:#ffffff;--login-text:#14253d;--login-muted:#4d607a;--login-input:#f5f8fc;--login-border:#aabbd1;--login-button:#117e70;--login-button-hover:#0d655b;--login-focus:#2366bf;color:var(--login-text)}
+:root[data-theme="dark"] .login-page{--login-bg:#1b2a40;--login-text:#f3f7ff;--login-muted:#d2dff0;--login-input:#263951;--login-border:#7289a6;--login-button:#17a58d;--login-button-hover:#128671;--login-focus:#a3caff}
+.login-page .login-card{background:var(--login-bg)!important;color:var(--login-text)!important;border:1px solid var(--login-border);box-shadow:0 28px 85px #0005}
+.login-page .login-card h1{color:var(--login-text)!important;font-size:32px;line-height:1.2;margin:12px 0 10px}
+.login-page .login-card .subtitle{color:var(--login-muted)!important;opacity:1}
+.login-page .login-card form label{color:var(--login-text)!important;font-size:13px;font-weight:700;gap:9px}
+.login-page .login-card form input{display:block;width:100%;min-height:46px;background:var(--login-input)!important;color:var(--login-text)!important;border:1px solid var(--login-border)!important;border-radius:10px;padding:12px 14px;font-size:15px;opacity:1;box-shadow:none}
+.login-page .login-card form input::placeholder{color:var(--login-muted)!important;opacity:1}
+.login-page .login-card form input:focus-visible{outline:3px solid var(--login-focus);outline-offset:2px;border-color:var(--login-focus)!important}
+.login-page .login-card form button.primary{background:var(--login-button)!important;color:#fff!important;border:1px solid transparent!important;min-height:48px;font-size:16px;font-weight:750}
+.login-page .login-card form button.primary:hover{background:var(--login-button-hover)!important}
+.login-page .login-card select{background:var(--login-input)!important;color:var(--login-text)!important;border:1px solid var(--login-border)!important;min-height:38px}
+.login-page .login-card select option{background:var(--login-bg);color:var(--login-text)}
+.login-page .login-card .error{background:#fff0f0!important;color:#8f1c1c!important;border:1px solid #e6a3a3}
+:root[data-theme="dark"] .login-page .login-card .error{background:#4d2530!important;color:#ffe0e0!important;border-color:#bb7585}
+.login-page .login-card .crm-brand-image{object-fit:contain}
+@media(max-width:570px){.login-page .login-card{padding:28px 24px}.login-page .login-card h1{font-size:28px}}
