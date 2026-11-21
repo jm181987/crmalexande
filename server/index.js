@@ -918,7 +918,7 @@ if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0
   const run=async()=>{
    if(running)return;
    running=true;
-   try{await dispatchAppointmentReminders();await dispatchInternalAppointmentReminders();}
+   try{await dispatchAppointmentReminders().catch(e=>console.error('Client reminders failed',{code:e.code,table:e.table,message:e.message}));await dispatchInternalAppointmentReminders().catch(e=>console.error('Internal reminders failed',{code:e.code,table:e.table,message:e.message}));}
    catch(e){console.error('Appointment reminders failed',e.code||e.message)}
    finally{running=false}
   };
