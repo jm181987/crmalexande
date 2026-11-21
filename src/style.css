@@ -1416,16 +1416,18 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-audit-panel .crm-audit-titlebar button{flex-shrink:0;align-self:flex-start;background:var(--audit-control)!important;color:var(--audit-text)!important;border:1px solid var(--audit-border)!important;border-radius:9px;padding:9px 13px}
 
 
-/* Email campaign goal selector */
-.crm-email-quickstart{margin:18px 0;padding:22px;border:1px solid var(--crm-border,#dce5ef);border-radius:16px;background:var(--crm-surface,#fff);color:var(--crm-text,#17243b)}
-.crm-email-quickstart h3{margin:0 0 6px;font-size:20px;color:inherit}
-.crm-email-quickstart>p{margin:0 0 18px;color:var(--crm-muted,#64748b);font-size:14px}
-.crm-email-quickstart-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.crm-email-quickstart-options button{display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;text-align:left;min-height:125px;padding:17px;border:1px solid var(--crm-border,#dce5ef);border-radius:13px;background:var(--crm-elevated,#f8fafc);color:var(--crm-text,#17243b);cursor:pointer;transition:border-color .15s,transform .15s}
-.crm-email-quickstart-options button:hover{border-color:var(--crm-accent,#2563eb);transform:translateY(-2px)}
-.crm-email-quickstart-options button strong{font-size:15px;color:inherit}
-.crm-email-quickstart-options button span{font-size:13px;line-height:1.5;color:var(--crm-muted,#64748b)}
-.crm-email-quickstart-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:13px;color:var(--crm-muted,#64748b)}
-.crm-email-quickstart-footer button{padding:9px 13px;border:1px solid var(--crm-border,#dce5ef);border-radius:9px;background:var(--crm-elevated,#f8fafc);color:var(--crm-text,#17243b);font-weight:650;cursor:pointer}
-.crm-email-quickstart button:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:2px}
-@media(max-width:760px){.crm-email-quickstart-options{grid-template-columns:1fr}.crm-email-quickstart-options button{min-height:0}.crm-email-quickstart{padding:16px}}
+/* Campaign quick start inherits the same design tokens as the rest of ZARKO. */
+.app .campaign-workspace .crm-email-quickstart{margin:16px 0 20px;padding:22px;border:1px solid var(--module-border,var(--crm-border));border-radius:16px;background:var(--module-surface,var(--crm-surface));color:var(--module-text,var(--crm-text));box-shadow:none}
+.app .campaign-workspace .crm-email-quickstart h3{margin:0 0 6px;font-size:19px;line-height:1.35;color:var(--module-text,var(--crm-text))}
+.app .campaign-workspace .crm-email-quickstart>p{margin:0 0 18px;color:var(--module-muted,var(--crm-muted));font-size:14px}
+.app .campaign-workspace .crm-email-quickstart-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.app .campaign-workspace .crm-email-quickstart-options button{appearance:none;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:9px;width:100%;min-width:0;min-height:122px;padding:16px;text-align:left;border:1px solid var(--module-border,var(--crm-border));border-radius:12px;background:var(--module-elevated,var(--crm-elevated));color:var(--module-text,var(--crm-text));cursor:pointer;box-shadow:none;transition:border-color .15s,background .15s,transform .15s}
+.app .campaign-workspace .crm-email-quickstart-options button strong{font-size:15px;line-height:1.35;color:inherit}
+.app .campaign-workspace .crm-email-quickstart-options button span{font-size:13px;line-height:1.5;color:var(--module-muted,var(--crm-muted))}
+.app .campaign-workspace .crm-email-quickstart-options button:hover{background:var(--module-hover,var(--crm-elevated));border-color:var(--module-active,var(--crm-accent));color:var(--module-text,var(--crm-text));transform:translateY(-1px)}
+.app .campaign-workspace .crm-email-quickstart-footer{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;color:var(--module-muted,var(--crm-muted));font-size:13px}
+.app .campaign-workspace .crm-email-quickstart-footer button{padding:10px 13px;border:1px solid var(--module-border,var(--crm-border));border-radius:9px;background:var(--module-elevated,var(--crm-elevated));color:var(--module-text,var(--crm-text));font-weight:650;cursor:pointer}
+.app .campaign-workspace .crm-email-quickstart-footer button:hover{background:var(--module-hover,var(--crm-elevated));border-color:var(--module-active,var(--crm-accent));color:var(--module-text,var(--crm-text))}
+.app .campaign-workspace .crm-email-quickstart button:focus-visible{outline:3px solid var(--crm-focus,var(--crm-accent));outline-offset:2px}
+@media(max-width:900px){.app .campaign-workspace .crm-email-quickstart-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.app .campaign-workspace .crm-email-quickstart-options{grid-template-columns:minmax(0,1fr)}.app .campaign-workspace .crm-email-quickstart-options button{min-height:0}.app .campaign-workspace .crm-email-quickstart{padding:16px}}
