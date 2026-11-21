@@ -1302,3 +1302,19 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 :root[data-theme="dark"] .login-page .login-card .error{background:#4d2530!important;color:#ffe0e0!important;border-color:#bb7585}
 .login-page .login-card .crm-brand-image{object-fit:contain}
 @media(max-width:570px){.login-page .login-card{padding:28px 24px}.login-page .login-card h1{font-size:28px}}
+
+/* Prism-inspired animated gradient: decorative only; no dependency or interaction layer. */
+.login-page{position:relative;isolation:isolate;overflow:hidden;background:#101d34!important}
+.login-page .crm-login-prism{position:absolute;inset:-18%;z-index:-1;pointer-events:none;overflow:hidden;background:radial-gradient(ellipse at 45% 55%,#182c55 0%,#101d34 65%);transform:translateZ(0)}
+.login-page .crm-login-prism-glow{position:absolute;display:block;width:65%;height:65%;border-radius:50%;filter:blur(70px);opacity:.62;will-change:transform}
+.login-page .crm-login-prism-glow-a{left:-7%;top:2%;background:radial-gradient(circle,#24b8dd 0%,#1767d8 40%,transparent 72%);animation:crm-prism-a 18s ease-in-out infinite alternate}
+.login-page .crm-login-prism-glow-b{right:-8%;top:5%;background:radial-gradient(circle,#8059ee 0%,#ba3da4 45%,transparent 72%);animation:crm-prism-b 23s ease-in-out infinite alternate}
+.login-page .crm-login-prism-glow-c{left:20%;bottom:-20%;background:radial-gradient(circle,#16b6a6 0%,#1964b5 44%,transparent 72%);animation:crm-prism-c 20s ease-in-out infinite alternate}
+.login-page .login-card{position:relative;z-index:1;box-shadow:0 32px 95px rgba(4,12,31,.5)!important}
+:root[data-theme="light"] .login-page .crm-login-prism-glow{opacity:.45}
+:root[data-theme="dark"] .login-page .crm-login-prism-glow{opacity:.68}
+@keyframes crm-prism-a{0%{transform:translate3d(-6%,-8%,0) scale(1)}100%{transform:translate3d(35%,30%,0) scale(1.23)}}
+@keyframes crm-prism-b{0%{transform:translate3d(10%,-10%,0) scale(1.12)}100%{transform:translate3d(-34%,38%,0) scale(.95)}}
+@keyframes crm-prism-c{0%{transform:translate3d(-12%,12%,0) scale(1)}100%{transform:translate3d(24%,-35%,0) scale(1.18)}}
+@media(prefers-reduced-motion:reduce){.login-page .crm-login-prism-glow{animation:none!important;will-change:auto}}
+@media(max-width:600px){.login-page .crm-login-prism-glow{filter:blur(48px)}}
