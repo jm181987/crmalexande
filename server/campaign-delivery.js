@@ -47,7 +47,7 @@ export function registerCampaignDelivery(app,auth){
    const result=await pool.query('SELECT * FROM public.crm_global_email_recipients($1,$2,$3)',[req.user.id,tag,source]);
    const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
-   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
+   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows,limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
   }catch(e){
    console.error('Campaign email recipients preview failed',{company_id:req.user.company_id,code:e.code,message:e.message});
    if(e.code==='42883')return res.status(503).json({error:'Falta instalar la migración de destinatarios globales (crm_global_email_recipients).'});
