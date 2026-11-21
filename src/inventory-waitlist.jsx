@@ -19,7 +19,7 @@ export default function InventoryWaitlist({lang='pt',items=[],canEdit=false}){
    <button disabled={busy} onClick={()=>action(async()=>{await api('/inventory/waitlist/settings','PUT',settings);setMessage('✓ '+t.save)})}>{t.save}</button>
   </div>}
   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-   <label style={{display:'grid',gap:4,flex:'1 1 200px'}}>Producto<select value={item} onChange={e=>setItem(e.target.value)}><option value="">—</option>{items.filter(i=>i.kind==='product').map(i=><option key={i.id} value={i.id}>{i.name} ({i.quantity})</option>)}</select></label>
+   <label style={{display:'grid',gap:4,flex:'1 1 200px'}}>{lang==='es'?'Artículo de stock':lang==='en'?'Inventory item':'Item do estoque'}<select value={item} onChange={e=>setItem(e.target.value)}><option value="">—</option>{items.map(i=><option key={i.id} value={i.id}>{({product:lang==='es'?'Producto':lang==='en'?'Product':'Produto',vehicle:lang==='es'?'Vehículo':lang==='en'?'Vehicle':'Veículo',property:lang==='es'?'Inmueble':lang==='en'?'Property':'Imóvel',service:lang==='es'?'Servicio':lang==='en'?'Service':'Serviço'})[i.kind]||i.kind} · {i.name} ({i.quantity})</option>)}</select></label>
    {canEdit&&<label style={{display:'grid',gap:4,flex:'1 1 200px'}}>{t.contacts}<select value={contact} onChange={e=>setContact(e.target.value)}><option value="">—</option>{contacts.map(c=><option key={c.id} value={c.id}>{c.name} · {c.phone}</option>)}</select></label>}
   </div>
   {canEdit&&item&&<><button disabled={busy||!contact} onClick={()=>action(async()=>{await api('/inventory/'+item+'/waitlist','POST',{contact_id:contact,whatsapp_opt_in:true});setEntries(await api('/inventory/'+item+'/waitlist'));setMessage('✓ '+t.add)})}>{t.add}</button></>}
