@@ -59,7 +59,7 @@ export function registerCampaignDelivery(app,auth){
     FROM candidates
    )
    SELECT r.id,r.name,r.email,r.source,r.company_id,r.recipient_type,r.opted_out,
-    EXISTS(SELECT 1 FROM public.crm_email_suppressions s WHERE s.company_id=r.company_id AND s.email=lower(trim(r.email))) AS suppressed
+    EXISTS(SELECT 1 FROM public.crm_email_suppressions s WHERE s.email=lower(trim(r.email))) AS suppressed
    FROM ranked r WHERE rn=1 ORDER BY r.name,r.id LIMIT 5001`,[tag,source]);
    const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
