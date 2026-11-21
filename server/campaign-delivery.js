@@ -38,6 +38,27 @@ export function registerCampaignDelivery(app,auth){
   const from=String(process.env.SENDGRID_FROM_EMAIL||'');
   res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:from.includes('@')&&from.includes('.'),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false});
  });
+ app.get('/api/campaigns/email/global-diagnostics',auth,globalEmailAdmin,safe(async(req,res)=>{
+  const counts=await pool.query(`SELECT
+   (SELECT count(*)::int FROM public.companies) AS companies_visible_to_app,
+   (SELECT count(DISTINCT company_id)::int FROM public.contacts WHERE email IS NOT NULL AND btrim(email)<>'') AS companies_with_contact_emails_visible_to_app,
+   (SELECT count(*)::int FROM public.contacts WHERE email IS NOT NULL AND btrim(email)<>'') AS contacts_with_email_visible_to_app,
+   (SELECT count(*)::int FROM public.users WHERE role='owner' AND is_active=true AND email IS NOT NULL AND btrim(email)<>'') AS owners_with_email_visible_to_app`);
+  let global;
+  try{
+   global=await pool.query('SELECT company_id,recipient_type,COUNT(*)::int AS recipients FROM public.crm_global_email_recipients($1,$2,$3) GROUP BY company_id,recipient_type ORDER BY company_id,recipient_type',[req.user.id,'','']);
+  }catch(e){
+   if(e.code==='42883'||e.code==='42501')return res.status(503).json({error:'La función global no está instalada o el usuario de la aplicación no tiene permiso EXECUTE',code:e.code,visible_to_app:counts.rows[0]});
+   throw e;
+  }
+  const byCompany=new Map();
+  for(const item of global.rows){
+   const key=String(item.company_id);
+   if(!byCompany.has(key))byCompany.set(key,{company_id:key,clients:0,owners:0});
+   byCompany.get(key)[item.recipient_type==='owner'?'owners':'clients']+=item.recipients;
+  }
+  res.json({scope:'platform',visible_to_app:counts.rows[0],global_recipients:{total:global.rows.reduce((n,x)=>n+x.recipients,0),companies_with_recipients:byCompany.size,by_company:[...byCompany.values()]},notes:['Los totales por empresa cuentan emails únicos; un email compartido entre empresas aparece una sola vez.','Los conteos visible_to_app pueden estar restringidos por RLS; no equivalen necesariamente a los totales reales.']});
+ }));
  app.get('/api/campaigns/email/recipients-preview',auth,globalEmailAdmin,safe(async(req,res)=>{
   const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
   if(tag.length>100||source.length>100)return res.status(400).json({error:'Filtro demasiado largo'});
