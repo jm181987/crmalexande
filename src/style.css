@@ -1339,3 +1339,33 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-calendar-modal .form-actions .primary{background:var(--crm-accent,#2563eb)!important;color:#fff!important;border-color:transparent!important}
 :root[data-theme="dark"] .crm-calendar-modal .form-actions .primary{background:#2563eb!important}
 @media(max-width:600px){.crm-calendar-modal{padding:20px 16px}.crm-calendar-modal .fields{grid-template-columns:1fr}.crm-calendar-modal .form-actions button{flex:1}}
+
+
+/* Calendar: compact, accessible appointment workspace in both themes. */
+.crm-calendar{display:grid;gap:18px;min-width:0}
+.crm-calendar-top{display:flex;align-items:stretch;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.crm-calendar-top>.primary{align-self:center;min-height:44px}
+.crm-calendar-stats{display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:12px;flex:1}
+.crm-calendar-stats>div{display:flex;flex-direction:column;gap:8px;padding:17px 20px;background:var(--crm-surface,#fff);border:1px solid var(--crm-border,#e2e8f0);border-radius:14px;color:var(--crm-text,#17243b)}
+.crm-calendar-stats span{font-size:12px;font-weight:650;color:var(--crm-muted,#64748b)}
+.crm-calendar-stats strong{font-size:27px;line-height:1;font-weight:750}
+.crm-calendar-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.crm-calendar-tabs{display:flex;gap:5px;padding:4px;border:1px solid var(--crm-border,#e2e8f0);border-radius:12px;background:var(--crm-surface,#fff)}
+.crm-calendar-tabs button{border:0;border-radius:8px;background:transparent;color:var(--crm-muted,#64748b);padding:9px 14px;font-weight:650;cursor:pointer}
+.crm-calendar-tabs button.active{background:var(--crm-accent,#2563eb);color:#fff}
+.crm-calendar-tools input[type=search]{max-width:360px;min-width:220px;min-height:43px;flex:1;background:var(--crm-input,var(--crm-surface,#fff));color:var(--crm-text,#17243b);border:1px solid var(--crm-border,#e2e8f0);border-radius:11px;padding:10px 14px}
+.crm-calendar-list{display:grid;gap:11px}
+.crm-calendar-card{display:flex;align-items:center;gap:18px;min-width:0;padding:18px 20px;border:1px solid var(--crm-border,#e2e8f0);border-radius:15px;background:var(--crm-surface,#fff);color:var(--crm-text,#17243b)}
+.crm-calendar-date{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:66px;height:66px;flex-shrink:0;border-radius:12px;background:var(--crm-elevated,#eff6ff);color:var(--crm-text,#17243b)}
+.crm-calendar-date strong{font-size:25px;line-height:1.1}.crm-calendar-date span{text-transform:uppercase;font-size:11px;font-weight:700;letter-spacing:.06em}
+.crm-calendar-details{flex:1;min-width:0}.crm-calendar-details h3{font-size:16px;line-height:1.4;margin:0 0 4px;color:var(--crm-text,#17243b);overflow-wrap:anywhere}
+.crm-calendar-details p{font-size:13px;color:var(--crm-muted,#64748b);margin:0 0 6px}
+.crm-calendar-when{font-size:13px;color:var(--crm-muted,#64748b)}
+.crm-calendar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.crm-calendar-actions button{min-height:38px;padding:8px 13px;border:1px solid var(--crm-border,#e2e8f0);border-radius:9px;background:var(--crm-elevated,#f8fafc);color:var(--crm-text,#17243b);cursor:pointer;font-weight:650}
+.crm-calendar-actions .crm-danger-action{background:transparent;color:#dc2626;border-color:#efb3b3}
+:root[data-theme="dark"] .crm-calendar-actions .crm-danger-action{color:#fca5a5;border-color:#854b53}
+.crm-calendar-empty{padding:44px 20px;text-align:center;color:var(--crm-muted,#64748b);background:var(--crm-surface,#fff);border:1px dashed var(--crm-border,#e2e8f0);border-radius:14px}
+.crm-calendar button:focus-visible,.crm-calendar input:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:2px}
+@media(max-width:720px){.crm-calendar-top{flex-direction:column}.crm-calendar-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.crm-calendar-stats>div{padding:12px}.crm-calendar-stats strong{font-size:23px}.crm-calendar-tools input[type=search]{max-width:none;width:100%}.crm-calendar-card{align-items:flex-start;flex-wrap:wrap;padding:14px;gap:12px}.crm-calendar-actions{width:100%;padding-left:78px}}
+@media(max-width:400px){.crm-calendar-stats span{font-size:10px}.crm-calendar-stats>div{padding:10px}.crm-calendar-actions{padding-left:0}}
