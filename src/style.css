@@ -1318,3 +1318,24 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 @keyframes crm-prism-c{0%{transform:translate3d(-12%,12%,0) scale(1)}100%{transform:translate3d(24%,-35%,0) scale(1.18)}}
 @media(prefers-reduced-motion:reduce){.login-page .crm-login-prism-glow{animation:none!important;will-change:auto}}
 @media(max-width:600px){.login-page .crm-login-prism-glow{filter:blur(48px)}}
+
+
+/* Calendar appointment modal: uses the same light/dark tokens as the CRM shell. */
+:root[data-theme="light"] .crm-calendar-modal,
+:root:not([data-theme="dark"]) .crm-calendar-modal{
+ --calendar-modal-surface:#ffffff;--calendar-modal-field:#f8fafc;--calendar-modal-text:#17243b;--calendar-modal-muted:#475569;--calendar-modal-border:#cbd5e1;
+}
+:root[data-theme="dark"] .crm-calendar-modal{
+ --calendar-modal-surface:#1e293b;--calendar-modal-field:#273449;--calendar-modal-text:#f1f5f9;--calendar-modal-muted:#cbd5e1;--calendar-modal-border:#64748b;
+}
+.crm-calendar-modal{background:var(--calendar-modal-surface)!important;color:var(--calendar-modal-text)!important;border:1px solid var(--calendar-modal-border);box-shadow:0 24px 80px rgba(0,0,0,.28);max-width:680px}
+.crm-calendar-modal .modal-title h2{color:var(--calendar-modal-text)!important;font-size:1.25rem;line-height:1.4}
+.crm-calendar-modal .fields label{color:var(--calendar-modal-text)!important;font-size:13px;line-height:1.45;min-width:0}
+.crm-calendar-modal .fields input,.crm-calendar-modal .fields select{width:100%;min-width:0;min-height:44px;background:var(--calendar-modal-field)!important;color:var(--calendar-modal-text)!important;border:1px solid var(--calendar-modal-border)!important;border-radius:9px;padding:9px 12px;opacity:1}
+.crm-calendar-modal .fields select option{background:var(--calendar-modal-surface);color:var(--calendar-modal-text)}
+.crm-calendar-modal .fields input:focus-visible,.crm-calendar-modal .fields select:focus-visible,.crm-calendar-modal button:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:2px}
+.crm-calendar-modal .modal-title>button,.crm-calendar-modal .form-actions>button:not(.primary){background:var(--calendar-modal-field)!important;color:var(--calendar-modal-text)!important;border:1px solid var(--calendar-modal-border)!important}
+.crm-calendar-modal .form-actions{border-top:1px solid var(--calendar-modal-border);padding-top:16px;margin-top:22px;flex-wrap:wrap}
+.crm-calendar-modal .form-actions .primary{background:var(--crm-accent,#2563eb)!important;color:#fff!important;border-color:transparent!important}
+:root[data-theme="dark"] .crm-calendar-modal .form-actions .primary{background:#2563eb!important}
+@media(max-width:600px){.crm-calendar-modal{padding:20px 16px}.crm-calendar-modal .fields{grid-template-columns:1fr}.crm-calendar-modal .form-actions button{flex:1}}
