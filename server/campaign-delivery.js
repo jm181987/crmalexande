@@ -46,7 +46,10 @@ export function registerCampaignDelivery(app,auth){
     ORDER BY c.name,c.id LIMIT 5001`,[req.user.company_id,tag,source]);
    const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
-   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000});
+   const counts=await query(`SELECT count(*)::int AS total_contacts,
+    count(*) FILTER (WHERE email IS NOT NULL AND trim(email)<>'')::int AS with_email
+    FROM contacts WHERE company_id=$1`,[req.user.company_id]);
+   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,diagnostics:{total_contacts:counts.rows[0].total_contacts,with_email:counts.rows[0].with_email,filters_active:Boolean(tag||source)}});
   }catch(e){
    console.error('Campaign email recipients preview failed',{company_id:req.user.company_id,code:e.code,message:e.message});
    if(e.code==='42P01')return res.status(503).json({error:'Falta una tabla necesaria para consultar los destinatarios de email. Revisá las migraciones del CRM.'});
