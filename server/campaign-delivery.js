@@ -93,6 +93,68 @@ export function registerCampaignDelivery(app,auth){
   }
   const old=await query('SELECT count(*)::int AS count FROM crm_campaign_deliveries WHERE campaign_id=$1',[req.params.id]);
   if(old.rows[0].count)return res.status(409).json({error:'Campaign already prepared'});
+  if(channel==='email'){
+   // Delivery rows belong to the campaign's company. Materialize only selected
+   // email addresses as campaign-specific contacts in that company; never
+   // attach cross-company contact IDs to delivery rows.
+   const db=await pool.connect();
+   try{
+    await db.query('BEGIN');
+    const existing=await db.query("SELECT 1 FROM public.crm_campaign_deliveries WHERE campaign_id=$1 LIMIT 1",[req.params.id]);
+    if(existing.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'Campaign already prepared'});}
+    const candidates=await db.query(`WITH candidates AS (
+      SELECT c.id,c.name,c.email,c.company_id,c.source,c.tags,c.created_at,'client'::text AS kind
+      FROM public.contacts c WHERE c.email IS NOT NULL AND trim(c.email)<>''
+      AND ($1::text IS NULL OR $1=ANY(coalesce(c.tags,ARRAY[]::text[])))
+      AND ($2::text IS NULL OR c.source=$2)
+      UNION ALL
+      SELECT u.id,u.name,u.email,u.company_id,'owner'::text,ARRAY[]::text[],now(),'owner'::text
+      FROM public.users u WHERE u.role='owner' AND u.is_active=true
+      AND u.email IS NOT NULL AND trim(u.email)<>'' AND $1::text IS NULL AND $2::text IS NULL
+     ) SELECT * FROM candidates WHERE ($3::uuid[] IS NULL OR id=ANY($3::uuid[])) ORDER BY kind,id LIMIT 5001`,
+     [tag,source,contact_ids]);
+    if(candidates.rows.length>5000){await db.query('ROLLBACK');return res.status(400).json({error:'Too many recipients; select a smaller segment'});}
+    const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||'').trim());
+    const seen=new Set(),eligible=[];
+    for(const candidate of candidates.rows){
+     const email=String(candidate.email).trim().toLowerCase();
+     if(!validEmail(email)||seen.has(email))continue;
+     seen.add(email);
+     const excluded=await db.query(`SELECT
+       EXISTS(SELECT 1 FROM public.crm_email_suppressions WHERE email=$1) AS suppressed,
+       EXISTS(SELECT 1 FROM public.crm_contact_consents co
+        JOIN public.contacts c ON c.id=co.contact_id AND c.company_id=co.company_id
+        WHERE lower(trim(c.email))=$1 AND co.channel='email' AND co.opted_in=false) AS opted_out`,[email]);
+     if(excluded.rows[0].suppressed||excluded.rows[0].opted_out)continue;
+     eligible.push({...candidate,email});
+    }
+    if(manual_email!==null){
+     const email=manual_email.trim().toLowerCase();
+     const excluded=await db.query(`SELECT EXISTS(SELECT 1 FROM public.crm_email_suppressions WHERE email=$1)
+       OR EXISTS(SELECT 1 FROM public.crm_contact_consents co JOIN public.contacts c
+       ON c.id=co.contact_id AND c.company_id=co.company_id
+       WHERE lower(trim(c.email))=$1 AND co.channel='email' AND co.opted_in=false) AS blocked`,[email]);
+     if(excluded.rows[0].blocked){await db.query('ROLLBACK');return res.status(409).json({error:'Email address opted out or suppressed'});}
+     eligible.length=0;
+     eligible.push({email,name:typeof manual_name==='string'&&manual_name.trim()?manual_name.trim().slice(0,150):email});
+    }
+    if(!eligible.length){await db.query('ROLLBACK');return res.status(409).json({error:'No eligible email recipients'});}
+    const locked=await db.query("UPDATE public.crm_campaigns SET instance_name=NULL,scheduled_at=$3,interval_seconds=$4,filters=$5,status='ready' WHERE id=$1 AND company_id=$2 AND channel='email' AND status='draft' RETURNING id",
+     [req.params.id,req.user.company_id,when.toISOString(),interval_seconds,JSON.stringify({tag,source,contact_ids,global_email:true,recipient_count:eligible.length})]);
+    if(!locked.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'Campaign is no longer a draft'});}
+    for(let i=0;i<eligible.length;i++){
+     const c=eligible[i];
+     // Reuse a local contact if one exists; otherwise create a delivery-only
+     // copy in the campaign company. Source identities are not modified.
+     let local=await db.query('SELECT id FROM public.contacts WHERE company_id=$1 AND lower(trim(email))=$2 ORDER BY created_at LIMIT 1',[req.user.company_id,c.email]);
+     if(!local.rowCount)local=await db.query("INSERT INTO public.contacts(company_id,owner_id,name,email,source,tags,custom_fields) VALUES($1,$2,$3,$4,'global_email_campaign',ARRAY[]::text[],'{}'::jsonb) RETURNING id",[req.user.company_id,req.user.id,String(c.name||c.email).slice(0,150),c.email]);
+     await db.query('INSERT INTO public.crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+      [req.user.company_id,req.params.id,local.rows[0].id,new Date(when.getTime()+i*interval_seconds*1000).toISOString()]);
+    }
+    await db.query('COMMIT');
+    return res.json({prepared:eligible.length,channel:'email',automatic_dispatch:false,notice:'Global email recipients queued; dispatch depends on worker configuration.'});
+   }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+  }
   let targetIds=contact_ids;
   if(manual_email!==null){
    const normalized=manual_email.trim().toLowerCase();
