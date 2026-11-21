@@ -1406,3 +1406,11 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-audit-panel button:focus-visible,.crm-audit-panel summary:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:3px}
 :root[data-theme="dark"] .crm-audit-panel .crm-audit-error{color:#fca5a5}
 @media(max-width:600px){.crm-audit-backdrop{padding:10px}.crm-audit-panel{padding:18px 15px;max-height:94vh}.crm-audit-head{align-items:flex-start}}
+
+
+/* Fix inherited .workspace header background, sticky positioning and height. */
+.crm-audit-panel .crm-audit-titlebar{position:static!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important;min-height:0!important;height:auto!important;padding:0 0 16px!important;margin:0 0 14px!important;background:transparent!important;color:var(--audit-text)!important;border:0!important;border-bottom:1px solid var(--audit-border)!important;box-shadow:none!important;backdrop-filter:none!important}
+.crm-audit-panel .crm-audit-titlebar>div{min-width:0;flex:1}
+.crm-audit-panel .crm-audit-titlebar h2{margin:0 0 5px!important;color:var(--audit-text)!important;font-size:21px!important;line-height:1.3!important}
+.crm-audit-panel .crm-audit-titlebar p{margin:0!important;color:var(--audit-muted)!important;overflow-wrap:anywhere}
+.crm-audit-panel .crm-audit-titlebar button{flex-shrink:0;align-self:flex-start;background:var(--audit-control)!important;color:var(--audit-text)!important;border:1px solid var(--audit-border)!important;border-radius:9px;padding:9px 13px}
