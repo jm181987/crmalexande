@@ -44,28 +44,13 @@ export function registerCampaignDelivery(app,auth){
   try{
    // Platform-wide read uses the privileged pool only after global-admin authorization.
    // Do not reuse tenant-scoped query() here: tenant RLS must remain intact elsewhere.
-   const result=await pool.query(`WITH candidates AS (
-    SELECT c.id,c.name,c.email,c.source,c.company_id,'client'::text AS recipient_type,
-     EXISTS(SELECT 1 FROM public.crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false) AS opted_out
-    FROM public.contacts c WHERE c.email IS NOT NULL AND trim(c.email)<>''
-     AND ($1::text='' OR $1=ANY(coalesce(c.tags,ARRAY[]::text[])))
-     AND ($2::text='' OR c.source=$2)
-    UNION ALL
-    SELECT u.id,u.name,u.email,'owner'::text,u.company_id,'owner'::text,false
-    FROM public.users u WHERE u.role='owner' AND u.is_active=true AND u.email IS NOT NULL AND trim(u.email)<>''
-     AND $1::text='' AND $2::text=''
-   ), ranked AS (
-    SELECT *,row_number() OVER (PARTITION BY lower(trim(email)) ORDER BY CASE WHEN recipient_type='client' THEN 0 ELSE 1 END,id) AS rn
-    FROM candidates
-   )
-   SELECT r.id,r.name,r.email,r.source,r.company_id,r.recipient_type,r.opted_out,
-    EXISTS(SELECT 1 FROM public.crm_email_suppressions s WHERE s.email=lower(trim(r.email))) AS suppressed
-   FROM ranked r WHERE rn=1 ORDER BY r.name,r.id LIMIT 5001`,[tag,source]);
+   const result=await pool.query('SELECT * FROM public.crm_global_email_recipients($1,$2,$3)',[req.user.id,tag,source]);
    const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
    res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
   }catch(e){
    console.error('Campaign email recipients preview failed',{company_id:req.user.company_id,code:e.code,message:e.message});
+   if(e.code==='42883')return res.status(503).json({error:'Falta instalar la migración de destinatarios globales (crm_global_email_recipients).'});
    if(e.code==='42P01')return res.status(503).json({error:'Falta una tabla necesaria para consultar los destinatarios de email. Revisá las migraciones del CRM.'});
    if(e.code==='42703')return res.status(503).json({error:'La estructura de contactos no coincide con la consulta de campañas. Revisá las migraciones.'});
    return res.status(500).json({error:'No se pudieron consultar los destinatarios del CRM. Revisá los logs del servidor.'});
