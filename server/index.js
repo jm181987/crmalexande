@@ -863,7 +863,33 @@ app.get('/api/appointments',auth,asyncRoute(async(req,res)=>{const r=await query
 app.post('/api/appointments',auth,asyncRoute(async(req,res)=>{
  const {title,contact_id,start_at,end_at,whatsapp_reminders=false,internal_reminders=true}=req.body;if(!valid(title)||!start_at||!end_at||!Number.isFinite(Date.parse(start_at))||!Number.isFinite(Date.parse(end_at))||new Date(start_at)>=new Date(end_at))return res.status(400).json({error:'Invalid appointment'});
  if(contact_id){const pa=p(req.user),c=await query('SELECT id FROM contacts WHERE company_id=$1'+ownerSql(req.user)+' AND id=$'+(pa.length+1),[...pa,contact_id]);if(!c.rowCount)return res.status(403).json({error:'Contact unavailable'});}
- if(whatsapp_reminders){if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED!=='true')return res.status(503).json({error:'Appointment reminders are not enabled'});if(!contact_id)return res.status(400).json({error:'Contact required for client reminders'});const consent=await query("SELECT 1 FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true WHERE c.company_id=$1 AND c.id=$2 AND c.phone ~ '^\\+?[0-9]{8,15}$'",[req.user.company_id,contact_id]);if(!consent.rowCount)return res.status(400).json({error:'Contact requires valid WhatsApp number and consent'});}
+ if(whatsapp_reminders){if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED!=='true')return res.status(503).json({error:'Appointment reminders are not enabled'});if(!contact_id)return res.status(400).json({error:'Contact required for client reminders'});const consent=await query("SELECT 1 FROM contacts c JOIN crm_contact_consents co ON co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true WHERE c.company_id=$1 AND c.id=$2 AND c.phone ~ '^[+]?[0-9]{8,15}",[req.user.company_id,contact_id]);if(!consent.rowCount)return res.status(400).json({error:'Contact requires valid WhatsApp number and consent'});}
+ const conflict=await query("SELECT id FROM appointments WHERE company_id=$1 AND owner_id=$2 AND status='scheduled' AND start_at<$4 AND end_at>$3 LIMIT 1",[req.user.company_id,req.user.id,start_at,end_at]);if(conflict.rowCount)return res.status(409).json({error:'Time conflict'});
+ const r=await query('INSERT INTO appointments(company_id,contact_id,owner_id,title,start_at,end_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.user.company_id,contact_id||null,req.user.id,title.trim(),start_at,end_at]);if(internal_reminders!==false&&process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true')await queueInternalAppointmentReminders(r.rows[0]);if(whatsapp_reminders)await queueAppointmentReminders(r.rows[0]);
+ res.status(201).json(r.rows[0]);
+}));
+registerBranding(app,auth,owner);
+registerEvolutionInstances(app,auth);
+registerUnsubscribe(app);
+registerCampaignDelivery(app,auth);
+registerModuleRoutes(app,auth);
+registerDashboardPdf(app,auth);
+registerEmailImageRoutes(app,auth);
+registerSendgridSettings(app,auth);
+registerTelegramSettings(app,auth);
+registerBuilderbot(app,auth);
+registerAiReceptionRoutes(app,auth);
+registerInventoryRoutes(app,auth);
+app.use('/api',(req,res)=>res.status(404).json({error:'API route not found'}));
+if(process.env.NODE_ENV==='production'){
+ const dist=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../dist');
+ app.use(express.static(dist));app.get('*',(req,res)=>res.sendFile(path.join(dist,'index.html')));
+}
+app.use((e,req,res,next)=>{console.error('API error',{method:req.method,path:req.path,code:e.code||null,table:e.table||null,constraint:e.constraint||null,message:e.message});if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error',code:e.code||'UNEXPECTED_ERROR'});});
+if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
+if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler();if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true'){const run=()=>{void dispatchAppointmentReminders().catch(e=>console.error('Client appointment reminders failed',e.code||e.message));void dispatchInternalAppointmentReminders().catch(e=>console.error('Internal appointment reminders failed',e.code||e.message));};setInterval(run,60_000).unref?.();void run()}});
+export default app;
+",[req.user.company_id,contact_id]);if(!consent.rowCount)return res.status(400).json({error:'Contact requires valid WhatsApp number and consent'});}
  const conflict=await query("SELECT id FROM appointments WHERE company_id=$1 AND owner_id=$2 AND status='scheduled' AND start_at<$4 AND end_at>$3 LIMIT 1",[req.user.company_id,req.user.id,start_at,end_at]);if(conflict.rowCount)return res.status(409).json({error:'Time conflict'});
  const r=await query('INSERT INTO appointments(company_id,contact_id,owner_id,title,start_at,end_at) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.user.company_id,contact_id||null,req.user.id,title.trim(),start_at,end_at]);if(internal_reminders!==false&&process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true')await queueInternalAppointmentReminders(r.rows[0]);if(whatsapp_reminders)await queueAppointmentReminders(r.rows[0]);
  res.status(201).json(r.rows[0]);
