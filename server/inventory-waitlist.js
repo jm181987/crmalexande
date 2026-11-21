@@ -37,7 +37,7 @@ async function dispatch(company,id){
  if(!window.rowCount)return fail('skipped','No active 24-hour WhatsApp customer service window; approved template required');
  const e=config();const allowHttp=process.env.EVOLUTION_ALLOW_INSECURE_HTTP==='true'&&/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?$/.test(e.url);
  if(!e.key||!(e.url.startsWith('https://')||allowHttp))return fail('skipped','Evolution API not configured');
- const body='Hola '+safe(x.contact_name)+' 👋\n¡Ya tenemos disponible el producto que estabas esperando!\n📦 '+safe(x.item_name)+'\n💰 '+x.price+' '+x.currency+'\n¿Querés que te lo reservemos?';
+ const body='Hola '+safe(x.contact_name)+' 👋\n¡Ya tenemos disponible el artículo que estabas esperando!\n📦 '+safe(x.item_name)+'\n💰 '+x.price+' '+x.currency+'\n¿Querés que te lo reservemos?';
  let result;try{
   const response=await fetch(e.url+'/message/sendText/'+encodeURIComponent(inst.rows[0].name),{method:'POST',headers:{apikey:e.key,'Content-Type':'application/json'},body:JSON.stringify({number,text:body}),signal:AbortSignal.timeout(18000)});
   if(!response.ok)return fail('failed','Evolution HTTP '+response.status);
@@ -72,7 +72,7 @@ export function registerWaitlistRoutes(router,editor){
  }));
  router.post('/inventory/:id/waitlist',editor,wrap(async(req,res)=>{
   const {contact_id}=req.body||{};
-  if(!uuid(req.params.id)||!uuid(contact_id))return res.status(400).json({error:'Valid product and contact are required'});
+  if(!uuid(req.params.id)||!uuid(contact_id))return res.status(400).json({error:'Valid inventory item and contact are required'});
   const r=await query(`INSERT INTO crm_inventory_interests(company_id,item_id,contact_id,notify_on_restock,whatsapp_opt_in)
   SELECT $1,i.id,c.id,true,true FROM crm_inventory_items i JOIN contacts c ON c.company_id=i.company_id
   WHERE i.company_id=$1 AND i.id=$2 AND c.id=$3`+`
