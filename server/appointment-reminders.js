@@ -32,7 +32,7 @@ export async function dispatchAppointmentReminders({limit=20}={}){
    if(!response.ok)throw Error('evolution_http_'+response.status);
    const data=await response.json().catch(()=>({}));
    await query("UPDATE public.crm_appointment_reminders SET status='sent',sent_at=now(),external_id=$2,error_code=NULL WHERE id=$1",[r.id,data.key?.id||null]);sent++;
-  }catch(e){await query("UPDATE public.crm_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[r.id,String(e.message).slice(0,120)]);failed++}
+  }catch(e){console.error('Client appointment reminder delivery failed',{reminder_id:r.id,company_id:r.company_id,reason:String(e.message).slice(0,120)});await query("UPDATE public.crm_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[r.id,String(e.message).slice(0,120)]);failed++}
  }
  const old=await query("UPDATE public.crm_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '5 minutes' OR a.start_at<=now() OR a.status<>'scheduled') RETURNING r.id");
  skipped=old.rowCount;
@@ -81,7 +81,7 @@ export async function dispatchInternalAppointmentReminders({limit=20}={}){
    if(!response.ok)throw Error('evolution_http_'+response.status);
    const data=await response.json().catch(()=>({}));
    await query("UPDATE public.crm_internal_appointment_reminders SET status='sent',sent_at=now(),external_id=$2,error_code=NULL WHERE id=$1",[item.id,data.key?.id||null]);sent++;
-  }catch(e){await query("UPDATE public.crm_internal_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[item.id,String(e.message).slice(0,120)]);failed++}
+  }catch(e){console.error('Commercial appointment reminder delivery failed',{reminder_id:item.id,company_id:item.company_id,reason:String(e.message).slice(0,120)});await query("UPDATE public.crm_internal_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[item.id,String(e.message).slice(0,120)]);failed++}
  }
  await query("UPDATE public.crm_internal_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '5 minutes' OR a.start_at<=now() OR a.status<>'scheduled')");
  return {sent,failed};
