@@ -1203,3 +1203,24 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
   outline:2px solid var(--opp-link);
   outline-offset:2px;
 }
+
+/* Settings readability: scoped high-contrast surfaces, controls and selected tabs. */
+.settings-page{--settings-bg:#ffffff;--settings-soft:#f1f5f9;--settings-fg:#172b4d;--settings-sub:#475569;--settings-line:#b8c5d6;--settings-accent:#1d4ed8;color:var(--settings-fg)}
+:root[data-theme="dark"] .settings-page{--settings-bg:#1e293b;--settings-soft:#29374c;--settings-fg:#f1f5f9;--settings-sub:#cbd5e1;--settings-line:#60718a;--settings-accent:#93c5fd}
+.settings-page .settings-description,.settings-page .settings-section-heading p,.settings-page .settings-tab small{color:var(--settings-sub);opacity:1}
+.settings-page .settings-tabs,.settings-page .settings-section .panel,.settings-page .settings-section .card{background:var(--settings-bg);color:var(--settings-fg);border-color:var(--settings-line)}
+.settings-page .settings-tab{background:var(--settings-soft);color:var(--settings-fg);border:1px solid var(--settings-line)}
+.settings-page .settings-tab strong,.settings-page .settings-tab small{color:inherit}
+.settings-page .settings-tab.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.settings-page .settings-tab.active small{color:#fff}
+.settings-page .settings-tab:hover:not(.active){background:var(--settings-bg);border-color:var(--settings-accent)}
+.settings-page .settings-section :is(h2,h3,h4,label,strong,th,td){color:inherit}
+.settings-page .settings-section :is(p,small,.subtitle,.hint,.muted){color:var(--settings-sub)}
+.settings-page .settings-section :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--settings-bg);color:var(--settings-fg);border:1px solid var(--settings-line);opacity:1}
+.settings-page .settings-section :is(input,textarea)::placeholder{color:var(--settings-sub);opacity:1}
+.settings-page .settings-section select option{background:var(--settings-bg);color:var(--settings-fg)}
+.settings-page .settings-section :is(button:not(.primary),button:not(.primary):disabled){border-color:var(--settings-line)}
+.settings-page .settings-section button:not(.primary):not(:disabled){background:var(--settings-soft);color:var(--settings-fg)}
+.settings-page .settings-section :is(a,[role="link"]){color:var(--settings-accent)}
+.settings-page .settings-section :is(input,select,textarea,button,a):focus-visible,.settings-page .settings-tab:focus-visible{outline:3px solid var(--settings-accent);outline-offset:2px}
+.settings-page .settings-section table :is(th,td){border-color:var(--settings-line)}
