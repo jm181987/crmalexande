@@ -25,13 +25,36 @@ import {registerSendgridEvents} from './sendgrid-events.js';
 import {runFollowupAutomations} from './followup-automation.js';
 import {startAutomationScheduler} from './automation-scheduler.js';
 import {queueAppointmentReminders,dispatchAppointmentReminders,queueInternalAppointmentReminders,dispatchInternalAppointmentReminders} from './appointment-reminders.js';
-import {timingSafeEqual} from 'node:crypto';
+import {timingSafeEqual,createHash} from 'node:crypto';
 import {isValidUserEmail} from './user-validation.js';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));registerSendgridEvents(app);app.use('/api/inventory-images/upload',express.json({limit:'4mb'}));app.use('/api/email-images/upload',express.json({limit:'4mb'}));app.use('/api/builderbot/assistant/files',express.json({limit:'4mb'}));app.use(/^\/api\/conversations\/[^/]+\/evolution-media$/,express.json({limit:'12mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
 // Webhook is public to the provider; its own token validation is the only authentication.
 registerBuilderbotWebhook(app);
 if(process.env.APP_ORIGIN)app.use(cors({origin:process.env.APP_ORIGIN,credentials:true}));
+// Per-process request budget: protects API and database without throttling static assets.
+const requestBuckets=new Map();
+const windowMs=60_000;
+const maxBuckets=20_000;
+app.use('/api',(req,res,next)=>{
+ if(req.path.startsWith('/webhooks/')||req.path.startsWith('/sendgrid/'))return next();
+ const ip=req.socket.remoteAddress||'unknown';
+ const session=req.cookies?.crm_session;
+ // Do not store tokens; hashing prevents raw credential retention in memory.
+ const identity=session?'s:'+createHash('sha256').update(session).digest('hex').slice(0,20):'ip:'+ip;
+ const heavy=/\\/(?:login|register|forgot-password|reset-password)(?:\\/|$)/i.test(req.path);
+ const limit=heavy?12:req.method==='GET'?180:80;
+ const key=(heavy?'auth:':req.method==='GET'?'read:':'write:')+identity;
+ const now=Date.now();
+ let bucket=requestBuckets.get(key);
+ if(!bucket||now>=bucket.reset){bucket={count:0,reset:now+windowMs};requestBuckets.set(key,bucket);}
+ bucket.count++;
+ res.setHeader('X-RateLimit-Limit',String(limit));
+ res.setHeader('X-RateLimit-Remaining',String(Math.max(0,limit-bucket.count)));
+ if(bucket.count>limit){res.setHeader('Retry-After',String(Math.ceil((bucket.reset-now)/1000)));return res.status(429).json({error:'Too many requests. Please retry shortly.',code:'RATE_LIMITED'});}
+ if(requestBuckets.size>maxBuckets){for(const [k,v] of requestBuckets){if(v.reset<=now)requestBuckets.delete(k);}if(requestBuckets.size>maxBuckets)requestBuckets.delete(requestBuckets.keys().next().value);}
+ next();
+});
 const asyncRoute=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const valid=s=>typeof s==='string'&&s.trim().length>0;
 const agent=u=>u.role==='agent';
@@ -887,7 +910,7 @@ if(process.env.NODE_ENV==='production'){
 }
 app.use((e,req,res,next)=>{console.error('API error',{method:req.method,path:req.path,code:e.code||null,table:e.table||null,constraint:e.constraint||null,message:e.message});if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error',code:e.code||'UNEXPECTED_ERROR'});});
 if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
-if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler();if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true'){const run=()=>{void dispatchAppointmentReminders().catch(e=>console.error('Client appointment reminders failed',e.code||e.message));void dispatchInternalAppointmentReminders().catch(e=>console.error('Internal appointment reminders failed',e.code||e.message));};setInterval(run,60_000).unref?.();void run()}});
+if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler();if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true'){let remindersRunning=false;const run=async()=>{if(remindersRunning)return;remindersRunning=true;try{await dispatchAppointmentReminders();await dispatchInternalAppointmentReminders();}catch(e){console.error('Appointment reminders failed',e.code||e.message)}finally{remindersRunning=false}};setInterval(run,60_000).unref?.();void run()}});
 export default app;
 ",[req.user.company_id,contact_id]);if(!consent.rowCount)return res.status(400).json({error:'Contact requires valid WhatsApp number and consent'});}
  const conflict=await query("SELECT id FROM appointments WHERE company_id=$1 AND owner_id=$2 AND status='scheduled' AND start_at<$4 AND end_at>$3 LIMIT 1",[req.user.company_id,req.user.id,start_at,end_at]);if(conflict.rowCount)return res.status(409).json({error:'Time conflict'});
