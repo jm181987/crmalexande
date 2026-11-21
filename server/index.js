@@ -223,6 +223,10 @@ app.post('/api/platform/evolution/instances/:id/transfer',auth,platformAdmin,asy
 }));
 // Per-company externally hosted QR page. The embedded page controls QR rotation.
 const validQrPage=value=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&u.hostname.length>3&&u.hostname!=='localhost'&&!u.hostname.endsWith('.local')&&!/^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(u.hostname)&&value.length<=2000}catch{return false}};
+app.get('/api/ia/qr-page',auth,asyncRoute(async(req,res)=>{
+ const r=await query('SELECT page_url FROM public.crm_company_qr_pages WHERE company_id=$1',[req.user.company_id]);
+ res.json({page_url:r.rows[0]?.page_url||null});
+}));
 app.get('/api/platform/qr-pages',auth,platformAdmin,asyncRoute(async(req,res)=>{
  const r=await pool.query('SELECT company_id,page_url FROM public.crm_company_qr_pages');res.json(r.rows);
 }));
