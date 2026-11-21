@@ -42,7 +42,7 @@ app.use('/api',(req,res,next)=>{
  const session=req.cookies?.crm_session;
  // Do not store tokens; hashing prevents raw credential retention in memory.
  const identity=session?'s:'+createHash('sha256').update(session).digest('hex').slice(0,20):'ip:'+ip;
- const heavy=/\\/(?:login|register|forgot-password|reset-password)(?:\\/|$)/i.test(req.path);
+ const heavy=['/login','/register','/forgot-password','/reset-password'].some(route=>req.path===route||req.path.endsWith(route));
  const limit=heavy?12:req.method==='GET'?180:80;
  const key=(heavy?'auth:':req.method==='GET'?'read:':'write:')+identity;
  const now=Date.now();
@@ -910,7 +910,22 @@ if(process.env.NODE_ENV==='production'){
 }
 app.use((e,req,res,next)=>{console.error('API error',{method:req.method,path:req.path,code:e.code||null,table:e.table||null,constraint:e.constraint||null,message:e.message});if(e.code==='23505')return res.status(409).json({error:'Duplicate record'});if(['22P02','23503','22007'].includes(e.code))return res.status(400).json({error:'Invalid input'});res.status(500).json({error:'Internal server error',code:e.code||'UNEXPECTED_ERROR'});});
 if(!secret)console.warn('Set JWT_SECRET before enabling authentication');
-if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{console.log('Alexandre CRM server started');startAutomationScheduler();if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true'){let remindersRunning=false;const run=async()=>{if(remindersRunning)return;remindersRunning=true;try{await dispatchAppointmentReminders();await dispatchInternalAppointmentReminders();}catch(e){console.error('Appointment reminders failed',e.code||e.message)}finally{remindersRunning=false}};setInterval(run,60_000).unref?.();void run()}});
+if (process.env.VERCEL !== '1') app.listen(Number(process.env.PORT||3001),'0.0.0.0',()=>{
+ console.log('Alexandre CRM server started');
+ startAutomationScheduler();
+ if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED==='true'){
+  let running=false;
+  const run=async()=>{
+   if(running)return;
+   running=true;
+   try{await dispatchAppointmentReminders();await dispatchInternalAppointmentReminders();}
+   catch(e){console.error('Appointment reminders failed',e.code||e.message)}
+   finally{running=false}
+  };
+  setInterval(()=>{void run()},60_000).unref?.();
+  void run();
+ }
+});
 export default app;
 ",[req.user.company_id,contact_id]);if(!consent.rowCount)return res.status(400).json({error:'Contact requires valid WhatsApp number and consent'});}
  const conflict=await query("SELECT id FROM appointments WHERE company_id=$1 AND owner_id=$2 AND status='scheduled' AND start_at<$4 AND end_at>$3 LIMIT 1",[req.user.company_id,req.user.id,start_at,end_at]);if(conflict.rowCount)return res.status(409).json({error:'Time conflict'});
