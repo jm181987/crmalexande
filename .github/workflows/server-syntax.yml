@@ -1,0 +1,16 @@
+name: Server syntax check
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate server JavaScript before deployment
+        run: |
+          find server -type f -name '*.js' -print0 | xargs -0 -n1 node --check
