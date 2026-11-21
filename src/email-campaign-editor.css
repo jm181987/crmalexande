@@ -32,3 +32,13 @@
 .app .campaign-workspace .email-studio .email-studio-preview iframe{background:#fff!important;color-scheme:light;border-color:#cbd5e1!important}
 .app .campaign-workspace .email-studio .email-studio-template-art{background:var(--es-panel)!important;border-color:var(--es-border)!important}
 .app .campaign-workspace .email-studio :is(.email-studio-template,.email-studio-actions button,.email-studio-segments button,.email-studio-device button):focus-visible{outline:2px solid var(--es-accent);outline-offset:2px}
+
+
+/* Larger live preview: fill available workspace and permit full-message scrolling. */
+.app .campaign-workspace .email-studio-workspace{grid-template-columns:minmax(320px,.82fr) minmax(480px,1.18fr);align-items:start}
+.app .campaign-workspace .email-studio-preview{min-width:0}
+.app .campaign-workspace .email-studio-preview-stage{min-height:740px;padding:14px;overflow:auto;align-items:stretch}
+.app .campaign-workspace .email-studio-preview iframe{height:720px;min-height:720px;max-width:100%;flex-shrink:0}
+@media(min-width:1400px){.app .campaign-workspace .email-studio-preview-stage{min-height:840px}.app .campaign-workspace .email-studio-preview iframe{height:820px;min-height:820px}}
+@media(max-width:1100px){.app .campaign-workspace .email-studio-workspace{grid-template-columns:minmax(0,1fr)}.app .campaign-workspace .email-studio-preview-stage{min-height:640px}.app .campaign-workspace .email-studio-preview iframe{height:620px;min-height:620px}}
+@media(max-width:600px){.app .campaign-workspace .email-studio-preview-stage{padding:8px;min-height:560px}.app .campaign-workspace .email-studio-preview iframe{height:540px;min-height:540px}}
