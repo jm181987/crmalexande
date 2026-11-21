@@ -36,15 +36,23 @@ export function registerCampaignDelivery(app,auth){
  app.get('/api/campaigns/email/recipients-preview',auth,manager,safe(async(req,res)=>{
   const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
   if(tag.length>100||source.length>100)return res.status(400).json({error:'Filtro demasiado largo'});
-  const result=await query(`SELECT c.id,c.name,c.email,c.source,
+  try{
+   const result=await query(`SELECT c.id,c.name,c.email,c.source,
     EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false) AS opted_out,
-    EXISTS(SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email)) AS suppressed
-    FROM contacts c WHERE c.company_id=$1 AND c.email IS NOT NULL AND trim(c.email)<>'' 
-    AND ($2::text='' OR $2=ANY(c.tags)) AND ($3::text='' OR c.source=$3)
-    ORDER BY c.name,c.id LIMIT 5000`,[req.user.company_id,tag,source]);
-  const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||''));
-  const rows=result.rows.map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
-  res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rowCount===5000});
+    EXISTS(SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(trim(c.email))) AS suppressed
+    FROM contacts c WHERE c.company_id=$1 AND c.email IS NOT NULL AND trim(c.email)<>''
+    AND ($2::text='' OR $2=ANY(coalesce(c.tags,ARRAY[]::text[])))
+    AND ($3::text='' OR c.source=$3)
+    ORDER BY c.name,c.id LIMIT 5001`,[req.user.company_id,tag,source]);
+   const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
+   const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
+   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000});
+  }catch(e){
+   console.error('Campaign email recipients preview failed',{company_id:req.user.company_id,code:e.code,message:e.message});
+   if(e.code==='42P01')return res.status(503).json({error:'Falta una tabla necesaria para consultar los destinatarios de email. Revisá las migraciones del CRM.'});
+   if(e.code==='42703')return res.status(503).json({error:'La estructura de contactos no coincide con la consulta de campañas. Revisá las migraciones.'});
+   return res.status(500).json({error:'No se pudieron consultar los destinatarios del CRM. Revisá los logs del servidor.'});
+  }
  }));
  app.get('/api/campaigns/:id/deliveries',auth,manager,safe(async(req,res)=>{
   const campaign=await query('SELECT id,name,status FROM crm_campaigns WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
