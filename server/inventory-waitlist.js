@@ -68,33 +68,33 @@ export function registerWaitlistRoutes(router,editor){
   const rows=await query(`SELECT w.id,w.contact_id,c.name,c.phone,w.whatsapp_opt_in,w.notify_on_restock,w.created_at
   FROM crm_inventory_interests w JOIN contacts c ON c.id=w.contact_id AND c.company_id=w.company_id
   JOIN crm_inventory_items i ON i.id=w.item_id AND i.company_id=w.company_id
-  WHERE w.company_id=$1 AND w.item_id=$2`+(req.user.role==='owner'?'':' AND i.created_by=$3')+' ORDER BY w.created_at DESC',req.user.role==='owner'?[req.user.company_id,req.params.id]:[req.user.company_id,req.params.id,req.user.id]);res.json(rows.rows);
+  WHERE w.company_id=$1 AND w.item_id=$2`+' ORDER BY w.created_at DESC',[req.user.company_id,req.params.id]);res.json(rows.rows);
  }));
  router.post('/inventory/:id/waitlist',editor,wrap(async(req,res)=>{
   const {contact_id}=req.body||{};
   if(!uuid(req.params.id)||!uuid(contact_id))return res.status(400).json({error:'Valid product and contact are required'});
   const r=await query(`INSERT INTO crm_inventory_interests(company_id,item_id,contact_id,notify_on_restock,whatsapp_opt_in)
   SELECT $1,i.id,c.id,true,true FROM crm_inventory_items i JOIN contacts c ON c.company_id=i.company_id
-  WHERE i.company_id=$1 AND i.id=$2 AND c.id=$3`+(req.user.role==='owner'?'':' AND i.created_by=$4')+`
-  ON CONFLICT(company_id,item_id,contact_id) DO UPDATE SET notify_on_restock=true,whatsapp_opt_in=true RETURNING id`,req.user.role==='owner'?[req.user.company_id,req.params.id,contact_id]:[req.user.company_id,req.params.id,contact_id,req.user.id]);
+  WHERE i.company_id=$1 AND i.id=$2 AND c.id=$3`+`
+  ON CONFLICT(company_id,item_id,contact_id) DO UPDATE SET notify_on_restock=true,whatsapp_opt_in=true RETURNING id`,[req.user.company_id,req.params.id,contact_id]);
   if(!r.rowCount)return res.sendStatus(404);res.status(201).json(r.rows[0]);
  }));
  router.delete('/inventory/:id/waitlist/:contact',editor,wrap(async(req,res)=>{
   if(!uuid(req.params.id)||!uuid(req.params.contact))return res.sendStatus(400);
   await query(`UPDATE crm_inventory_interests w SET whatsapp_opt_in=false,notify_on_restock=false
   WHERE w.company_id=$1 AND w.item_id=$2 AND w.contact_id=$3
-  AND EXISTS(SELECT 1 FROM crm_inventory_items i WHERE i.id=w.item_id AND i.company_id=w.company_id`+(req.user.role==='owner'?'':' AND i.created_by=$4')+')',req.user.role==='owner'?[req.user.company_id,req.params.id,req.params.contact]:[req.user.company_id,req.params.id,req.params.contact,req.user.id]);res.json({ok:true});
+  AND EXISTS(SELECT 1 FROM crm_inventory_items i WHERE i.id=w.item_id AND i.company_id=w.company_id`+')',[req.user.company_id,req.params.id,req.params.contact]);res.json({ok:true});
  }));
  router.get('/inventory/waitlist/dispatches',wrap(async(req,res)=>{
   const r=await query(`SELECT d.id,d.status,d.error,d.created_at,c.name AS contact_name,i.name AS item_name
   FROM crm_inventory_waitlist_dispatches d JOIN crm_inventory_interests w ON w.id=d.interest_id AND w.company_id=d.company_id
   JOIN contacts c ON c.id=w.contact_id AND c.company_id=d.company_id JOIN crm_inventory_items i ON i.id=w.item_id AND i.company_id=d.company_id
-  WHERE d.company_id=$1`+(req.user.role==='owner'?'':' AND i.created_by=$2')+' ORDER BY d.created_at DESC LIMIT 200',req.user.role==='owner'?[req.user.company_id]:[req.user.company_id,req.user.id]);res.json(r.rows);
+  WHERE d.company_id=$1`+' ORDER BY d.created_at DESC LIMIT 200',[req.user.company_id]);res.json(r.rows);
  }));
  router.post('/inventory/waitlist/dispatches/:id/send',editor,wrap(async(req,res)=>{
   if(!uuid(req.params.id))return res.sendStatus(400);
   const visible=await query(`SELECT d.id FROM crm_inventory_waitlist_dispatches d JOIN crm_inventory_interests w ON w.id=d.interest_id AND w.company_id=d.company_id JOIN crm_inventory_items i ON i.id=w.item_id AND i.company_id=d.company_id
-  WHERE d.company_id=$1 AND d.id=$2`+(req.user.role==='owner'?'':' AND i.created_by=$3'),req.user.role==='owner'?[req.user.company_id,req.params.id]:[req.user.company_id,req.params.id,req.user.id]);if(!visible.rowCount)return res.sendStatus(404);
+  WHERE d.company_id=$1 AND d.id=$2`,[req.user.company_id,req.params.id]);if(!visible.rowCount)return res.sendStatus(404);
   const result=await dispatch(req.user.company_id,req.params.id);res.status(result.ok?200:409).json(result);
  }));
 }
