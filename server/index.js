@@ -883,6 +883,13 @@ app.patch('/api/tasks/:id',auth,asyncRoute(async(req,res)=>{
  if(!r.rowCount)return res.status(404).json({error:'Task not found'});res.json(r.rows[0]);
 }));
 app.get('/api/appointments',auth,asyncRoute(async(req,res)=>{const r=await query('SELECT a.*,c.name AS contact_name FROM appointments a LEFT JOIN contacts c ON c.id=a.contact_id WHERE a.company_id=$1'+ownerSql(req.user,'a.owner_id')+' ORDER BY a.start_at LIMIT 250',p(req.user));res.json(r.rows);}));
+app.get('/api/appointments/:id/reminders',auth,asyncRoute(async(req,res)=>{
+ const appointment=await query('SELECT id,title,start_at,company_id FROM appointments WHERE company_id=$1 AND id=$2'+ownerSql(req.user,'owner_id',3),[req.user.company_id,req.params.id,...(agent(req.user)?[req.user.id]:[])]);
+ if(!appointment.rowCount)return res.status(404).json({error:'Appointment not found'});
+ const sql="SELECT 'client' AS recipient,offset_minutes,status,due_at,sent_at,error_code,external_id FROM public.crm_appointment_reminders WHERE company_id=$1 AND appointment_id=$2 UNION ALL SELECT 'commercial' AS recipient,offset_minutes,status,due_at,sent_at,error_code,external_id FROM public.crm_internal_appointment_reminders WHERE company_id=$1 AND appointment_id=$2 ORDER BY due_at,recipient";
+ const result=await query(sql,[req.user.company_id,req.params.id]);
+ res.json({appointment:appointment.rows[0],reminders:result.rows});
+}));
 app.post('/api/appointments',auth,asyncRoute(async(req,res)=>{
  const {title,contact_id,start_at,end_at,whatsapp_reminders=false,internal_reminders=true}=req.body;
  if(!valid(title)||!start_at||!end_at||!Number.isFinite(Date.parse(start_at))||!Number.isFinite(Date.parse(end_at))||new Date(start_at)>=new Date(end_at))return res.status(400).json({error:'Invalid appointment'});
