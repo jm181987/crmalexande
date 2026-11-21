@@ -1277,3 +1277,8 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .crm-contact-notes-actions button.primary{background:#20518b!important;color:#fff!important;border:1px solid #20518b}
 .crm-contact-notes-modal button:focus-visible{outline:3px solid #76aaff;outline-offset:2px}
 @media(max-width:600px){.crm-contact-notes-backdrop{padding:9px}.crm-contact-notes-head,.crm-contact-notes-content,.crm-contact-notes-actions{padding:17px}.crm-contact-notes-modal{max-height:94dvh}}
+
+/* Brand identity: display the configured logo without stretching or cropping. */
+.crm-brand-image{display:block;width:44px;height:44px;max-width:100%;object-fit:contain;object-position:center;border-radius:8px;flex-shrink:0;background:transparent}
+.login-card .crm-brand-image{width:64px;height:64px;margin:0 auto 12px}
+.sidebar.collapsed .crm-brand-image{width:36px;height:36px}
