@@ -40,7 +40,7 @@ export async function dispatchAppointmentReminders({limit=20}={}){
 }
 
 
-const phoneDigits=value=>{const v=String(value||'').replace(/@s\\.whatsapp\\.net$/,'').replace(/^\\+/,'');return /^\\d{8,15}$/.test(v)?v:null};
+const phoneDigits=value=>{const v=String(value||'').replace(/@s\.whatsapp\.net$/,'').replace(/^\+/,'');return /^\d{8,15}$/.test(v)?v:null};
 async function commercialInstance(companyId){
  const result=await query("SELECT name FROM crm_evolution_instances WHERE company_id=$1 AND status IN ('open','connected') ORDER BY created_at DESC LIMIT 1",[companyId]);
  return result.rows[0]?.name||null;
@@ -61,7 +61,7 @@ export async function queueInternalAppointmentReminders(appointment){
 }
 export async function dispatchInternalAppointmentReminders({limit=20}={}){
  if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED!=='true')return {disabled:true};
- const url=(process.env.EVOLUTION_API_URL||'').replace(/\\/$/,'');
+ const url=(process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
  const key=process.env.EVOLUTION_API_KEY;
  if(!url||!key)return {disabled:true,reason:'evolution_not_configured'};
  const rows=await query("SELECT r.id,r.company_id,r.offset_minutes,a.title,a.start_at FROM crm_internal_appointment_reminders r JOIN appointments a ON a.id=r.appointment_id AND a.company_id=r.company_id WHERE r.status='pending' AND r.due_at<=now() AND r.due_at>now()-interval '5 minutes' AND a.start_at>now() AND a.status='scheduled' ORDER BY r.due_at LIMIT $1",[Math.min(50,Math.max(1,limit))]);
