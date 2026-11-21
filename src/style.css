@@ -1384,3 +1384,25 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 :root[data-theme="dark"] .crm-audit-status.sent{color:#6ee7b7}:root[data-theme="dark"] .crm-audit-status.failed{color:#fca5a5}
 .crm-audit-list small{display:block;color:var(--crm-muted,#64748b);margin:9px 0}.crm-audit-error{color:#dc2626;overflow-wrap:anywhere}
 .crm-audit-list details{margin-top:10px}.crm-audit-list summary{cursor:pointer;font-weight:650}.crm-audit-list details p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:13px}
+
+
+/* Notification history modal: explicit light/dark palette and readable controls. */
+:root[data-theme="light"] .crm-audit-panel,:root:not([data-theme="dark"]) .crm-audit-panel{
+ --audit-surface:#ffffff;--audit-card:#f8fafc;--audit-text:#17243b;--audit-muted:#475569;--audit-border:#cbd5e1;--audit-control:#eef2f7;
+}
+:root[data-theme="dark"] .crm-audit-panel{
+ --audit-surface:#1e293b;--audit-card:#273449;--audit-text:#f1f5f9;--audit-muted:#cbd5e1;--audit-border:#52647b;--audit-control:#334155;
+}
+.crm-audit-panel{background:var(--audit-surface)!important;color:var(--audit-text)!important;border-color:var(--audit-border)!important;color-scheme:light}
+:root[data-theme="dark"] .crm-audit-panel{color-scheme:dark}
+.crm-audit-panel h2,.crm-audit-panel .crm-audit-head strong,.crm-audit-panel summary{color:var(--audit-text)!important}
+.crm-audit-panel header p,.crm-audit-panel .crm-audit-note,.crm-audit-panel small{color:var(--audit-muted)!important}
+.crm-audit-panel header{padding-bottom:16px;border-bottom:1px solid var(--audit-border)}
+.crm-audit-panel header button{background:var(--audit-control)!important;color:var(--audit-text)!important;border-color:var(--audit-border)!important;min-height:38px}
+.crm-audit-panel .crm-audit-list article{background:var(--audit-card)!important;color:var(--audit-text)!important;border-color:var(--audit-border)!important}
+.crm-audit-panel .crm-audit-status{background:var(--audit-surface)!important;border-color:var(--audit-border)!important}
+.crm-audit-panel details{border-top:1px solid var(--audit-border);padding-top:10px}
+.crm-audit-panel details p{color:var(--audit-text)!important}
+.crm-audit-panel button:focus-visible,.crm-audit-panel summary:focus-visible{outline:2px solid var(--crm-accent,#2563eb);outline-offset:3px}
+:root[data-theme="dark"] .crm-audit-panel .crm-audit-error{color:#fca5a5}
+@media(max-width:600px){.crm-audit-backdrop{padding:10px}.crm-audit-panel{padding:18px 15px;max-height:94vh}.crm-audit-head{align-items:flex-start}}
