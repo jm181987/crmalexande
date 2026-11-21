@@ -1,7 +1,12 @@
-import {query} from './db.js';
+import {query,pool} from './db.js';
 const safe=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const manager=(req,res,next)=>['owner','manager'].includes(req.user.role)?next():res.sendStatus(403);
 const channels=['whatsapp','email'];
+const globalEmailAdmin=safe(async(req,res,next)=>{
+ const found=await pool.query('SELECT 1 FROM public.crm_platform_admins a JOIN public.users u ON u.id=a.user_id WHERE a.user_id=$1 AND u.is_active=true',[req.user.id]);
+ if(!found.rowCount)return res.status(403).json({error:'Solo los administradores globales pueden gestionar envíos de email'});
+ next();
+});
 export function registerCampaignDelivery(app,auth){
  app.put('/api/campaign-consents/:contactId',auth,manager,safe(async(req,res)=>{
   const {channel='whatsapp',opted_in,source='manual'}=req.body||{};
@@ -33,23 +38,32 @@ export function registerCampaignDelivery(app,auth){
   const from=String(process.env.SENDGRID_FROM_EMAIL||'');
   res.json({provider:'sendgrid',api_key_configured:Boolean(process.env.SENDGRID_API_KEY),sender_configured:from.includes('@')&&from.includes('.'),reply_to_configured:Boolean(process.env.SENDGRID_REPLY_TO),automatic_dispatch:false});
  });
- app.get('/api/campaigns/email/recipients-preview',auth,manager,safe(async(req,res)=>{
+ app.get('/api/campaigns/email/recipients-preview',auth,globalEmailAdmin,safe(async(req,res)=>{
   const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
   if(tag.length>100||source.length>100)return res.status(400).json({error:'Filtro demasiado largo'});
   try{
-   const result=await query(`SELECT c.id,c.name,c.email,c.source,
-    EXISTS(SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false) AS opted_out,
-    EXISTS(SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(trim(c.email))) AS suppressed
-    FROM contacts c WHERE c.company_id=$1 AND c.email IS NOT NULL AND trim(c.email)<>''
-    AND ($2::text='' OR $2=ANY(coalesce(c.tags,ARRAY[]::text[])))
-    AND ($3::text='' OR c.source=$3)
-    ORDER BY c.name,c.id LIMIT 5001`,[req.user.company_id,tag,source]);
-   const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
+   // Platform-wide read uses the privileged pool only after global-admin authorization.
+   // Do not reuse tenant-scoped query() here: tenant RLS must remain intact elsewhere.
+   const result=await pool.query(`WITH candidates AS (
+    SELECT c.id,c.name,c.email,c.source,c.company_id,'client'::text AS recipient_type,
+     EXISTS(SELECT 1 FROM public.crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false) AS opted_out
+    FROM public.contacts c WHERE c.email IS NOT NULL AND trim(c.email)<>''
+     AND ($1::text='' OR $1=ANY(coalesce(c.tags,ARRAY[]::text[])))
+     AND ($2::text='' OR c.source=$2)
+    UNION ALL
+    SELECT u.id,u.name,u.email,'owner'::text,u.company_id,'owner'::text,false
+    FROM public.users u WHERE u.role='owner' AND u.is_active=true AND u.email IS NOT NULL AND trim(u.email)<>''
+     AND $1::text='' AND $2::text=''
+   ), ranked AS (
+    SELECT *,row_number() OVER (PARTITION BY lower(trim(email)) ORDER BY CASE WHEN recipient_type='client' THEN 0 ELSE 1 END,id) AS rn
+    FROM candidates
+   )
+   SELECT r.id,r.name,r.email,r.source,r.company_id,r.recipient_type,r.opted_out,
+    EXISTS(SELECT 1 FROM public.crm_email_suppressions s WHERE s.company_id=r.company_id AND s.email=lower(trim(r.email))) AS suppressed
+   FROM ranked r WHERE rn=1 ORDER BY r.name,r.id LIMIT 5001`,[tag,source]);
+   const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
-   const counts=await query(`SELECT count(*)::int AS total_contacts,
-    count(*) FILTER (WHERE email IS NOT NULL AND trim(email)<>'')::int AS with_email
-    FROM contacts WHERE company_id=$1`,[req.user.company_id]);
-   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,diagnostics:{total_contacts:counts.rows[0].total_contacts,with_email:counts.rows[0].with_email,filters_active:Boolean(tag||source)}});
+   res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
   }catch(e){
    console.error('Campaign email recipients preview failed',{company_id:req.user.company_id,code:e.code,message:e.message});
    if(e.code==='42P01')return res.status(503).json({error:'Falta una tabla necesaria para consultar los destinatarios de email. Revisá las migraciones del CRM.'});
@@ -63,7 +77,7 @@ export function registerCampaignDelivery(app,auth){
   const stats=await query('SELECT status,count(*)::int AS count FROM crm_campaign_deliveries WHERE campaign_id=$1 AND company_id=$2 GROUP BY status',[req.params.id,req.user.company_id]);
   res.json({campaign:campaign.rows[0],counts:stats.rows});
  }));
- const prepare=channel=>[auth,manager,safe(async(req,res)=>{
+ const prepare=channel=>[auth,channel==='email'?globalEmailAdmin:manager,safe(async(req,res)=>{
   const {instance_name=null,scheduled_at,interval_seconds=180,tag=null,source=null,inactive_days=null,interest_tag=null,contact_ids=null,manual_email=null,manual_name=null}=req.body||{};
   if(manual_email!==null&&(channel!=='email'||typeof manual_email!=='string'||manual_email.length>254||! /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(manual_email.trim())||contact_ids!==null))return res.status(400).json({error:'Invalid manual email recipient'});
   if(contact_ids!==null&&(!Array.isArray(contact_ids)||!contact_ids.length||contact_ids.length>5000||contact_ids.some(id=>typeof id!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))||new Set(contact_ids).size!==contact_ids.length))return res.status(400).json({error:'Invalid selected contacts'});
