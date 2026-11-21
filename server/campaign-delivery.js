@@ -61,7 +61,7 @@ export function registerCampaignDelivery(app,auth){
    SELECT r.id,r.name,r.email,r.source,r.company_id,r.recipient_type,r.opted_out,
     EXISTS(SELECT 1 FROM public.crm_email_suppressions s WHERE s.email=lower(trim(r.email))) AS suppressed
    FROM ranked r WHERE rn=1 ORDER BY r.name,r.id LIMIT 5001`,[tag,source]);
-   const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||'').trim());
+   const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
    res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows.slice(0,150),limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
   }catch(e){
@@ -79,7 +79,7 @@ export function registerCampaignDelivery(app,auth){
  }));
  const prepare=channel=>[auth,channel==='email'?globalEmailAdmin:manager,safe(async(req,res)=>{
   const {instance_name=null,scheduled_at,interval_seconds=180,tag=null,source=null,inactive_days=null,interest_tag=null,contact_ids=null,manual_email=null,manual_name=null}=req.body||{};
-  if(manual_email!==null&&(channel!=='email'||typeof manual_email!=='string'||manual_email.length>254||! /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(manual_email.trim())||contact_ids!==null))return res.status(400).json({error:'Invalid manual email recipient'});
+  if(manual_email!==null&&(channel!=='email'||typeof manual_email!=='string'||manual_email.length>254||! /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(manual_email.trim())||contact_ids!==null))return res.status(400).json({error:'Invalid manual email recipient'});
   if(contact_ids!==null&&(!Array.isArray(contact_ids)||!contact_ids.length||contact_ids.length>5000||contact_ids.some(id=>typeof id!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id))||new Set(contact_ids).size!==contact_ids.length))return res.status(400).json({error:'Invalid selected contacts'});
   if((inactive_days!==null&&(!Number.isInteger(inactive_days)||inactive_days<1||inactive_days>3650))||(interest_tag!==null&&(typeof interest_tag!=='string'||interest_tag.length>100))||!Number.isInteger(interval_seconds)||interval_seconds<60||interval_seconds>86400||tag!==null&&(typeof tag!=='string'||tag.length>100)||source!==null&&(typeof source!=='string'||source.length>100))return res.status(400).json({error:'Invalid schedule or segment'});
   const when=new Date(scheduled_at);if(!scheduled_at||!Number.isFinite(when.getTime())||when.getTime()<Date.now()-60000)return res.status(400).json({error:'Invalid start date'});
@@ -114,7 +114,7 @@ export function registerCampaignDelivery(app,auth){
      ) SELECT * FROM candidates WHERE ($3::uuid[] IS NULL OR id=ANY($3::uuid[])) ORDER BY kind,id LIMIT 5001`,
      [tag,source,contact_ids]);
     if(candidates.rows.length>5000){await db.query('ROLLBACK');return res.status(400).json({error:'Too many recipients; select a smaller segment'});}
-    const validEmail=email=>/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(email||'').trim());
+    const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
     const seen=new Set(),eligible=[];
     for(const candidate of candidates.rows){
      const email=String(candidate.email).trim().toLowerCase();
@@ -168,7 +168,7 @@ export function registerCampaignDelivery(app,auth){
    targetIds=[existing.rows[0].id];
   }
   const contacts=await query(`SELECT c.id,c.phone,c.email FROM contacts c WHERE c.company_id=$1 AND ( $2 <> 'whatsapp' OR EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=true)) AND ($2 <> 'email' OR NOT EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='email' AND co.opted_in=false)) AND ($3::text IS NULL OR $3=ANY(c.tags)) AND ($4::text IS NULL OR c.source=$4) AND ($5::int IS NULL OR (c.created_at <= now()-($5::int * interval '1 day') AND NOT EXISTS (SELECT 1 FROM messages m JOIN conversations v ON v.id=m.conversation_id WHERE v.company_id=c.company_id AND v.contact_id=c.id AND m.created_at > now()-($5::int * interval '1 day')))) AND ($6::text IS NULL OR $6=ANY(c.tags)) AND ($7::uuid[] IS NULL OR c.id=ANY($7::uuid[])) AND ($8::boolean=false OR NOT EXISTS (SELECT 1 FROM crm_email_suppressions s WHERE s.company_id=c.company_id AND s.email=lower(c.email))) ORDER BY c.id LIMIT 5000`,[req.user.company_id,channel,manual_email!==null?null:tag,manual_email!==null?null:source,manual_email!==null?null:inactive_days,manual_email!==null?null:interest_tag,targetIds,channel==='email']);
-  const eligible=contacts.rows.filter(c=>channel==='whatsapp'?/^\\+?\\d{8,15}$/.test(String(c.phone||'')):/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(String(c.email||'')));
+  const eligible=contacts.rows.filter(c=>channel==='whatsapp'?/^\+?\d{8,15}$/.test(String(c.phone||'')):/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c.email||'')));
   if(!eligible.length)return res.status(409).json({error:'No eligible contacts (check opt-outs, suppressions and email validity)'});
   await query("UPDATE crm_campaigns SET instance_name=$3,scheduled_at=$4,interval_seconds=$5,filters=$6,status='ready' WHERE id=$1 AND company_id=$2",[req.params.id,req.user.company_id,instance_name,when.toISOString(),interval_seconds,JSON.stringify({tag,source,inactive_days,interest_tag,contact_ids:targetIds})]);
   for(let i=0;i<eligible.length;i++)await query('INSERT INTO crm_campaign_deliveries(company_id,campaign_id,contact_id,due_at) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[req.user.company_id,req.params.id,eligible[i].id,new Date(when.getTime()+i*interval_seconds*1000).toISOString()]);
