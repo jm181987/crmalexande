@@ -58,7 +58,35 @@ export function registerCampaignDelivery(app,auth){
    const field={client:'clients',owner:'owners',manager:'managers',agent:'agents'}[item.recipient_type];
    if(field)byCompany.get(key)[field]+=item.recipients;
   }
-  res.json({scope:'platform',visible_to_app:counts.rows[0],global_recipients:{total:global.rows.reduce((n,x)=>n+x.recipients,0),companies_with_recipients:byCompany.size,by_company:[...byCompany.values()]},notes:['Los totales por empresa cuentan emails únicos; un email compartido entre empresas aparece una sola vez.','Los conteos visible_to_app pueden estar restringidos por RLS; no equivalen necesariamente a los totales reales.']});
+  const roles=await pool.query(`SELECT c.id AS company_id,c.name AS company_name,
+    u.role::text AS role,count(u.id)::int AS users,
+    count(u.id) FILTER(WHERE u.is_active=true)::int AS active,
+    count(u.id) FILTER(WHERE u.is_active=true AND u.email IS NOT NULL AND btrim(u.email)<>'')::int AS active_with_email
+   FROM public.companies c LEFT JOIN public.users u ON u.company_id=c.id
+   GROUP BY c.id,c.name,u.role ORDER BY c.name,u.role`);
+  const functionInfo=await pool.query(`SELECT pg_get_userbyid(p.proowner) AS owner,
+    p.prosecdef AS security_definer,
+    position('agent' in pg_get_functiondef(p.oid))>0 AS mentions_agent,
+    position('manager' in pg_get_functiondef(p.oid))>0 AS mentions_manager
+   FROM pg_proc p WHERE p.oid=to_regprocedure('public.crm_global_email_recipients(uuid,text,text)')`);
+  const rls=await pool.query(`SELECT c.relname AS table_name,c.relrowsecurity AS rls_enabled,
+    c.relforcerowsecurity AS force_rls,
+    pg_get_userbyid(c.relowner) AS table_owner
+   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+   WHERE n.nspname='public' AND c.relname IN ('users','contacts','companies','crm_email_suppressions')`);
+  const functionRole=await pool.query(`SELECT current_user AS app_db_user,
+    pg_has_role(current_user,p.proowner,'MEMBER') AS app_member_of_function_owner,
+    r.rolbypassrls AS function_owner_bypass_rls
+   FROM pg_proc p JOIN pg_roles r ON r.oid=p.proowner
+   WHERE p.oid=to_regprocedure('public.crm_global_email_recipients(uuid,text,text)')`);
+  const expected=roles.rows.reduce((n,x)=>n+(['owner','manager','agent'].includes(x.role)?x.active_with_email:0),0);
+  res.json({scope:'platform',visible_to_app:counts.rows[0],
+   users_by_company_and_role:roles.rows,
+   function_status:functionInfo.rows[0]||{installed:false},
+   database_permissions:functionRole.rows[0]||null,rls_tables:rls.rows,
+   global_recipients:{total:global.rows.reduce((n,x)=>n+x.recipients,0),companies_with_recipients:byCompany.size,by_company:[...byCompany.values()]},
+   comparison:{active_user_accounts_with_email_visible_to_app:expected,unique_global_recipient_emails:global.rows.reduce((n,x)=>n+x.recipients,0),note:'La diferencia puede incluir emails duplicados o filas ocultas por RLS.'},
+   notes:['Diagnóstico de solo lectura; no incluye nombres ni emails de usuarios.','Los resultados pueden estar restringidos por RLS.']});
  }));
  app.get('/api/campaigns/email/recipients-preview',auth,globalEmailAdmin,safe(async(req,res)=>{
   const tag=String(req.query.tag||'').trim(),source=String(req.query.source||'').trim();
