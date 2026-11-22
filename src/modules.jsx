@@ -49,7 +49,7 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
   return()=>{cancelled=true};
  },[section,chosen?.channel,recipientMode,tag,source]);
  const previewRecipients=async()=>{setPreviewLoading(true);setRecipientLoadError('');try{const q=new URLSearchParams();if(tag.trim())q.set('tag',tag.trim());if(source.trim())q.set('source',source.trim());setRecipientPreview(await api('/campaigns/email/recipients-preview?'+q.toString()))}catch(e){setRecipientLoadError(e.message);error(e.message)}finally{setPreviewLoading(false)}};
- return <>{section==='prepare'&&<Panel><h2>{chosen?.channel==='email'?'Enviar campaña de email':'Preparar campaña'}</h2><p>{chosen?.channel==='email'?'Seleccioná los usuarios, revisá la vista previa y confirmá el envío. El sistema coloca los mensajes en cola; el despachador los envía cuando esté operativo.':'WhatsApp mantiene consentimiento. Preparar no envía.'}</p><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+ return <>{section==='prepare'&&<Panel><h2>{chosen?.channel==='email'?'Enviar emails · paso a paso':'Preparar campaña'}</h2><p>{chosen?.channel==='email'?'Elegí una campaña, definí a quién enviar y confirmá. Podés revisar la cola y los resultados al final.':'WhatsApp mantiene consentimiento. Preparar no envía.'}</p><h3 style={{margin:'16px 0 8px'}}>1. Elegí la campaña</h3><div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
  <label>Campaña<select value={selected} onChange={e=>{setSelected(e.target.value);setEditingCampaign(false);setStats(null);setChannel(campaigns?.find(x=>x.id===e.target.value)?.channel||'whatsapp')}}><option value="">Elegir</option>{campaigns?.filter(x=>['whatsapp','email'].includes(x.channel)).map(x=><option key={x.id} value={x.id}>{x.name} ({x.channel})</option>)}</select></label>
  {chosen&&user.role!=='agent'&&<div style={{display:'flex',gap:8,alignItems:'end',flexWrap:'wrap'}}>
  <button type="button" disabled={busy||chosen.status!=='draft'} onClick={()=>run(async()=>{const v=await api('/campaigns/'+chosen.id+'/edit');setEditName(v.name||'');setEditSubject(v.template_name||'');setEditContent(v.content||'');setEditingCampaign(true)})}>Editar borrador</button>
@@ -57,10 +57,8 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
  </div>}
  {chosen?.channel==='whatsapp'&&<label>Instancia<select value={instances.find(x=>x.name===consent.instance)?.name||''} onChange={e=>setConsent(v=>({...v,instance:e.target.value}))}><option value="">Elegir</option>{instances.map(x=><option key={x.id} value={x.name}>{x.name}</option>)}</select></label>}
  <label>¿Cuándo enviar?<select value={sendWhen} onChange={e=>setSendWhen(e.target.value)}><option value="now">Lo antes posible</option><option value="schedule">Programar fecha y hora</option></select></label>{sendWhen==='schedule'&&<label>Inicio<input type="datetime-local" value={start} onChange={e=>setStart(e.target.value)}/></label>}
- <label>Intervalo (segundos)<input type="number" min="60" max="86400" value={interval} onChange={e=>setIntervalSeconds(e.target.value===""?180:Number(e.target.value))}/></label>
- <label>Etiqueta (opcional)<input value={tag} onChange={e=>setTag(e.target.value)}/></label>
- <label>Origen (opcional)<input value={source} onChange={e=>setSource(e.target.value)}/></label></div>
- {chosen&&user.role!=='agent'&&<div className="crm-campaign-recurrence">
+</div>
+ {chosen&&user.role!=='agent'&&<details className="crm-campaign-recurrence"><summary style={{cursor:'pointer',fontWeight:600}}>Opcional · Costos y retorno comercial</summary>
   <h3>ROI comercial / Retorno comercial</h3>
   <p>Ingresá el costo real de esta campaña y el margen bruto estimado de las ventas. El dashboard calculará un ROI estimado sobre oportunidades ganadas asociadas; no representa causalidad ni utilidad contable.</p>
   <p>Costo guardado: {chosen.filters?.financials?.cost??'—'} · Margen bruto: {chosen.filters?.financials?.margin_pct??'—'}%</p>
@@ -69,8 +67,8 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
    <label>Margen bruto (%)<input type="number" min="0" max="100" step="0.01" value={campaignMargin} onChange={e=>setCampaignMargin(e.target.value)}/></label>
   </div>
   <button type="button" disabled={busy||campaignCost===''||campaignMargin===''} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/financials','PUT',{cost:Number(campaignCost),margin_pct:Number(campaignMargin)}))}>Guardar costos y margen</button>
- </div>}
- {chosen?.status==='ready'&&user.role!=='agent'&&<div className="crm-campaign-recurrence">
+ </details>}
+ {chosen?.status==='ready'&&user.role!=='agent'&&<details className="crm-campaign-recurrence"><summary style={{cursor:'pointer',fontWeight:600}}>Opcional · Repetición automática</summary>
   <h3>Campaña recurrente / Campanha recorrente</h3>
   <p>Repetir una campaña ya preparada. Cada ejecución crea un nuevo lote de envíos con historial separado. Requiere automatizaciones y despachador habilitados; se respetan las bajas de WhatsApp y email.</p>
   <p><strong>{chosen.filters?.recurrence?.enabled?'Activa / Ativa':'No activa / Inativa'}</strong>{chosen.filters?.recurrence?.next_run_at?' · '+new Date(chosen.filters.recurrence.next_run_at).toLocaleString():''}</p>
@@ -83,9 +81,9 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
    <button type="button" disabled={busy||!repeatStart} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/recurrence','PUT',{enabled:true,every_days:repeatDays,max_cycles:repeatCycles,next_run_at:new Date(repeatStart).toISOString()}))}>Activar recurrencia</button>
    <button type="button" disabled={busy||!chosen.filters?.recurrence?.enabled} onClick={()=>run(()=>api('/campaigns/'+chosen.id+'/recurrence','PUT',{enabled:false}))}>Detener recurrencia</button>
   </div>
- </div>}
+ </details>}
  {chosen?.channel==='email'&&<div style={{border:'1px solid #dce5f1',borderRadius:12,padding:16,margin:'16px 0'}}>
-  <h3>Usuarios destinatarios de todas las empresas</h3>
+  <h3>2. Elegí los destinatarios</h3>
   <p>Se incluyen usuarios activos con rol Owner, Manager o Agente, excepto emails inválidos o suprimidos. No se incluyen clientes.</p>
   <label>Destinatarios<select value={recipientMode} onChange={e=>{setRecipientMode(e.target.value);setSelectedRecipients([])}}><option value="all">Todos los elegibles</option><option value="selected">Elegir usuarios puntuales</option><option value="manual">Ingresar email manualmente</option></select></label><button type="button" disabled={previewLoading} onClick={previewRecipients}>{previewLoading?'Consultando…':'Consultar destinatarios'}</button>
   {recipientMode==='manual'&&<div style={{display:'grid',gap:10,marginTop:12}}><label>Email destinatario<input type="email" required value={manualEmail} onChange={e=>setManualEmail(e.target.value)} placeholder="cliente@dominio.com"/></label><label>Nombre (opcional)<input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Nombre del destinatario"/></label><small>Se usará exclusivamente este destinatario. Si no existe en el CRM, se registrará como contacto para poder gestionar el envío y las bajas. No se enviará a otros contactos.</small></div>}
@@ -104,6 +102,8 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
  <button type="button" disabled={busy||!editName.trim()||!editContent.trim()} onClick={()=>run(async()=>{await api('/campaigns/'+chosen.id+'/edit','PUT',{name:editName,template_name:editSubject,content:editContent});setEditingCampaign(false);refresh();window.alert('Cambios guardados')})}>Guardar cambios</button>
  <button type="button" onClick={()=>setEditingCampaign(false)}>Cancelar</button>
  </div>}
+ <h3 style={{marginTop:20}}>3. Revisá y confirmá el envío</h3>
+ {chosen?.channel==='email'&&chosen&&<p style={{padding:'12px 14px',borderRadius:10,background:'var(--surface-2,#f5f7fa)'}}>Campaña: <strong>{chosen.name}</strong> · Destinatarios: <strong>{recipientMode==='manual'?(manualEmail.trim()?1:0):recipientMode==='selected'?selectedRecipients.length:(recipientPreview?.eligible??'Sin consultar')}</strong> · {sendWhen==='now'?'Envío lo antes posible':'Programado: '+(start||'sin fecha')}</p>}
  <p>{chosen?.channel==='email'?'SendGrid: '+(config?.api_key_configured&&config?.sender_configured?'Configuración presente':'Credenciales o remitente pendientes'):'WhatsApp: seleccioná una instancia Evolution'}</p>
  <button disabled={Boolean(sendBlockedReason)} title={sendBlockedReason||''} onClick={()=>run(async()=>{if(!Number.isInteger(interval)||interval<60||interval>86400)throw Error('El intervalo debe estar entre 60 y 86400 segundos.');if(sendWhen==='schedule'&&(!start||!Number.isFinite(new Date(start).getTime())))throw Error('Seleccioná una fecha y hora válida.');if(chosen.channel==='email'){const total=recipientMode==='manual'?1:recipientMode==='selected'?selectedRecipients.length:recipientPreview?.eligible;if(!total)throw Error('Consultá los destinatarios elegibles antes de continuar.');if(!operations?.dispatch_enabled||!operations?.worker_secret_configured)throw Error('El despachador no está habilitado o configurado. Revisá Operaciones antes de enviar.');if(!config?.api_key_configured||!config?.sender_configured)throw Error('Configurá SendGrid y el remitente antes de enviar.');const summary='Campaña: '+chosen.name+'\nDestinatarios: '+total+'\nModalidad: '+(sendWhen==='now'?'Enviar lo antes posible':'Programar para '+start)+'\n\nAl confirmar se preparará la cola. El envío depende del despachador activo. ¿Continuar?';if(!window.confirm(summary))return;}const d=await api('/campaigns/'+selected+(chosen.channel==='email'?'/prepare-email':'/prepare'),'POST',{scheduled_at:sendWhen==='now'?new Date().toISOString():new Date(start).toISOString(),interval_seconds:interval,tag:tag||null,source:source||null,...(chosen.channel==='whatsapp'?{instance_name:consent.instance}:recipientMode==='selected'?{contact_ids:selectedRecipients}:recipientMode==='manual'?{manual_email:manualEmail.trim(),manual_name:manualName.trim()}:{})});window.alert('Destinatarios en cola: '+d.prepared+(sendWhen==='now'?' — pendiente del despachador':' — programados para la fecha elegida')+'. Consultá las estadísticas para verificar los envíos.')})}>{chosen?.channel==='email'?(sendWhen==='now'?'Enviar ahora':'Programar envío'):'Preparar destinatarios'}</button>
  {sendBlockedReason&&<p role="status" style={{marginTop:8}}>No se puede enviar: {sendBlockedReason}</p>}
