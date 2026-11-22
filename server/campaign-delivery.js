@@ -106,6 +106,11 @@ export function registerCampaignDelivery(app,auth){
    return res.status(500).json({error:'No se pudieron consultar los destinatarios del CRM. Revisá los logs del servidor.'});
   }
  }));
+ app.get('/api/campaigns/:id/edit',auth,manager,safe(async(req,res)=>{
+  const result=await query('SELECT id,name,channel,template_name,content,status FROM crm_campaigns WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
+  if(!result.rowCount)return res.sendStatus(404);
+  res.json(result.rows[0]);
+ }));
  app.put('/api/campaigns/:id/edit',auth,manager,safe(async(req,res)=>{
   const {name,template_name,content}=req.body||{};
   if(typeof name!=='string'||!name.trim()||name.length>160||typeof template_name!=='string'||template_name.length>255||typeof content!=='string'||!content.trim()||content.length>10000)return res.status(400).json({error:'Revisá nombre, asunto y contenido (máximo 10000 caracteres).'});
