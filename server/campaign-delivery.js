@@ -54,8 +54,9 @@ export function registerCampaignDelivery(app,auth){
   const byCompany=new Map();
   for(const item of global.rows){
    const key=String(item.company_id);
-   if(!byCompany.has(key))byCompany.set(key,{company_id:key,clients:0,owners:0});
-   byCompany.get(key)[item.recipient_type==='owner'?'owners':'clients']+=item.recipients;
+   if(!byCompany.has(key))byCompany.set(key,{company_id:key,clients:0,owners:0,managers:0,agents:0});
+   const field={client:'clients',owner:'owners',manager:'managers',agent:'agents'}[item.recipient_type];
+   if(field)byCompany.get(key)[field]+=item.recipients;
   }
   res.json({scope:'platform',visible_to_app:counts.rows[0],global_recipients:{total:global.rows.reduce((n,x)=>n+x.recipients,0),companies_with_recipients:byCompany.size,by_company:[...byCompany.values()]},notes:['Los totales por empresa cuentan emails únicos; un email compartido entre empresas aparece una sola vez.','Los conteos visible_to_app pueden estar restringidos por RLS; no equivalen necesariamente a los totales reales.']});
  }));
@@ -108,23 +109,14 @@ export function registerCampaignDelivery(app,auth){
     await db.query('BEGIN');
     const existing=await db.query("SELECT 1 FROM public.crm_campaign_deliveries WHERE campaign_id=$1 LIMIT 1",[req.params.id]);
     if(existing.rowCount){await db.query('ROLLBACK');return res.status(409).json({error:'Campaign already prepared'});}
-    const candidates=manual_email!==null?{rows:[]}:await db.query(`WITH candidates AS (
-      SELECT c.id,c.name,c.email,c.company_id,c.source,c.tags,c.created_at,'client'::text AS kind
-      FROM public.contacts c WHERE c.email IS NOT NULL AND trim(c.email)<>''
-      AND ($1::text IS NULL OR $1=ANY(coalesce(c.tags,ARRAY[]::text[])))
-      AND ($2::text IS NULL OR c.source=$2)
-      UNION ALL
-      SELECT u.id,u.name,u.email,u.company_id,'owner'::text,ARRAY[]::text[],now(),'owner'::text
-      FROM public.users u WHERE u.role='owner' AND u.is_active=true
-      AND u.email IS NOT NULL AND trim(u.email)<>'' AND $1::text IS NULL AND $2::text IS NULL
-     ) SELECT * FROM candidates WHERE ($3::uuid[] IS NULL OR id=ANY($3::uuid[])) ORDER BY kind,id LIMIT 5001`,
-     [tag,source,contact_ids]);
+    const globalRows=manual_email!==null?{rows:[]}:await db.query('SELECT * FROM public.crm_global_email_recipients($1,$2,$3)',[req.user.id,tag||'',source||'']);
+    const candidates={rows:globalRows.rows.filter(c=>!contact_ids||contact_ids.includes(c.id))};
     if(candidates.rows.length>5000){await db.query('ROLLBACK');return res.status(400).json({error:'Too many recipients; select a smaller segment'});}
     const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
     const seen=new Set(),eligible=[];
     for(const candidate of candidates.rows){
      const email=String(candidate.email).trim().toLowerCase();
-     if(!validEmail(email)||seen.has(email))continue;
+     if(!validEmail(email)||seen.has(email)||candidate.opted_out||candidate.suppressed)continue;
      seen.add(email);
      const excluded=await db.query(`SELECT
        EXISTS(SELECT 1 FROM public.crm_email_suppressions WHERE email=$1) AS suppressed,
