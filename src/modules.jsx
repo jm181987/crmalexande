@@ -118,7 +118,7 @@ function CampaignManager({campaigns,contacts,refresh,error,user,section='prepare
  {!(stats.items||[]).length&&<tr><td colSpan="6">Todavía no hay destinatarios en la cola de esta campaña.</td></tr>}
  </tbody></table></div>
  <button type="button" disabled={busy} onClick={()=>run(async()=>setStats(await api('/campaigns/'+selected+'/deliveries')))}>Actualizar cola</button>
- </div>}}</Panel>}
+ </div>}</Panel>}
  {section==='settings'&&user?.role==='owner'&&<Panel><h2>Configuración de SendGrid</h2><p>La clave se cifra en el servidor y no se vuelve a mostrar.</p>
  <><p>Estado: {sgSettings?.configured?'Configurado':'Sin configurar'} · Cifrado: {sgSettings?.secret_ready?'Disponible':'Configurar SENDGRID_SETTINGS_ENCRYPTION_KEY en Coolify'}</p>
  <label>Email remitente<input type="email" value={sgFrom} onChange={e=>setSgFrom(e.target.value)}/></label>
