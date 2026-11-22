@@ -2,7 +2,8 @@ import React,{useEffect,useState} from 'react';
 const api=async(path,method='GET',body)=>{const r=await fetch('/api/builderbot'+path,{method,credentials:'include',headers:{'Content-Type':'application/json'},...(body!==undefined?{body:JSON.stringify(body)}:{})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Error de Sistema IA 2');return d};
 const field={display:'grid',gap:9,marginBottom:18};
 const connectionStyles={verified:{color:'#166534',background:'#dcfce7',border:'#86efac',label:'API conectada',symbol:'✓'},failed:{color:'#991b1b',background:'#fee2e2',border:'#fca5a5',label:'Error de conexión',symbol:'!'},checking:{color:'#1d4ed8',background:'#dbeafe',border:'#93c5fd',label:'Verificando API…',symbol:'◌'},saved:{color:'#92400e',background:'#fef3c7',border:'#fcd34d',label:'Pendiente de verificar',symbol:'?'},missing:{color:'#475569',background:'#f1f5f9',border:'#cbd5e1',label:'Sin configurar',symbol:'–'}};
-export default function BuilderBotPanel({user,contacts=[]}){
+export default function BuilderBotPanel({user,contacts=[],lang='pt'}){
+ const L=(es,pt,en)=>lang==='pt'?pt:lang==='en'?en:es;
  const owner=user?.role==='owner',operator=owner||user?.role==='manager';
  const [activeTab,setActiveTab]=useState(user?.role==='owner'?'setup':'messages'),[cfg,setCfg]=useState(null),[botId,setBotId]=useState(''),[apiKey,setApiKey]=useState(''),[answerId,setAnswerId]=useState(''),[webhookToken,setWebhookToken]=useState(''),[templates,setTemplates]=useState([]),[events,setEvents]=useState([]),[files,setFiles]=useState([]),[instructions,setInstructions]=useState(''),[selected,setSelected]=useState(''),[content,setContent]=useState(''),[template,setTemplate]=useState(''),[language,setLanguage]=useState('es'),[number,setNumber]=useState(''),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
  const [connection,setConnection]=useState('missing'),[lastChecked,setLastChecked]=useState(null);
@@ -64,12 +65,12 @@ export default function BuilderBotPanel({user,contacts=[]}){
  <button disabled={busy||!answerId} onClick={()=>run(async()=>{await api('/assistant','POST',{instructions});setStatus('Instrucciones actualizadas')})}>Guardar instrucciones</button>
  <h4>Archivos</h4><input type="file" accept=".pdf,.txt,.md,.docx" disabled={busy||!answerId} onChange={e=>run(async()=>{await readFile(e.target.files?.[0])})}/>
  <button disabled={busy||!answerId} onClick={()=>run(async()=>{const d=await api('/assistant/files');setFiles(Array.isArray(d)?d:Array.isArray(d.files)?d.files:[])})}>Consultar archivos</button>
- <ul>{files.map((f,i)=><li key={i}>{f.name||f.filename||f.id||'Archivo'} <button disabled={busy||!(f.id||f.fileId)} onClick={()=>run(async()=>{if(!window.confirm('¿Eliminar archivo del asistente?'))return;await api('/assistant/files/'+encodeURIComponent(f.id||f.fileId),'DELETE');setFiles(v=>v.filter(x=>x!==f))})}>Eliminar</button></li>)}</ul>
+ <ul>{files.map((f,i)=><li key={i}>{f.name||f.filename||f.id||'Archivo'} <button disabled={busy||!(f.id||f.fileId)} onClick={()=>run(async()=>{if(!window.confirm('¿Eliminar archivo del asistente?'))return;await api('/assistant/files/'+encodeURIComponent(f.id||f.fileId),'DELETE');setFiles(v=>v.filter(x=>x!==f))})}>{L("Eliminar","Excluir","Delete")}</button></li>)}</ul>
  </>}
- {owner&&activeTab==='advanced'&&<><h3>Lista de números bloqueados</h3><label style={field}>Número internacional<input value={number} onChange={e=>setNumber(e.target.value)}/></label>
- <button disabled={busy||!number} onClick={()=>run(async()=>{await api('/blacklist','POST',{number,intent:'add'});setStatus('Número bloqueado')})}>Bloquear</button>{' '}
- <button disabled={busy||!number} onClick={()=>run(async()=>{await api('/blacklist','POST',{number,intent:'remove'});setStatus('Número desbloqueado')})}>Desbloquear</button>
- <hr style={{opacity:.18,margin:'12px 0'}}/><h3>Eventos webhook</h3><button disabled={busy} onClick={()=>run(async()=>setEvents(await api('/webhook-events')))}>Ver últimos eventos</button>
+ {owner&&activeTab==='advanced'&&<><h3>{L("Lista de números bloqueados","Lista de números bloqueados","Blocked numbers")}</h3><label style={field}>{L("Número internacional","Número internacional","International number")}<input value={number} onChange={e=>setNumber(e.target.value)}/></label>
+ <button disabled={busy||!number} onClick={()=>run(async()=>{await api('/blacklist','POST',{number,intent:'add'});setStatus('Número bloqueado')})}>{L("Bloquear","Bloquear","Block")}</button>{' '}
+ <button disabled={busy||!number} onClick={()=>run(async()=>{await api('/blacklist','POST',{number,intent:'remove'});setStatus('Número desbloqueado')})}>{L("Desbloquear","Desbloquear","Unblock")}</button>
+ <hr style={{opacity:.18,margin:'12px 0'}}/><h3>{L("Eventos webhook","Eventos de webhook","Webhook events")}</h3><button disabled={busy} onClick={()=>run(async()=>setEvents(await api('/webhook-events')))}>{L("Ver últimos eventos","Ver últimos eventos","View latest events")}</button>
  <p>{events.length} eventos cargados</p><div style={{maxHeight:180,overflow:'auto'}}>{events.map(e=><div key={e.id}>{new Date(e.received_at).toLocaleString()} · {e.payload?.event||e.payload?.type||'Evento recibido'}</div>)}</div>
  </>}
  {status&&<p role="status" style={{padding:12,borderRadius:8,border:'1px solid #8aa4c8',overflowWrap:'anywhere'}}>{status}</p>}
