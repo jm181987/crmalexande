@@ -21,7 +21,32 @@ async function remote(cfg,path,method='GET',body){
  return data;
 }
 function err(res,e){return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación de Sistema IA 2. Revisá la configuración y el registro del servidor.'})}
+
+// BuilderBot document proxy: stored bytes are served only to authorized CRM users.
+const mediaHosts=()=>String(process.env.BUILDERBOT_MEDIA_ALLOWED_HOSTS||'app.builderbot.cloud').split(',').map(v=>v.trim().toLowerCase()).filter(Boolean);
+async function fetchInboundDocument(url){
+ const u=new URL(url);
+ if(u.protocol!=='https:'||u.username||u.password||u.port||!mediaHosts().some(host=>u.hostname.toLowerCase()===host||u.hostname.toLowerCase().endsWith('.'+host)))throw Error('Untrusted media host');
+ const response=await fetch(u,{redirect:'error',signal:AbortSignal.timeout(12000),headers:{Accept:'application/pdf,application/octet-stream;q=0.9'}});
+ if(!response.ok)throw Error('Media download HTTP '+response.status);
+ const declared=Number(response.headers.get('content-length')||0);
+ if(declared>8*1024*1024)throw Error('Document exceeds 8 MB');
+ const chunks=[];let size=0;
+ for await(const chunk of response.body){size+=chunk.length;if(size>8*1024*1024)throw Error('Document exceeds 8 MB');chunks.push(chunk)}
+ const content=Buffer.concat(chunks);
+ if(content.subarray(0,5).toString()!=='%PDF-')throw Error('Downloaded file is not a PDF');
+ return content;
+}
 export function registerBuilderbot(app,auth){
+ app.get('/api/conversations/:id/builderbot-document/:mediaId',auth,wrap(async(req,res)=>{
+  if(!uuid(req.params.id)||!uuid(req.params.mediaId))return res.sendStatus(404);
+  const args=[req.params.mediaId,req.params.id,req.user.company_id,...(req.user.role==='agent'?[req.user.id]:[])];
+  const media=await query("SELECT m.content,m.mime,m.filename FROM public.crm_chat_media m JOIN public.conversations c ON c.id=m.conversation_id AND c.company_id=m.company_id WHERE m.id=$1 AND m.conversation_id=$2 AND m.company_id=$3"+(req.user.role==='agent'?' AND c.assignee_id=$4':''),args);
+  if(!media.rowCount)return res.sendStatus(404);
+  const file=media.rows[0];
+  res.set({'Content-Type':'application/pdf','Content-Disposition':'inline; filename="document.pdf"','X-Content-Type-Options':'nosniff','Cache-Control':'private, no-store'});
+  res.send(file.content);
+ }));
  app.get('/api/whatsapp-provider',auth,wrap(async(req,res)=>{
   let row={rows:[]},migration_required=false;
   try{row=await query('SELECT provider,updated_at FROM public.crm_whatsapp_provider_settings WHERE company_id=$1',[req.user.company_id])}catch(e){if(!missingProviderTable(e))throw e;migration_required=true}
@@ -177,7 +202,24 @@ function normalizeWebhookMessage(payload,eventHash){
  if(!/^\d{8,15}$/.test(phone))return null;
  const rawBody=item.body??item.answer??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
    item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
- const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ let body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ // Preserve incoming media-only messages. Use the same CRM_MEDIA marker consumed by
+ // ChatMediaPreview for images, video and audio; documents follow that same path.
+ const candidates=[item.message?.documentMessage,item.message?.imageMessage,item.message?.videoMessage,item.message?.audioMessage,item.document,item.media,item.attachment,item.file,item.attachments?.[0],item.mediaUrl,item.media_url,item.fileUrl,item.file_url,item.url,payload.media,payload.attachment,payload.document,payload.mediaUrl];
+ let attachment=null;
+ for(const candidate of candidates){
+  if(!candidate)continue;
+  const obj=typeof candidate==='string'?{url:candidate}:candidate;
+  if(!obj||typeof obj!=='object')continue;
+  const url=obj.url||obj.mediaUrl||obj.media_url||obj.fileUrl||obj.file_url||obj.downloadUrl||obj.download_url;
+  if(typeof url!=='string'||url.length>2000||!/^https:\/\/[^\s<>\[\]]+$/i.test(url))continue;
+  const mime=String(obj.mimetype||obj.mimeType||obj.mime_type||obj.type||item.mimetype||item.mimeType||'').toLowerCase();
+  const filename=String(obj.fileName||obj.filename||obj.name||item.fileName||item.filename||'').replace(/[\[\]\r\n]/g,'').slice(0,160);
+  const path=(()=>{try{return new URL(url).pathname.toLowerCase()}catch{return ''}})();
+  const kind=mime.includes('pdf')||mime.includes('document')||mime.includes('text/')||/\.(pdf|txt|docx?|xlsx?)$/.test(path)||/\.(pdf|txt|docx?|xlsx?)$/i.test(filename)?'document':mime.startsWith('image/')||/\.(png|jpe?g|webp|gif)$/.test(path)?'image':mime.startsWith('video/')||/\.(mp4|webm|mov)$/.test(path)?'video':mime.startsWith('audio/')||/\.(mp3|ogg|opus|wav|m4a)$/.test(path)?'audio':null;
+  if(kind){attachment={kind,url,filename:filename||(kind==='document'?'Documento':'Archivo multimedia')};break}
+ }
+ if(attachment&&!body.includes('[CRM_MEDIA:'))body=(body?body+'\n':'')+'[CRM_MEDIA:'+attachment.kind+':'+attachment.url+':'+attachment.filename+']';
  if(!body||body.length>10000)return null;
  const rawId=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
  const id=typeof rawId==='string'&&rawId.length>=3&&rawId.length<=250?rawId:eventHash;
@@ -195,7 +237,19 @@ async function syncWebhookMessage(companyId,botId,payload,eventHash){
  if(!contact.rowCount)contact=await query("INSERT INTO contacts(company_id,name,phone,source) VALUES($1,$2,$3,'whatsapp') RETURNING id",[companyId,event.name,event.phone]);
  let conversation=await query("SELECT id FROM conversations WHERE company_id=$1 AND channel='whatsapp' AND (external_id=$2 OR contact_id=$3) LIMIT 1",[companyId,event.phone,contact.rows[0].id]);
  if(!conversation.rowCount)conversation=await query("INSERT INTO conversations(company_id,contact_id,channel,external_id) VALUES($1,$2,'whatsapp',$3) RETURNING id",[companyId,contact.rows[0].id,event.phone]);
- const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conversation.rows[0].id,event.direction,event.body,external]);
+ let messageBody=event.body;
+ // Persist incoming PDFs before inserting the message. Never store expiring provider URLs as the only reference.
+ if(event.direction==='inbound'){
+  const match=messageBody.match(/\\[CRM_MEDIA:document:(https:\\/\\/[^\\s\\]]+):([^\\]]+)\\]/);
+  if(match&&/\\.pdf$/i.test(match[2])){
+   try{
+    const bytes=await fetchInboundDocument(match[1]);
+    const stored=await query("INSERT INTO public.crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,'application/pdf',$3,$4,'ready',$5) RETURNING id",[companyId,conversation.rows[0].id,match[2],bytes,bytes.length]);
+    messageBody=messageBody.replace(match[0],'[CRM_MEDIA:document:/api/conversations/'+conversation.rows[0].id+'/builderbot-document/'+stored.rows[0].id+':'+match[2]+']');
+   }catch(e){console.warn('[Sistema IA 2 document] download skipped:',String(e.message||e).slice(0,140))}
+  }
+ }
+ const saved=await query("INSERT INTO messages(conversation_id,direction,body,external_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id",[conversation.rows[0].id,event.direction,messageBody,external]);
  if(saved.rowCount){
   if(event.direction==='inbound')await query('UPDATE conversations SET unread_count=COALESCE(unread_count,0)+1,updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
   else await query('UPDATE conversations SET updated_at=now() WHERE id=$1',[conversation.rows[0].id]);
