@@ -21,7 +21,8 @@ export function registerDashboardPdf(app,auth){
   const start=new Date(from+'T00:00:00Z'),end=new Date(to+'T00:00:00Z');
   if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||start.toISOString().slice(0,10)!==from||end.toISOString().slice(0,10)!==to||end<start||end-start>366*86400000)return res.status(400).json({error:'Date range must be 1 to 367 calendar days'});
   const args=[req.user.company_id,from,to,req.user.role==='agent'?req.user.id:null];
-  const [contacts,conversations,opportunities,tasks,messages,campaigns,topics,team,deliveries,analytics,leadSources,dealDetails,contactDetails,taskDetails,messageDays,followups,attribution,repeatBuyers,appointments,conversationDetails]=await Promise.all([
+  const reportSections=["contacts","conversations","opportunities","tasks","messages","campaigns","topics","team","deliveries","analytics","leadSources","dealDetails","contactDetails","taskDetails","messageDays","followups","attribution","repeatBuyers","appointments","conversationDetails"];
+  const reportResults=await Promise.allSettled([
    query("SELECT count(*)::int n FROM contacts WHERE company_id=$1 AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4)",args),
    query("SELECT count(*)::int n FROM conversations WHERE company_id=$1 AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR assignee_id=$4)",args),
    query("SELECT status,count(*)::int n,coalesce(sum(value),0)::float amount FROM opportunities WHERE company_id=$1 AND deleted_at IS NULL AND created_at >= $2::date AND created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4) GROUP BY status ORDER BY status",args),
@@ -44,8 +45,18 @@ export function registerDashboardPdf(app,auth){
    query("SELECT title,start_at,end_at,status FROM appointments WHERE company_id=$1 AND start_at >= $2::date AND start_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR owner_id=$4) ORDER BY start_at LIMIT 200",args),
    query("SELECT v.created_at,c.name contact_name,v.channel FROM conversations v LEFT JOIN contacts c ON c.id=v.contact_id AND c.company_id=v.company_id WHERE v.company_id=$1 AND v.created_at >= $2::date AND v.created_at < $3::date+interval '1 day' AND ($4::uuid IS NULL OR v.assignee_id=$4) ORDER BY v.created_at DESC LIMIT 200",args)
   ]);
+  const unavailable=[];
+  const data=reportResults.map((result,i)=>{
+   if(result.status==='fulfilled')return result.value;
+   const err=result.reason;
+   console.error('Dashboard PDF section failed',{section:reportSections[i],code:err?.code||null,message:err?.message||String(err)});
+   unavailable.push(reportSections[i]);
+   return {rows:reportSections[i]==='analytics'?[{buyers:0,cycle_days:null}]:reportSections[i]==='repeatBuyers'?[{buyers:0,repeat_buyers:0}]:['contacts','conversations'].includes(reportSections[i])?[{n:0}]:[]};
+  });
+  const [contacts,conversations,opportunities,tasks,messages,campaigns,topics,team,deliveries,analytics,leadSources,dealDetails,contactDetails,taskDetails,messageDays,followups,attribution,repeatBuyers,appointments,conversationDetails]=data;
   const lines=['ZARKO CRM - REPORTE COMPLETO DEL DASHBOARD','Periodo: '+from+' a '+to,'Empresa: '+req.user.company_id,'Usuario: '+sanitize(req.user.name)+' ('+req.user.role+')','Generado: '+new Date().toISOString(),''];
   const section=s=>lines.push('',s.toUpperCase());
+  if(unavailable.length)lines.push('AVISO: Reporte parcial. Secciones no disponibles: '+unavailable.join(', '));
   const push=(s)=>{let v=sanitize(s);while(v.length>95){let i=v.lastIndexOf(' ',95);if(i<30)i=95;lines.push(v.slice(0,i));v=v.slice(i).trim()}lines.push(v)};
   section('Resumen comercial');push('Contactos nuevos: '+contacts.rows[0].n);push('Conversaciones nuevas: '+conversations.rows[0].n);
   let total=0,wins=0;for(const row of opportunities.rows){total+=row.n;if(row.status==='won')wins=row.n;push('Oportunidades '+row.status+': '+row.n+' | Valor: '+Number(row.amount).toFixed(2))}
@@ -87,6 +98,7 @@ export function registerDashboardPdf(app,auth){
   section('Agenda - citas del periodo (hasta 200)');
   appointments.rows.forEach(x=>push(String(x.start_at).slice(0,16)+' | '+x.title+' | '+x.status));
   if(!appointments.rows.length)push('Sin citas');
+  if(unavailable.length){section('Advertencia sobre datos incompletos');push('No se pudieron consultar las siguientes secciones: '+unavailable.join(', '));push('Los valores de estas secciones no deben interpretarse como cero real. Consultar los logs del servidor para identificar el error de base de datos.');}
   section('Metodologia y limitaciones');push('Los filtros aplican a fechas de creacion de contactos, conversaciones, oportunidades, tareas y campanas. Mensajes usan fecha del registro; entregas usan envio efectivo o fecha prevista.');
   push('El estado de las oportunidades es el actual, no necesariamente el que tenian al cierre del periodo. Importes no equivalen a facturacion contable.');
   push('No se incluyen metricas sin base temporal verificable: primera respuesta, ROI financiero e inventario. La recompra cuenta oportunidades ganadas creadas en el periodo, no cobros reales. La atribucion a campanas usa una ventana de 30 dias y es una estimacion, no causalidad.');
