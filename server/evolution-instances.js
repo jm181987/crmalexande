@@ -212,7 +212,7 @@ export function registerEvolutionInstances(app,auth){
  const m=item.message||{},unwrapped=m.ephemeralMessage?.message||m.viewOnceMessage?.message||m,body=unwrapped.conversation||unwrapped.extendedTextMessage?.text||unwrapped.imageMessage?.caption||unwrapped.videoMessage?.caption||('[WhatsApp '+String(item.messageType||'media')+']');
  // Persist incoming WhatsApp images, videos and voice notes for inline chat playback.
  let mediaMarker='',mediaCaption='';
- const inboundType=unwrapped.imageMessage?'image':unwrapped.videoMessage?'video':unwrapped.audioMessage?'audio':null;
+ const inboundType=unwrapped.imageMessage?'image':unwrapped.videoMessage?'video':unwrapped.audioMessage?'audio':unwrapped.documentMessage?'document':null;
  if(inboundType){
   try{
    const payload=unwrapped[inboundType+'Message'];
@@ -231,11 +231,11 @@ export function registerEvolutionInstances(app,auth){
     'audio/mp4':bytes.toString('ascii',4,8)==='ftyp',
     'audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255
    };
-   const allowed=inboundType==='image'?mime.startsWith('image/'):inboundType==='video'?mime.startsWith('video/'):mime.startsWith('audio/');
+   const allowed=inboundType==='image'?mime.startsWith('image/'):inboundType==='video'?mime.startsWith('video/'):inboundType==='document'?mime==='application/pdf':mime.startsWith('audio/');
    const max=inboundType==='video'?32*1024*1024:8*1024*1024;
    if(allowed&&signatures[mime]&&bytes.length>0&&bytes.length<=max){
-    const extension={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','video/mp4':'mp4','audio/ogg':'ogg','audio/webm':'webm','audio/mp4':'m4a','audio/mpeg':'mp3'}[mime];
-    const name=inboundType+'-recibido.'+extension;
+    const extension={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','video/mp4':'mp4','audio/ogg':'ogg','audio/webm':'webm','audio/mp4':'m4a','audio/mpeg':'mp3','application/pdf':'pdf'}[mime];
+    const name=inboundType==='document'?(String(payload.fileName||payload.filename||'documento-recibido.pdf').replace(/[^a-zA-Z0-9._ -]/g,'_').slice(0,120).replace(/\.pdf$/i,'')+'.pdf'):(inboundType+'-recibido.'+extension);
     const stored=await query("INSERT INTO crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,$3,$4,$5,'ready',$6) RETURNING id",[inst.company_id,conv.rows[0].id,mime,name,bytes,bytes.length]);
     mediaMarker='[CRM_MEDIA:'+inboundType+':/api/conversations/'+conv.rows[0].id+'/media/'+stored.rows[0].id+':'+name+']';
     mediaCaption=inboundType==='audio'?'🎤 Mensaje de voz':String(payload.caption||'').slice(0,2000);
