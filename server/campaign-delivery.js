@@ -106,6 +106,21 @@ export function registerCampaignDelivery(app,auth){
    return res.status(500).json({error:'No se pudieron consultar los destinatarios del CRM. Revisá los logs del servidor.'});
   }
  }));
+ app.put('/api/campaigns/:id/edit',auth,manager,safe(async(req,res)=>{
+  const {name,template_name,content}=req.body||{};
+  if(typeof name!=='string'||!name.trim()||name.length>160||typeof template_name!=='string'||template_name.length>255||typeof content!=='string'||!content.trim()||content.length>10000)return res.status(400).json({error:'Revisá nombre, asunto y contenido (máximo 10000 caracteres).'});
+  const result=await query("UPDATE crm_campaigns SET name=$3,template_name=$4,content=$5 WHERE id=$1 AND company_id=$2 AND status='draft' RETURNING id,name,status",[req.params.id,req.user.company_id,name.trim(),template_name.trim(),content]);
+  if(!result.rowCount)return res.status(409).json({error:'Solo se pueden editar borradores. Para modificar una campaña preparada, duplicala como borrador.'});
+  res.json(result.rows[0]);
+ }));
+ app.post('/api/campaigns/:id/duplicate',auth,manager,safe(async(req,res)=>{
+  const result=await query(`INSERT INTO crm_campaigns(company_id,name,channel,template_name,content,status)
+   SELECT company_id,left(name||' (copia)',160),channel,template_name,content,'draft'
+   FROM crm_campaigns WHERE id=$1 AND company_id=$2
+   RETURNING id,name,status`,[req.params.id,req.user.company_id]);
+  if(!result.rowCount)return res.sendStatus(404);
+  res.status(201).json(result.rows[0]);
+ }));
  app.get('/api/campaigns/:id/deliveries',auth,manager,safe(async(req,res)=>{
   const campaign=await query('SELECT id,name,status FROM crm_campaigns WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   if(!campaign.rowCount)return res.sendStatus(404);
