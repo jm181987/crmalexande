@@ -94,7 +94,7 @@ export function registerCampaignDelivery(app,auth){
   try{
    // Platform-wide read uses the privileged pool only after global-admin authorization.
    // Do not reuse tenant-scoped query() here: tenant RLS must remain intact elsewhere.
-   const result=await pool.query('SELECT * FROM public.crm_global_email_recipients($1,$2,$3)',[req.user.id,tag,source]);
+   const result=await pool.query(`SELECT recipients.*,companies.name AS company_name, recipients.recipient_type AS role FROM public.crm_global_email_recipients($1,$2,$3) AS recipients LEFT JOIN public.companies AS companies ON companies.id=recipients.company_id`,[req.user.id,tag,source]);
    const validEmail=email=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email||'').trim());
    const rows=result.rows.slice(0,5000).map(c=>({...c,eligible:validEmail(c.email)&&!c.suppressed&&!c.opted_out}));
    res.json({total:rows.length,eligible:rows.filter(c=>c.eligible).length,contacts:rows,limited:result.rows.length>5000,scope:'global',diagnostics:{total_contacts:rows.length,with_email:rows.length,filters_active:Boolean(tag||source)}});
