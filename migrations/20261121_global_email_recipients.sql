@@ -24,10 +24,10 @@ AS $function$
    AND (p_tag='' OR p_tag=ANY(coalesce(c.tags,ARRAY[]::text[])))
    AND (p_source='' OR c.source=p_source)
   UNION ALL
-  SELECT u.id,u.name::text,u.email::text,'owner'::text,u.company_id,
-   'owner'::text
+  SELECT u.id,u.name::text,u.email::text,u.role::text,u.company_id,
+   u.role::text
   FROM public.users u CROSS JOIN authorized
-  WHERE u.role='owner' AND u.is_active=true
+  WHERE u.role IN ('owner','manager','agent') AND u.is_active=true
    AND u.email IS NOT NULL AND btrim(u.email)<>''
    AND p_tag='' AND p_source=''
  ),
