@@ -177,7 +177,24 @@ function normalizeWebhookMessage(payload,eventHash){
  if(!/^\d{8,15}$/.test(phone))return null;
  const rawBody=item.body??item.answer??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
    item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
- const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ let body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ // Preserve incoming media-only messages. Use the same CRM_MEDIA marker consumed by
+ // ChatMediaPreview for images, video and audio; documents follow that same path.
+ const candidates=[item.message?.documentMessage,item.message?.imageMessage,item.message?.videoMessage,item.message?.audioMessage,item.document,item.media,item.attachment,item.file,item.attachments?.[0],item.mediaUrl,item.media_url,item.fileUrl,item.file_url,item.url,payload.media,payload.attachment,payload.document,payload.mediaUrl];
+ let attachment=null;
+ for(const candidate of candidates){
+  if(!candidate)continue;
+  const obj=typeof candidate==='string'?{url:candidate}:candidate;
+  if(!obj||typeof obj!=='object')continue;
+  const url=obj.url||obj.mediaUrl||obj.media_url||obj.fileUrl||obj.file_url||obj.downloadUrl||obj.download_url;
+  if(typeof url!=='string'||url.length>2000||!/^https:\/\/[^\s<>\[\]]+$/i.test(url))continue;
+  const mime=String(obj.mimetype||obj.mimeType||obj.mime_type||obj.type||item.mimetype||item.mimeType||'').toLowerCase();
+  const filename=String(obj.fileName||obj.filename||obj.name||item.fileName||item.filename||'').replace(/[\[\]\r\n]/g,'').slice(0,160);
+  const path=(()=>{try{return new URL(url).pathname.toLowerCase()}catch{return ''}})();
+  const kind=mime.includes('pdf')||mime.includes('document')||mime.includes('text/')||/\.(pdf|txt|docx?|xlsx?)$/.test(path)||/\.(pdf|txt|docx?|xlsx?)$/i.test(filename)?'document':mime.startsWith('image/')||/\.(png|jpe?g|webp|gif)$/.test(path)?'image':mime.startsWith('video/')||/\.(mp4|webm|mov)$/.test(path)?'video':mime.startsWith('audio/')||/\.(mp3|ogg|opus|wav|m4a)$/.test(path)?'audio':null;
+  if(kind){attachment={kind,url,filename:filename||(kind==='document'?'Documento':'Archivo multimedia')};break}
+ }
+ if(attachment&&!body.includes('[CRM_MEDIA:'))body=(body?body+'\n':'')+'[CRM_MEDIA:'+attachment.kind+':'+attachment.url+':'+attachment.filename+']';
  if(!body||body.length>10000)return null;
  const rawId=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
  const id=typeof rawId==='string'&&rawId.length>=3&&rawId.length<=250?rawId:eventHash;
