@@ -110,7 +110,13 @@ export function registerCampaignDelivery(app,auth){
   const campaign=await query('SELECT id,name,status FROM crm_campaigns WHERE id=$1 AND company_id=$2',[req.params.id,req.user.company_id]);
   if(!campaign.rowCount)return res.sendStatus(404);
   const stats=await query('SELECT status,count(*)::int AS count FROM crm_campaign_deliveries WHERE campaign_id=$1 AND company_id=$2 GROUP BY status',[req.params.id,req.user.company_id]);
-  res.json({campaign:campaign.rows[0],counts:stats.rows});
+  const items=await query(`SELECT d.id,d.status,d.due_at,d.sent_at,d.error_code,d.external_id,
+    ct.name AS recipient_name,ct.email AS recipient_email
+    FROM crm_campaign_deliveries d
+    LEFT JOIN contacts ct ON ct.id=d.contact_id AND ct.company_id=d.company_id
+    WHERE d.campaign_id=$1 AND d.company_id=$2
+    ORDER BY d.due_at DESC,d.id DESC LIMIT 200`,[req.params.id,req.user.company_id]);
+  res.json({campaign:campaign.rows[0],counts:stats.rows,items:items.rows,limit:200,delivery_semantics:'sent means accepted by provider, not confirmed delivered'});
  }));
  const prepare=channel=>[auth,channel==='email'?globalEmailAdmin:manager,safe(async(req,res)=>{
   const {instance_name=null,scheduled_at,interval_seconds=180,tag=null,source=null,inactive_days=null,interest_tag=null,contact_ids=null,manual_email=null,manual_name=null}=req.body||{};
