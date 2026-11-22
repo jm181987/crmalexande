@@ -177,7 +177,25 @@ function normalizeWebhookMessage(payload,eventHash){
  if(!/^\d{8,15}$/.test(phone))return null;
  const rawBody=item.body??item.answer??item.text??item.content??(typeof item.message==='string'?item.message:undefined)??
    item.message?.conversation??item.message?.extendedTextMessage?.text??item.message?.text;
- const body=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ const textBody=typeof rawBody==='string'?rawBody.trim():typeof rawBody?.text==='string'?rawBody.text.trim():'';
+ // Media-only events have no text body. Preserve a document marker so the
+ // inbox can render the attachment instead of silently dropping the event.
+ const message=item.message&&typeof item.message==='object'?item.message:{};
+ const candidates=[
+  message.documentMessage,message.imageMessage,message.videoMessage,message.audioMessage,
+  item.documentMessage,item.imageMessage,item.videoMessage,item.audioMessage,
+  item.media,item.attachment,data?.media,data?.attachment,payload.media,payload.attachment
+ ].filter(v=>v&&typeof v==='object'&&!Array.isArray(v));
+ const media=candidates.find(v=>typeof (v.url||v.mediaUrl||v.media_url||v.link)==='string')||{};
+ const mediaUrl=[media.url,media.mediaUrl,media.media_url,media.link,item.mediaUrl,item.media_url,item.fileUrl,item.file_url,data?.mediaUrl,data?.media_url,payload.mediaUrl,payload.media_url].find(v=>typeof v==='string'&&v.length<2000);
+ const kind=String(media.mimetype||media.mimeType||media.type||item.mimeType||item.mimetype||'').toLowerCase();
+ const filename=String(media.fileName||media.filename||item.fileName||item.filename||'').slice(0,180);
+ let type=/^image\//.test(kind)?'image':/^video\//.test(kind)?'video':/^audio\//.test(kind)?'audio':kind.includes('pdf')||kind.includes('document')||kind.includes('text')?'document':null;
+ if(!type&&mediaUrl){const ext=(()=>{try{return new URL(mediaUrl).pathname.toLowerCase()}catch{return ''}})();type=/\.(?:png|jpe?g|webp|gif)$/.test(ext)?'image':/\.(?:mp4|webm)$/.test(ext)?'video':/\.(?:mp3|ogg|opus|m4a|wav)$/.test(ext)?'audio':/\.(?:pdf|txt|csv|md|log|json|xml|docx?)$/.test(ext)?'document':null}
+ if(!type&&filename)type=/\.(?:pdf|txt|csv|md|log|json|xml|docx?)$/i.test(filename)?'document':null;
+ let marker='';
+ if(type&&mediaUrl){try{const u=new URL(mediaUrl);if(u.protocol==='https:'&&!u.username&&!u.password){const cleanName=(filename||('attachment.'+(type==='document'?'pdf':type==='image'?'jpg':type==='video'?'mp4':'ogg'))).replace(/[\[\]\r\n:]/g,'_');marker='[CRM_MEDIA:'+type+':'+u.href+':'+cleanName+']'}}catch{}}
+ const body=(textBody.slice(0,9000)+(marker?'\n'+marker:'')).trim();
  if(!body||body.length>10000)return null;
  const rawId=item.key?.id||item.messageId||item.message_id||item.id||payload.eventId;
  const id=typeof rawId==='string'&&rawId.length>=3&&rawId.length<=250?rawId:eventHash;
