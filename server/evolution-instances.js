@@ -229,7 +229,8 @@ export function registerEvolutionInstances(app,auth){
     'audio/ogg':bytes.subarray(0,4).toString()==='OggS',
     'audio/webm':bytes.subarray(0,4).equals(Buffer.from([26,69,223,163])),
     'audio/mp4':bytes.toString('ascii',4,8)==='ftyp',
-    'audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255
+    'audio/mpeg':bytes.subarray(0,3).toString()==='ID3'||bytes[0]===255,
+    'application/pdf':bytes.subarray(0,5).toString()==='%PDF-'
    };
    const allowed=inboundType==='image'?mime.startsWith('image/'):inboundType==='video'?mime.startsWith('video/'):inboundType==='document'?mime==='application/pdf':mime.startsWith('audio/');
    const max=inboundType==='video'?32*1024*1024:8*1024*1024;
