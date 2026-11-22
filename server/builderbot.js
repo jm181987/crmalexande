@@ -240,8 +240,8 @@ async function syncWebhookMessage(companyId,botId,payload,eventHash){
  let messageBody=event.body;
  // Persist incoming PDFs before inserting the message. Never store expiring provider URLs as the only reference.
  if(event.direction==='inbound'){
-  const match=messageBody.match(/\\[CRM_MEDIA:document:(https:\\/\\/[^\\s\\]]+):([^\\]]+)\\]/);
-  if(match&&/\\.pdf$/i.test(match[2])){
+  const match=messageBody.match(/\[CRM_MEDIA:document:(https:\/\/[^\s\]]+):([^\]]+)\]/);
+  if(match&&/\.pdf$/i.test(match[2])){
    try{
     const bytes=await fetchInboundDocument(match[1]);
     const stored=await query("INSERT INTO public.crm_chat_media(company_id,conversation_id,mime,filename,content,status,size_bytes) VALUES($1,$2,'application/pdf',$3,$4,'ready',$5) RETURNING id",[companyId,conversation.rows[0].id,match[2],bytes,bytes.length]);
