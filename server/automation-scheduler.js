@@ -14,17 +14,22 @@ export function startAutomationScheduler(){
  const execute=async()=>{
   if(running)return;
   running=true;
-  let phase='followup';
   try{
-   const result=await runFollowupAutomations({limit:50});
-   phase='recurring';
-   const recurring=await runRecurringCampaigns({limit:10});
-   phase='delivery';
-   const delivery=process.env.CAMPAIGN_DELIVERY_ENABLED==='true'&&process.env.CAMPAIGN_WORKER_SECRET?.length>=24
-    ?await dispatchCampaignBatch({limit:10}):{disabled:true};
-   console.info('Automation scheduler completed',JSON.stringify({followups:result,recurring,delivery}));
-  }catch(err){
-   console.error('Automation scheduler failed',{phase,code:err.code||null,message:err.message,table:err.table||null});
+   const phases=[
+    ['followup',()=>runFollowupAutomations({limit:50})],
+    ['recurring',()=>runRecurringCampaigns({limit:10})],
+    ['delivery',()=>process.env.CAMPAIGN_DELIVERY_ENABLED==='true'&&process.env.CAMPAIGN_WORKER_SECRET?.length>=24
+     ?dispatchCampaignBatch({limit:10}):Promise.resolve({disabled:true})]
+   ];
+   const results={};
+   for(const [phase,run] of phases){
+    try{results[phase]=await run();}
+    catch(err){
+     results[phase]={error:true,code:err.code||null};
+     console.error('Automation scheduler phase failed',{phase,code:err.code||null,message:err.message,table:err.table||null});
+    }
+   }
+   console.info('Automation scheduler completed',JSON.stringify(results));
   }finally{running=false}
  };
  const timer=setInterval(execute,minutes*60_000);
