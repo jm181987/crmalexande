@@ -27,6 +27,8 @@ import {startAutomationScheduler} from './automation-scheduler.js';
 import {queueAppointmentReminders,dispatchAppointmentReminders,queueInternalAppointmentReminders,dispatchInternalAppointmentReminders} from './appointment-reminders.js';
 import {timingSafeEqual,createHash} from 'node:crypto';
 import {isValidUserEmail} from './user-validation.js';
+// Business timezone for all server-side local date operations. Persist instants in UTC.
+process.env.TZ='America/Montevideo';
 const app=express(),secret=process.env.JWT_SECRET;
 app.disable('x-powered-by');app.use(helmet({contentSecurityPolicy:false}));app.use('/api/webhooks/whatsapp',express.raw({type:'application/json',limit:'1mb'}));registerSendgridEvents(app);app.use('/api/inventory-images/upload',express.json({limit:'4mb'}));app.use('/api/email-images/upload',express.json({limit:'4mb'}));app.use('/api/builderbot/assistant/files',express.json({limit:'4mb'}));app.use(/^\/api\/conversations\/[^/]+\/evolution-media$/,express.json({limit:'12mb'}));app.use(express.json({limit:'1mb'}));app.use(cookieParser());
 // Webhook is public to the provider; its own token validation is the only authentication.
