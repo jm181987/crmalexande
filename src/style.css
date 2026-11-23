@@ -1431,3 +1431,24 @@ body,#root{width:100%;max-width:100%;min-width:0;overflow-x:clip}
 .app .campaign-workspace .crm-email-quickstart button:focus-visible{outline:3px solid var(--crm-focus,var(--crm-accent));outline-offset:2px}
 @media(max-width:900px){.app .campaign-workspace .crm-email-quickstart-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.app .campaign-workspace .crm-email-quickstart-options{grid-template-columns:minmax(0,1fr)}.app .campaign-workspace .crm-email-quickstart-options button{min-height:0}.app .campaign-workspace .crm-email-quickstart{padding:16px}}
+
+
+/* Shared modal contrast: contacts, Kanban, tasks, calendar and other Form dialogs.
+   Overlay is rendered outside .crm-main, so theme rules must target it directly. */
+:root{--crm-modal-surface:#ffffff;--crm-modal-text:#1e293b;--crm-modal-muted:#475569;--crm-modal-field:#ffffff;--crm-modal-border:#94a3b8;--crm-modal-hover:#f1f5f9}
+:root[data-theme="dark"]{--crm-modal-surface:var(--crm-surface,#1e293b);--crm-modal-text:var(--crm-text,#f1f5f9);--crm-modal-muted:var(--crm-muted,#cbd5e1);--crm-modal-field:var(--crm-input,#263449);--crm-modal-border:var(--crm-border,#64748b);--crm-modal-hover:var(--crm-elevated,#334155)}
+.overlay{background:rgba(9,18,33,.7)}
+.overlay .modal{background:var(--crm-modal-surface);color:var(--crm-modal-text);border:1px solid var(--crm-modal-border);color-scheme:light}
+:root[data-theme="dark"] .overlay .modal{color-scheme:dark}
+.overlay .modal h2,.overlay .modal .modal-title,.overlay .modal strong{color:var(--crm-modal-text)}
+.overlay .modal .fields label,.overlay .modal label{color:var(--crm-modal-text)}
+.overlay .modal input,.overlay .modal select,.overlay .modal textarea{background:var(--crm-modal-field);color:var(--crm-modal-text);border:1px solid var(--crm-modal-border);width:100%}
+.overlay .modal input::placeholder,.overlay .modal textarea::placeholder{color:var(--crm-modal-muted);opacity:1}
+.overlay .modal select option{background:var(--crm-modal-field);color:var(--crm-modal-text)}
+.overlay .modal input:focus-visible,.overlay .modal select:focus-visible,.overlay .modal textarea:focus-visible,.overlay .modal button:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.overlay .modal button:not(.primary){background:var(--crm-modal-hover);color:var(--crm-modal-text);border:1px solid var(--crm-modal-border)}
+.overlay .modal button.primary{background:#1d4ed8;color:#fff;border:1px solid #1d4ed8;font-weight:700}
+.overlay .modal button.primary:hover{background:#1e40af}
+.overlay .modal button:disabled{opacity:.6;cursor:not-allowed}
+.overlay .modal .error{color:#b91c1c}
+:root[data-theme="dark"] .overlay .modal .error{color:#fca5a5}
