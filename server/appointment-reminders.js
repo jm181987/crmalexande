@@ -31,7 +31,7 @@ export async function dispatchAppointmentReminders({limit=20}={}){
  if(process.env.CRM_APPOINTMENT_REMINDERS_ENABLED!=='true')return {disabled:true};
  const url=(process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
  if(!url||!process.env.EVOLUTION_API_KEY)return {disabled:true,reason:'evolution_not_configured'};
- const rows=await query("SELECT r.id,r.company_id,r.offset_minutes,a.title,a.start_at,a.status,c.name AS contact_name,c.phone,c.custom_fields AS contact_fields FROM public.crm_appointment_reminders r JOIN appointments a ON a.id=r.appointment_id AND a.company_id=r.company_id JOIN contacts c ON c.id=a.contact_id AND c.company_id=a.company_id WHERE NOT EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=false) AND r.status='pending' AND r.due_at<=now() AND r.due_at>now()-interval '5 minutes' AND a.start_at>now() AND a.status='scheduled' ORDER BY r.due_at LIMIT $1",[Math.min(50,Math.max(1,limit))]);
+ const rows=await query("SELECT r.id,r.company_id,r.offset_minutes,a.title,a.start_at,a.status,c.name AS contact_name,c.phone,c.custom_fields AS contact_fields FROM public.crm_appointment_reminders r JOIN appointments a ON a.id=r.appointment_id AND a.company_id=r.company_id JOIN contacts c ON c.id=a.contact_id AND c.company_id=a.company_id WHERE NOT EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=c.company_id AND co.contact_id=c.id AND co.channel='whatsapp' AND co.opted_in=false) AND r.status='pending' AND r.due_at<=now() AND r.due_at>now()-interval '30 minutes' AND a.start_at>now() AND a.status='scheduled' ORDER BY r.due_at LIMIT $1",[Math.min(50,Math.max(1,limit))]);
  let sent=0,failed=0,skipped=0;
  for(const r of rows.rows){
   const claim=await query("UPDATE public.crm_appointment_reminders SET status='sending' WHERE id=$1 AND status='pending' AND EXISTS(SELECT 1 FROM appointments a WHERE NOT EXISTS (SELECT 1 FROM crm_contact_consents co WHERE co.company_id=a.company_id AND co.contact_id=a.contact_id AND co.channel='whatsapp' AND co.opted_in=false) AND a.id=public.crm_appointment_reminders.appointment_id AND a.company_id=public.crm_appointment_reminders.company_id AND a.status='scheduled' AND a.start_at>now()) RETURNING id",[r.id]);
@@ -49,7 +49,7 @@ export async function dispatchAppointmentReminders({limit=20}={}){
    await query("UPDATE public.crm_appointment_reminders SET status='sent',sent_at=now(),external_id=$2,error_code=NULL WHERE id=$1",[r.id,data.key?.id||null]);sent++;
   }catch(e){console.error('Client appointment reminder delivery failed',{reminder_id:r.id,company_id:r.company_id,reason:String(e.message).slice(0,120)});await query("UPDATE public.crm_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[r.id,String(e.message).slice(0,120)]);failed++}
  }
- const old=await query("UPDATE public.crm_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '5 minutes' OR a.start_at<=now() OR a.status<>'scheduled') RETURNING r.id");
+ const old=await query("UPDATE public.crm_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '30 minutes' OR a.start_at<=now() OR a.status<>'scheduled') RETURNING r.id");
  skipped=old.rowCount;
  return {sent,failed,skipped};
 }
@@ -79,7 +79,7 @@ export async function dispatchInternalAppointmentReminders({limit=20}={}){
  const url=(process.env.EVOLUTION_API_URL||'').replace(/\/$/,'');
  const key=process.env.EVOLUTION_API_KEY;
  if(!url||!key)return {disabled:true,reason:'evolution_not_configured'};
- const rows=await query("SELECT r.id,r.company_id,r.offset_minutes,a.title,a.start_at FROM public.crm_internal_appointment_reminders r JOIN appointments a ON a.id=r.appointment_id AND a.company_id=r.company_id WHERE r.status='pending' AND r.due_at<=now() AND r.due_at>now()-interval '5 minutes' AND a.start_at>now() AND a.status='scheduled' ORDER BY r.due_at LIMIT $1",[Math.min(50,Math.max(1,limit))]);
+ const rows=await query("SELECT r.id,r.company_id,r.offset_minutes,a.title,a.start_at FROM public.crm_internal_appointment_reminders r JOIN appointments a ON a.id=r.appointment_id AND a.company_id=r.company_id WHERE r.status='pending' AND r.due_at<=now() AND r.due_at>now()-interval '30 minutes' AND a.start_at>now() AND a.status='scheduled' ORDER BY r.due_at LIMIT $1",[Math.min(50,Math.max(1,limit))]);
  let sent=0,failed=0;
  for(const item of rows.rows){
   const claim=await query("UPDATE public.crm_internal_appointment_reminders SET status='sending' WHERE id=$1 AND status='pending' RETURNING id",[item.id]);
@@ -96,6 +96,6 @@ export async function dispatchInternalAppointmentReminders({limit=20}={}){
    await query("UPDATE public.crm_internal_appointment_reminders SET status='sent',sent_at=now(),external_id=$2,error_code=NULL WHERE id=$1",[item.id,data.key?.id||null]);sent++;
   }catch(e){console.error('Commercial appointment reminder delivery failed',{reminder_id:item.id,company_id:item.company_id,reason:String(e.message).slice(0,120)});await query("UPDATE public.crm_internal_appointment_reminders SET status='failed',error_code=$2 WHERE id=$1",[item.id,String(e.message).slice(0,120)]);failed++}
  }
- await query("UPDATE public.crm_internal_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '5 minutes' OR a.start_at<=now() OR a.status<>'scheduled')");
+ await query("UPDATE public.crm_internal_appointment_reminders r SET status='skipped',error_code='expired_or_cancelled' FROM appointments a WHERE a.id=r.appointment_id AND a.company_id=r.company_id AND r.status='pending' AND (r.due_at<=now()-interval '30 minutes' OR a.start_at<=now() OR a.status<>'scheduled')");
  return {sent,failed};
 }
