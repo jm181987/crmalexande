@@ -13,7 +13,7 @@ export async function runFollowupAutomations({limit=50}={}){
   if(!Number.isInteger(days)||days<1||days>30)continue;
   const candidates=await query(`WITH ranked AS (
     SELECT s.id,s.pipeline_id,row_number() OVER(PARTITION BY s.pipeline_id ORDER BY s.position,s.id) AS rank
-    FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE p.company_id=$1 AND s.status='open'
+    FROM stages s JOIN pipelines p ON p.id=s.pipeline_id WHERE p.company_id=$1
    ), last_messages AS (
     SELECT v.contact_id,m.direction,m.created_at,
       row_number() OVER(PARTITION BY v.contact_id ORDER BY m.created_at DESC,m.id DESC) AS rn
@@ -21,7 +21,7 @@ export async function runFollowupAutomations({limit=50}={}){
     WHERE v.company_id=$1 AND v.channel='whatsapp' AND m.direction IN ('inbound','outbound')
    )
    SELECT DISTINCT ON (c.id) c.id,coalesce(o.owner_id,c.owner_id) AS owner_id
-   FROM opportunities o JOIN ranked s ON s.id=o.stage_id AND s.pipeline_id=o.pipeline_id AND s.rank<=3
+   FROM opportunities o JOIN ranked s ON s.id=o.stage_id AND s.pipeline_id=o.pipeline_id AND s.rank<=3 AND s.status='open'
    JOIN contacts c ON c.id=o.contact_id AND c.company_id=o.company_id
    JOIN last_messages lm ON lm.contact_id=c.id AND lm.rn=1
    WHERE o.company_id=$1 AND o.deleted_at IS NULL AND o.status='open'
