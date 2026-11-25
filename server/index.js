@@ -760,6 +760,19 @@ app.patch('/api/pipelines/:pipelineId/stages/:stageId',auth,manager,asyncRoute(a
  if(!r.rowCount)return res.sendStatus(404);
  res.json(r.rows[0]);
 }));
+// Per-company unanswered WhatsApp follow-up configuration (internal tasks only).
+app.get('/api/opportunities/followup-settings',auth,asyncRoute(async(req,res)=>{
+ const r=await query("SELECT id,enabled,config FROM crm_automation_rules WHERE company_id=$1 AND trigger_event='opportunity_no_reply' AND action_type='create_task' ORDER BY created_at LIMIT 1",[req.user.company_id]);
+ res.json({enabled:r.rows[0]?.enabled===true,days:r.rows[0]?.config?.days??3});
+}));
+app.put('/api/opportunities/followup-settings',auth,manager,asyncRoute(async(req,res)=>{
+ const days=Number(req.body?.days),enabled=req.body?.enabled;
+ if(!Number.isInteger(days)||days<1||days>30||typeof enabled!=='boolean')return res.status(400).json({error:'Invalid follow-up settings'});
+ const current=await query("SELECT id FROM crm_automation_rules WHERE company_id=$1 AND trigger_event='opportunity_no_reply' AND action_type='create_task' ORDER BY created_at LIMIT 1",[req.user.company_id]);
+ if(current.rowCount)await query("UPDATE crm_automation_rules SET enabled=$3,config=jsonb_build_object('days',$4) WHERE id=$1 AND company_id=$2",[current.rows[0].id,req.user.company_id,enabled,days]);
+ else await query("INSERT INTO crm_automation_rules(company_id,name,trigger_event,action_type,config,enabled) VALUES($1,'Seguimiento de oportunidades sin respuesta','opportunity_no_reply','create_task',jsonb_build_object('days',$2),$3)",[req.user.company_id,days,enabled]);
+ res.json({enabled,days});
+}));
 app.get('/api/opportunities',auth,asyncRoute(async(req,res)=>{
  const r=await query('SELECT o.*,c.name AS contact_name,c.phone AS contact_phone,c.email AS contact_email,c.source AS contact_source,c.tags AS contact_tags,c.notes AS contact_notes FROM opportunities o JOIN contacts c ON c.id=o.contact_id WHERE o.company_id=$1 AND o.deleted_at IS NULL'+ownerSql(req.user,'o.owner_id')+' ORDER BY o.created_at DESC LIMIT 500',p(req.user));res.json(r.rows);
 }));
