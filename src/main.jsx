@@ -11,6 +11,7 @@ import{createRoot}from'react-dom/client';
 import{LayoutDashboard,MessagesSquare,ContactRound,KanbanSquare,CalendarDays,CheckSquare,Bot,Workflow,Send,Settings,LogOut,Plus,Globe,Menu,PanelLeftClose,PanelLeftOpen,Users,TrendingUp,ArrowUpRight,Activity,Target,Clock3,Sparkles,Sun,Moon}from'lucide-react';
 import './style.css';
 import Modules from './modules.jsx';
+import EvolutionPanel from './evolution-panel.jsx';
 import ModuleHelp from './module-help.jsx';
 import Landing from './landing.jsx';
 import BrandingSettings from './branding-settings.jsx';
@@ -456,19 +457,21 @@ function SettingsPage({t,user,error,reload}){
  en:{description:'Configure each area separately. Choose a section to keep options organized.',connections:'Connections and providers',connectionsHelp:'WhatsApp and other external services.',operations:'Campaigns and automations',operationsHelp:'Service and processing status.',users:'Users and permissions',usersHelp:'Team access, roles and permissions.',branding:'Company identity',brandingHelp:'Name, logo and brand appearance.',private:'Credentials and services',privateHelp:'Owner-managed service configuration.',restricted:'Only administrators can view these settings.',unavailable:'Status unavailable. Check the connection and migrations.',configured:'Configured / enabled',pending:'Pending / disabled',scheduler:'Recurring scheduler: not verified. Sending cannot be enabled here without secure server configuration.',secure:'Private credentials and scheduling are managed on the server. This panel displays status without exposing secrets.',labels:['Automatic sending','Automations','Worker protection','SendGrid API','SendGrid sender','Signed SendGrid webhook','Email unsubscribes','Plataforma']}
  }[lang];
  const reportModuleError=message=>{if(typeof error==='function')error(message);else console.error('Settings integration:',message)};
- const [tab,setTab]=useState('integrations'),[status,setStatus]=useState(null);
+ const [tab,setTab]=useState('integrations'),[status,setStatus]=useState(null),[globalAdmin,setGlobalAdmin]=useState(false);
+ useEffect(()=>{let live=true;setGlobalAdmin(false);setTab('integrations');call('/platform/me').then(x=>{if(live)setGlobalAdmin(x.platform_admin===true)}).catch(()=>{});return()=>{live=false}},[user.id,user.company_id]);
  useEffect(()=>{if(user.role!=='agent')call('/campaigns/operations/status').then(setStatus).catch(()=>{})},[user.role]);
- const tabs=[['integrations',copy.connections,copy.connectionsHelp],['operations',copy.operations,copy.operationsHelp],['users',copy.users,copy.usersHelp],...(user.role==='owner'?[['sendgrid','SendGrid',copy.privateHelp],['telegram','Telegram',copy.privateHelp],['branding',copy.branding,copy.brandingHelp]]:[])];
+ const tabs=globalAdmin?[['integrations',copy.connections,copy.connectionsHelp],['operations',copy.operations,copy.operationsHelp],['users',copy.users,copy.usersHelp],...(user.role==='owner'?[['sendgrid','SendGrid',copy.privateHelp],['telegram','Telegram',copy.privateHelp],['branding',copy.branding,copy.brandingHelp]]:[])]:[['integrations',copy.connections,copy.connectionsHelp],['users',copy.users,copy.usersHelp]];
  const checks=['dispatch_enabled','automations_enabled','worker_secret_configured','sendgrid_key_configured','sendgrid_sender_configured','sendgrid_webhook_key_configured','unsubscribe_configured','evolution_configured'];
  return <section className="settings-page"><div className="settings-page-header"><p className="settings-eyebrow">ZARKO CRM</p><h2>{t.settings}</h2><p className="settings-description">{copy.description}</p></div>
  <div className="settings-layout"><nav className="settings-tabs" aria-label={t.settings}>{tabs.map(([key,label,help])=><button type="button" key={key} className={'settings-tab'+(tab===key?' active':'')} aria-current={tab===key?'page':undefined} onClick={()=>setTab(key)}><strong>{label}</strong><small>{help}</small></button>)}</nav>
  <div className="settings-content">
- {tab==='sendgrid'&&user.role==='owner'&&<SendgridOwnerPanel/>}
- {tab==='telegram'&&user.role==='owner'&&<TelegramOwnerPanel/>}
- {tab==='branding'&&user.role==='owner'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.branding}</h3><p>{copy.brandingHelp}</p></div><BrandingSettings/></section>}
+ {globalAdmin&&tab==='sendgrid'&&user.role==='owner'&&<SendgridOwnerPanel/>}
+ {globalAdmin&&tab==='telegram'&&user.role==='owner'&&<TelegramOwnerPanel/>}
+ {globalAdmin&&tab==='branding'&&user.role==='owner'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.branding}</h3><p>{copy.brandingHelp}</p></div><BrandingSettings/></section>}
  {tab==='users'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.users}</h3><p>{copy.usersHelp}</p></div><UsersPage t={t} user={user} error={error} reload={reload}/></section>}
- {tab==='integrations'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.connections}</h3><p>{copy.connectionsHelp}</p></div><WhatsAppProviderSelector user={user} error={reportModuleError}/><Modules page="integrations" user={user} lang={lang} error={reportModuleError}/></section>}
- {tab==='operations'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.operations}</h3><p>{copy.secure}</p></div><div className="panel" style={{padding:20}}>
+ {tab==='integrations'&&!globalAdmin&&<section className="settings-section"><p>{lang==='pt'?'Configurações protegidas. Você pode conectar o WhatsApp pelo QR.':lang==='en'?'Settings are protected. You can connect WhatsApp using the QR code.':'Configuraciones protegidas. Podés conectar WhatsApp mediante el QR.'}</p><EvolutionPanel user={user} lang={lang} error={reportModuleError} readOnly/></section>}
+ {tab==='integrations'&&globalAdmin&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.connections}</h3><p>{copy.connectionsHelp}</p></div><WhatsAppProviderSelector user={user} error={reportModuleError}/><Modules page="integrations" user={user} lang={lang} error={reportModuleError}/></section>}
+ {globalAdmin&&tab==='operations'&&<section className="settings-section"><div className="settings-section-heading"><h3>{copy.operations}</h3><p>{copy.secure}</p></div><div className="panel" style={{padding:20}}>
  {user.role==='agent'?<p>{copy.restricted}</p>:status?<div className="table-scroll"><table><tbody>{checks.map((key,i)=><tr key={key}><td>{copy.labels[i]}</td><td>{status[key]?copy.configured:copy.pending}</td></tr>)}</tbody></table></div>:<p>{copy.unavailable}</p>}
  <p>{copy.scheduler}</p></div></section>}
  </div></div></section>;
