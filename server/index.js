@@ -154,6 +154,17 @@ const platformAdmin=asyncRoute(async(req,res,next)=>{
  if(!r.rowCount)return res.status(403).json({error:'Platform administrator access required'});
  next();
 });
+// Technical configuration is reserved for verified global administrators.
+app.use('/api',(req,res,next)=>{
+ const p=req.path.replace(/\/+$/,'').toLowerCase();
+ const read=['GET','HEAD'].includes(req.method);
+ const protectedPath=/^\/(settings\/(sendgrid|telegram)(\/|$)|builderbot\/(settings|test|webhook-token|assistant|blacklist|webhook-events)(\/|$))/.test(p)
+ || (!read && /^\/(company|branding|whatsapp-provider)(\/|$)/.test(p))
+ || (/^\/evolution\//.test(p) && !(/^\/evolution\/instances(?:\/[^/]+\/(?:status|connect))?$/.test(p)&&read))
+ || (!read && /^\/ai\/settings(\/|$)/.test(p));
+ if(!protectedPath)return next();
+ return auth(req,res,()=>platformAdmin(req,res,next));
+});
 const PROTECTED_PLATFORM_EMAILS=new Set(['jorgitom18@gmail.com','admin@alexandre.com']);
 const isProtectedAccount=email=>PROTECTED_PLATFORM_EMAILS.has(String(email||'').trim().toLowerCase());
 const TOOL_KEYS=['inventory','conversations','opportunities','contacts','calendar','tasks','ai','automation','campaigns','reviews','reports','evolution'];
