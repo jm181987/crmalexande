@@ -161,6 +161,7 @@ app.use('/api',(req,res,next)=>{
  const protectedPath=/^\/(settings\/(sendgrid|telegram)(\/|$)|builderbot\/(settings|test|webhook-token|assistant|blacklist|webhook-events)(\/|$))/.test(p)
  || (!read && /^\/(company|branding|whatsapp-provider)(\/|$)/.test(p))
  || (/^\/evolution\//.test(p) && !(/^\/evolution\/instances(?:\/[^/]+\/(?:status|connect))?$/.test(p)&&read))
+ || /^\/(integrations|ai-provider|ai-settings)(\/|$)/.test(p)
  || (!read && /^\/ai\/settings(\/|$)/.test(p));
  if(!protectedPath)return next();
  return auth(req,res,()=>platformAdmin(req,res,next));
